@@ -1,0 +1,29 @@
+name: Preview LTBase Blueprint
+
+on:
+  pull_request:
+  workflow_dispatch:
+    inputs:
+      release_id:
+        description: Official LTBase release tag to preview
+        required: false
+        type: string
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  preview:
+    uses: Lychee-Technology/ltbase-deploy-workflows/.github/workflows/preview.yml@v1
+    with:
+      pulumi_stack: devo
+      aws_region: ${{ vars.AWS_REGION || 'ap-northeast-1' }}
+      release_id: ${{ inputs.release_id || vars.LTBASE_RELEASE_ID }}
+      pulumi_backend_url: ${{ vars.PULUMI_BACKEND_URL }}
+      releases_repo: ${{ vars.LTBASE_RELEASES_REPO || 'Lychee-Technology/ltbase-releases' }}
+      working_directory: infra
+    secrets:
+      aws_role_arn: ${{ secrets.AWS_ROLE_ARN_DEVO }}
+      ltbase_releases_token: ${{ secrets.LTBASE_RELEASES_TOKEN }}
+      cloudflare_api_token: ${{ secrets.CLOUDFLARE_API_TOKEN }}

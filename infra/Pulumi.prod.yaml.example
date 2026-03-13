@@ -1,0 +1,22 @@
+config:
+  ltbase-infra:awsRegion: ap-northeast-1
+  ltbase-infra:runtimeBucket: customer-ltbase-runtime-prod
+  ltbase-infra:tableName: customer-ltbase-prod
+  ltbase-infra:apiDomain: api.customer.example.com
+  ltbase-infra:controlPlaneDomain: control.customer.example.com
+  ltbase-infra:authDomain: auth.customer.example.com
+  ltbase-infra:cloudflareZoneId: replace-with-zone-id
+  ltbase-infra:oidcIssuerUrl: https://oidc.ltbase.dev/customer-prod
+  ltbase-infra:jwksUrl: https://oidc.ltbase.dev/customer-prod/.well-known/jwks.json
+  ltbase-infra:githubOrg: customer-org
+  ltbase-infra:githubRepo: ltbase-private-deployment
+  ltbase-infra:manageGithubOidcProvider: "false"
+  ltbase-infra:githubOidcProviderArn: replace-with-devo-provider-arn
+  ltbase-infra:formaCdcSchedule: rate(15 minutes)
+  ltbase-infra:releaseId: v1.0.0
+  ltbase-infra:dsqlHost: replace-with-dsql-host
+  ltbase-infra:dsqlPort: "5432"
+  ltbase-infra:dsqlDB: ltbase
+  ltbase-infra:dsqlUser: ltbase
+  ltbase-infra:dsqlProjectSchema: ltbase
+  ltbase-infra:geminiModel: gemini-3-flash-preview

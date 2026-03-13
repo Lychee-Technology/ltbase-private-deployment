@@ -1,0 +1,4 @@
+name: ltbase-infra
+runtime: go
+description: LTBase IaC managed with Pulumi and Go
+main: ./cmd/ltbase-infra
