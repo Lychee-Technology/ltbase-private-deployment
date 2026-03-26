@@ -37,17 +37,21 @@ Set these GitHub Actions secrets in your deployment repository:
 
 Set these GitHub Actions variables in your deployment repository:
 
-- `AWS_REGION`
+- `AWS_REGION_DEVO`
+- `AWS_REGION_PROD`
 - `PULUMI_BACKEND_URL`
-- `PULUMI_SECRETS_PROVIDER`
+- `PULUMI_SECRETS_PROVIDER_DEVO`
+- `PULUMI_SECRETS_PROVIDER_PROD`
 - `LTBASE_RELEASES_REPO`
 - `LTBASE_RELEASE_ID`
 
 Recommended initial values:
 
-- `AWS_REGION=ap-northeast-1`
+- `AWS_REGION_DEVO=ap-northeast-1`
+- `AWS_REGION_PROD=us-west-2`
 - `PULUMI_BACKEND_URL=s3://ltbase-pulumi-state`
-- `PULUMI_SECRETS_PROVIDER=awskms://alias/ltbase-pulumi-secrets?region=ap-northeast-1`
+- `PULUMI_SECRETS_PROVIDER_DEVO=awskms://alias/ltbase-pulumi-secrets?region=ap-northeast-1`
+- `PULUMI_SECRETS_PROVIDER_PROD=awskms://alias/ltbase-pulumi-secrets?region=us-west-2`
 - `LTBASE_RELEASES_REPO=Lychee-Technology/ltbase-releases`
 - `LTBASE_RELEASE_ID=v1.0.0`
 
