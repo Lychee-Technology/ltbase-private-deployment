@@ -6,7 +6,14 @@ It contains:
 
 - thin wrapper workflows that call the public reusable deployment workflows
 - onboarding docs for customer-owned secrets, variables, and bootstrap steps
+- bootstrap scripts for backend, KMS, GitHub Actions configuration, and Pulumi stack setup
 - sample stack configuration files for the forked Pulumi blueprint
+
+Bootstrap entrypoints:
+
+- `env.template`
+- `scripts/bootstrap-pulumi-backend.sh`
+- `scripts/bootstrap-deployment-repo.sh`
 
 Primary docs:
 
