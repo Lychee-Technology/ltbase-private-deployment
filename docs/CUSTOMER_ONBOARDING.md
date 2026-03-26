@@ -95,7 +95,7 @@ Configure these as Pulumi secrets:
 ## First Deployment
 
 1. Set `LTBASE_RELEASE_ID` to `v1.0.0`.
-2. Run the preview workflow.
+2. Run the preview workflow manually after the repository secrets and variables are configured.
 3. Review the Pulumi preview output.
 4. Run the devo deployment workflow.
 5. Verify the devo environment.
@@ -117,6 +117,7 @@ You do not need to rebuild application binaries in your repository.
 
 - `LTBASE_RELEASES_TOKEN` is only for downloading official LTBase releases.
 - Local `.env` files contain sensitive values and are ignored by git on purpose.
+- The template repository does not auto-run preview on pull requests because template PRs do not have live customer deployment credentials.
 - If your subscription ends, LTBase can revoke that token.
 - Revoking the token does not shut down your existing environment.
 - Revoking the token prevents your repository from downloading future LTBase releases.

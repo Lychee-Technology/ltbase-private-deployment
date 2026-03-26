@@ -36,7 +36,7 @@ The standalone customer repository should contain:
 4. Apply the generated KMS policy to the customer deploy role if needed.
 5. Run `./scripts/bootstrap-deployment-repo.sh --env-file .env --stack devo --infra-dir infra`.
 6. Set `LTBASE_RELEASE_ID=v1.0.0` if you want the first stable release.
-7. Run the preview workflow with that `release_id`.
+7. Run the preview workflow manually with that `release_id` after the repository secrets and variables are configured.
 8. Run the `devo` deployment workflow.
 9. Approve and run the `prod` promotion workflow after `devo` is validated.
 
@@ -46,5 +46,6 @@ The standalone customer repository should contain:
 - Local `.env` files are ignored by git and should never be committed.
 - `PULUMI_BACKEND_URL` controls where Pulumi state is stored; `PULUMI_SECRETS_PROVIDER` controls how Pulumi secrets are encrypted.
 - `env.template` separates `AWS_ACCOUNT_ID_DEVO` and `AWS_ACCOUNT_ID_PROD` so you can bootstrap split-account deployments.
+- This template repository keeps preview as a manual workflow because the template itself does not ship with live customer secrets or AWS roles.
 - Revoking that token stops future updates but does not stop an already deployed customer environment.
 - The prod workflow uses an approval gate job in the customer repository so environment protection still lives with the customer.

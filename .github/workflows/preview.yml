@@ -1,7 +1,6 @@
 name: Preview LTBase Blueprint
 
 on:
-  pull_request:
   workflow_dispatch:
     inputs:
       release_id:
