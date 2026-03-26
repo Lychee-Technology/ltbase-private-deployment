@@ -52,6 +52,7 @@ Recommended initial values:
 - `LTBASE_RELEASE_ID=v1.0.0`
 
 `env.template` includes these values as placeholders. Copy it to a local `.env` file, fill in the real values, and keep that file private.
+Use separate account identifiers for `AWS_ACCOUNT_ID_DEVO` and `AWS_ACCOUNT_ID_PROD` when devo and prod live in different AWS accounts.
 
 ## Required Pulumi Configuration
 

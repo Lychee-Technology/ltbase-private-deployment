@@ -27,10 +27,12 @@ mkdir -p "${fake_bin}"
 
 cat >"${temp_dir}/.env" <<'EOF'
 AWS_REGION=ap-northeast-1
-AWS_ACCOUNT_ID=123456789012
+AWS_ACCOUNT_ID_DEVO=123456789012
+AWS_ACCOUNT_ID_PROD=210987654321
 PULUMI_STATE_BUCKET=test-pulumi-state
 PULUMI_KMS_ALIAS=alias/test-pulumi-secrets
 AWS_ROLE_ARN_DEVO=arn:aws:iam::123456789012:role/test-deploy-role
+AWS_ROLE_ARN_PROD=arn:aws:iam::210987654321:role/test-prod-role
 EOF
 
 cat >"${fake_bin}/aws" <<'EOF'
@@ -60,6 +62,8 @@ if [[ -x "${SCRIPT_PATH}" ]]; then
   assert_file_contains "${temp_dir}/dist/pulumi-backend.env" "PULUMI_BACKEND_URL=s3://test-pulumi-state"
   assert_file_contains "${temp_dir}/dist/pulumi-backend.env" "PULUMI_SECRETS_PROVIDER=awskms://alias/test-pulumi-secrets?region=ap-northeast-1"
   assert_file_contains "${temp_dir}/dist/pulumi-kms-policy.json" "kms:Decrypt"
+  assert_file_contains "${temp_dir}/dist/pulumi-kms-policy.json" "arn:aws:iam::123456789012:role/test-deploy-role"
+  assert_file_contains "${temp_dir}/dist/pulumi-kms-policy.json" "arn:aws:iam::210987654321:role/test-prod-role"
 else
   fail "missing executable script: ${SCRIPT_PATH}"
 fi

@@ -45,5 +45,6 @@ The standalone customer repository should contain:
 - `LTBASE_RELEASES_TOKEN` must be a customer-specific fine-grained token with read-only access to `ltbase-releases`.
 - Local `.env` files are ignored by git and should never be committed.
 - `PULUMI_BACKEND_URL` controls where Pulumi state is stored; `PULUMI_SECRETS_PROVIDER` controls how Pulumi secrets are encrypted.
+- `env.template` separates `AWS_ACCOUNT_ID_DEVO` and `AWS_ACCOUNT_ID_PROD` so you can bootstrap split-account deployments.
 - Revoking that token stops future updates but does not stop an already deployed customer environment.
 - The prod workflow uses an approval gate job in the customer repository so environment protection still lives with the customer.

@@ -30,7 +30,7 @@ fi
 # shellcheck disable=SC1090
 source "${ENV_FILE}"
 
-required_vars=(AWS_REGION AWS_ACCOUNT_ID PULUMI_STATE_BUCKET PULUMI_KMS_ALIAS AWS_ROLE_ARN_DEVO)
+required_vars=(AWS_REGION AWS_ACCOUNT_ID_DEVO AWS_ACCOUNT_ID_PROD PULUMI_STATE_BUCKET PULUMI_KMS_ALIAS AWS_ROLE_ARN_DEVO AWS_ROLE_ARN_PROD)
 for name in "${required_vars[@]}"; do
   if [[ -z "${!name:-}" ]]; then
     echo "${name} is required" >&2
@@ -76,7 +76,10 @@ cat >"${OUTPUT_DIR}/pulumi-kms-policy.json" <<EOF
       "Sid": "AllowDeployRoleUseOfPulumiSecretsKey",
       "Effect": "Allow",
       "Principal": {
-        "AWS": "${AWS_ROLE_ARN_DEVO}"
+        "AWS": [
+          "${AWS_ROLE_ARN_DEVO}",
+          "${AWS_ROLE_ARN_PROD}"
+        ]
       },
       "Action": [
         "kms:Encrypt",
