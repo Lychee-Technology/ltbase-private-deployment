@@ -26,7 +26,8 @@ fake_bin="${temp_dir}/bin"
 mkdir -p "${fake_bin}"
 
 cat >"${temp_dir}/.env" <<'EOF'
-AWS_REGION=ap-northeast-1
+AWS_REGION_DEVO=ap-northeast-1
+AWS_REGION_PROD=us-west-2
 AWS_ACCOUNT_ID_DEVO=123456789012
 AWS_ACCOUNT_ID_PROD=210987654321
 PULUMI_STATE_BUCKET=test-pulumi-state
@@ -60,7 +61,8 @@ if [[ -x "${SCRIPT_PATH}" ]]; then
   fi
 
   assert_file_contains "${temp_dir}/dist/pulumi-backend.env" "PULUMI_BACKEND_URL=s3://test-pulumi-state"
-  assert_file_contains "${temp_dir}/dist/pulumi-backend.env" "PULUMI_SECRETS_PROVIDER=awskms://alias/test-pulumi-secrets?region=ap-northeast-1"
+  assert_file_contains "${temp_dir}/dist/pulumi-backend.env" "PULUMI_SECRETS_PROVIDER_DEVO=awskms://alias/test-pulumi-secrets?region=ap-northeast-1"
+  assert_file_contains "${temp_dir}/dist/pulumi-backend.env" "PULUMI_SECRETS_PROVIDER_PROD=awskms://alias/test-pulumi-secrets?region=us-west-2"
   assert_file_contains "${temp_dir}/dist/pulumi-kms-policy.json" "kms:Decrypt"
   assert_file_contains "${temp_dir}/dist/pulumi-kms-policy.json" "arn:aws:iam::123456789012:role/test-deploy-role"
   assert_file_contains "${temp_dir}/dist/pulumi-kms-policy.json" "arn:aws:iam::210987654321:role/test-prod-role"

@@ -35,7 +35,7 @@ fi
 # shellcheck disable=SC1090
 source "${ENV_FILE}"
 
-required_vars=(DEPLOYMENT_REPO AWS_REGION PULUMI_BACKEND_URL PULUMI_SECRETS_PROVIDER LTBASE_RELEASES_REPO LTBASE_RELEASE_ID AWS_ROLE_ARN_DEVO AWS_ROLE_ARN_PROD LTBASE_RELEASES_TOKEN CLOUDFLARE_API_TOKEN GEMINI_API_KEY API_DOMAIN CONTROL_DOMAIN AUTH_DOMAIN CLOUDFLARE_ZONE_ID OIDC_ISSUER_URL JWKS_URL RUNTIME_BUCKET TABLE_NAME GITHUB_ORG GITHUB_REPO GEMINI_MODEL DSQL_PORT DSQL_DB DSQL_USER DSQL_PROJECT_SCHEMA)
+required_vars=(DEPLOYMENT_REPO AWS_REGION_DEVO AWS_REGION_PROD PULUMI_BACKEND_URL PULUMI_SECRETS_PROVIDER_DEVO PULUMI_SECRETS_PROVIDER_PROD LTBASE_RELEASES_REPO LTBASE_RELEASE_ID AWS_ROLE_ARN_DEVO AWS_ROLE_ARN_PROD LTBASE_RELEASES_TOKEN CLOUDFLARE_API_TOKEN GEMINI_API_KEY API_DOMAIN CONTROL_DOMAIN AUTH_DOMAIN CLOUDFLARE_ZONE_ID OIDC_ISSUER_URL JWKS_URL RUNTIME_BUCKET TABLE_NAME GITHUB_ORG GITHUB_REPO GEMINI_MODEL DSQL_PORT DSQL_DB DSQL_USER DSQL_PROJECT_SCHEMA)
 for name in "${required_vars[@]}"; do
   if [[ -z "${!name:-}" ]]; then
     echo "${name} is required" >&2
@@ -43,9 +43,11 @@ for name in "${required_vars[@]}"; do
   fi
 done
 
-gh variable set AWS_REGION --repo "${DEPLOYMENT_REPO}" --body "${AWS_REGION}"
+gh variable set AWS_REGION_DEVO --repo "${DEPLOYMENT_REPO}" --body "${AWS_REGION_DEVO}"
+gh variable set AWS_REGION_PROD --repo "${DEPLOYMENT_REPO}" --body "${AWS_REGION_PROD}"
 gh variable set PULUMI_BACKEND_URL --repo "${DEPLOYMENT_REPO}" --body "${PULUMI_BACKEND_URL}"
-gh variable set PULUMI_SECRETS_PROVIDER --repo "${DEPLOYMENT_REPO}" --body "${PULUMI_SECRETS_PROVIDER}"
+gh variable set PULUMI_SECRETS_PROVIDER_DEVO --repo "${DEPLOYMENT_REPO}" --body "${PULUMI_SECRETS_PROVIDER_DEVO}"
+gh variable set PULUMI_SECRETS_PROVIDER_PROD --repo "${DEPLOYMENT_REPO}" --body "${PULUMI_SECRETS_PROVIDER_PROD}"
 gh variable set LTBASE_RELEASES_REPO --repo "${DEPLOYMENT_REPO}" --body "${LTBASE_RELEASES_REPO}"
 gh variable set LTBASE_RELEASE_ID --repo "${DEPLOYMENT_REPO}" --body "${LTBASE_RELEASE_ID}"
 
@@ -54,13 +56,20 @@ gh secret set AWS_ROLE_ARN_PROD --repo "${DEPLOYMENT_REPO}" --body "${AWS_ROLE_A
 gh secret set LTBASE_RELEASES_TOKEN --repo "${DEPLOYMENT_REPO}" --body "${LTBASE_RELEASES_TOKEN}"
 gh secret set CLOUDFLARE_API_TOKEN --repo "${DEPLOYMENT_REPO}" --body "${CLOUDFLARE_API_TOKEN}"
 
+selected_region="${AWS_REGION_DEVO}"
+selected_secrets_provider="${PULUMI_SECRETS_PROVIDER_DEVO}"
+if [[ "${STACK}" == "prod" ]]; then
+  selected_region="${AWS_REGION_PROD}"
+  selected_secrets_provider="${PULUMI_SECRETS_PROVIDER_PROD}"
+fi
+
 pulumi login "${PULUMI_BACKEND_URL}"
 if ! pulumi stack select "${STACK}" >/dev/null 2>&1; then
-  pulumi stack init "${STACK}" --secrets-provider "${PULUMI_SECRETS_PROVIDER}"
+  pulumi stack init "${STACK}" --secrets-provider "${selected_secrets_provider}"
 fi
 
 pushd "${INFRA_DIR}" >/dev/null
-pulumi config set awsRegion "${AWS_REGION}" --stack "${STACK}"
+pulumi config set awsRegion "${selected_region}" --stack "${STACK}"
 pulumi config set runtimeBucket "${RUNTIME_BUCKET}" --stack "${STACK}"
 pulumi config set tableName "${TABLE_NAME}" --stack "${STACK}"
 pulumi config set apiDomain "${API_DOMAIN}" --stack "${STACK}"

@@ -17,9 +17,10 @@ jobs:
     uses: Lychee-Technology/ltbase-deploy-workflows/.github/workflows/preview.yml@v1
     with:
       pulumi_stack: devo
-      aws_region: ${{ vars.AWS_REGION || 'ap-northeast-1' }}
+      aws_region: ${{ vars.AWS_REGION_DEVO || 'ap-northeast-1' }}
       release_id: ${{ inputs.release_id || vars.LTBASE_RELEASE_ID }}
       pulumi_backend_url: ${{ vars.PULUMI_BACKEND_URL }}
+      pulumi_secrets_provider: ${{ vars.PULUMI_SECRETS_PROVIDER_DEVO }}
       releases_repo: ${{ vars.LTBASE_RELEASES_REPO || 'Lychee-Technology/ltbase-releases' }}
       working_directory: infra
     secrets:

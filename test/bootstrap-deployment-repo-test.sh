@@ -26,9 +26,11 @@ touch "${log_file}"
 
 cat >"${temp_dir}/.env" <<'EOF'
 DEPLOYMENT_REPO=Lychee-Technology/ltbase-private-deployment
-AWS_REGION=ap-northeast-1
+AWS_REGION_DEVO=ap-northeast-1
+AWS_REGION_PROD=us-west-2
 PULUMI_BACKEND_URL=s3://test-pulumi-state
-PULUMI_SECRETS_PROVIDER=awskms://alias/test-pulumi-secrets?region=ap-northeast-1
+PULUMI_SECRETS_PROVIDER_DEVO=awskms://alias/test-pulumi-secrets?region=ap-northeast-1
+PULUMI_SECRETS_PROVIDER_PROD=awskms://alias/test-pulumi-secrets?region=us-west-2
 LTBASE_RELEASES_REPO=Lychee-Technology/ltbase-releases
 LTBASE_RELEASE_ID=v1.0.0
 AWS_ROLE_ARN_DEVO=arn:aws:iam::123456789012:role/test-deploy-role
@@ -77,7 +79,8 @@ if [[ -x "${SCRIPT_PATH}" ]]; then
     fail "expected script to succeed when implemented, got: ${output}"
   fi
 
-  assert_log_contains "${log_file}" "gh variable set AWS_REGION --repo Lychee-Technology/ltbase-private-deployment --body ap-northeast-1"
+  assert_log_contains "${log_file}" "gh variable set AWS_REGION_DEVO --repo Lychee-Technology/ltbase-private-deployment --body ap-northeast-1"
+  assert_log_contains "${log_file}" "gh variable set AWS_REGION_PROD --repo Lychee-Technology/ltbase-private-deployment --body us-west-2"
   assert_log_contains "${log_file}" "gh secret set AWS_ROLE_ARN_DEVO --repo Lychee-Technology/ltbase-private-deployment --body arn:aws:iam::123456789012:role/test-deploy-role"
   assert_log_contains "${log_file}" "pulumi stack init devo --secrets-provider awskms://alias/test-pulumi-secrets?region=ap-northeast-1"
   assert_log_contains "${log_file}" "pulumi config set --secret geminiApiKey test-gemini-key --stack devo"

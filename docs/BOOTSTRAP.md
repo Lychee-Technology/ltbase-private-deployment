@@ -22,9 +22,11 @@ The standalone customer repository should contain:
 
 ## Required Variables
 
-- `AWS_REGION`
+- `AWS_REGION_DEVO`
+- `AWS_REGION_PROD`
 - `PULUMI_BACKEND_URL`
-- `PULUMI_SECRETS_PROVIDER`
+- `PULUMI_SECRETS_PROVIDER_DEVO`
+- `PULUMI_SECRETS_PROVIDER_PROD`
 - `LTBASE_RELEASES_REPO`
 - `LTBASE_RELEASE_ID`
 
@@ -44,7 +46,8 @@ The standalone customer repository should contain:
 
 - `LTBASE_RELEASES_TOKEN` must be a customer-specific fine-grained token with read-only access to `ltbase-releases`.
 - Local `.env` files are ignored by git and should never be committed.
-- `PULUMI_BACKEND_URL` controls where Pulumi state is stored; `PULUMI_SECRETS_PROVIDER` controls how Pulumi secrets are encrypted.
+- `PULUMI_BACKEND_URL` controls where Pulumi state is stored; the `PULUMI_SECRETS_PROVIDER_*` values control how Pulumi secrets are encrypted for each environment.
+- `env.template` separates `AWS_REGION_DEVO` and `AWS_REGION_PROD` so you can bootstrap split-region deployments.
 - `env.template` separates `AWS_ACCOUNT_ID_DEVO` and `AWS_ACCOUNT_ID_PROD` so you can bootstrap split-account deployments.
 - This template repository keeps preview as a manual workflow because the template itself does not ship with live customer secrets or AWS roles.
 - Revoking that token stops future updates but does not stop an already deployed customer environment.
