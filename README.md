@@ -12,8 +12,12 @@ It contains:
 Bootstrap entrypoints:
 
 - `env.template`
+- `scripts/render-bootstrap-policies.sh`
+- `scripts/create-deployment-repo.sh`
+- `scripts/bootstrap-aws-foundation.sh`
 - `scripts/bootstrap-pulumi-backend.sh`
 - `scripts/bootstrap-deployment-repo.sh`
+- `scripts/bootstrap-all.sh`
 
 Primary docs:
 

@@ -1,0 +1,63 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
+SCRIPT_PATH="${ROOT_DIR}/scripts/render-bootstrap-policies.sh"
+
+fail() {
+  printf 'FAIL: %s\n' "$1" >&2
+  exit 1
+}
+
+assert_file_contains() {
+  local path="$1"
+  local needle="$2"
+  if [[ ! -f "${path}" ]]; then
+    fail "missing file: ${path}"
+  fi
+  if ! grep -Fq "${needle}" "${path}"; then
+    fail "expected ${path} to contain: ${needle}"
+  fi
+}
+
+temp_dir="$(mktemp -d)"
+
+cat >"${temp_dir}/.env" <<'EOF'
+TEMPLATE_REPO=Lychee-Technology/ltbase-private-deployment
+GITHUB_OWNER=customer-org
+DEPLOYMENT_REPO_NAME=customer-ltbase
+DEPLOYMENT_REPO_VISIBILITY=private
+DEPLOYMENT_REPO_DESCRIPTION="Customer LTBase deployment repo"
+DEPLOYMENT_REPO=customer-org/customer-ltbase
+AWS_REGION_DEVO=ap-northeast-1
+AWS_REGION_PROD=us-west-2
+AWS_ACCOUNT_ID_DEVO=123456789012
+AWS_ACCOUNT_ID_PROD=210987654321
+AWS_ROLE_NAME_DEVO=ltbase-deploy-devo
+AWS_ROLE_NAME_PROD=ltbase-deploy-prod
+AWS_ROLE_ARN_DEVO=arn:aws:iam::123456789012:role/ltbase-deploy-devo
+AWS_ROLE_ARN_PROD=arn:aws:iam::210987654321:role/ltbase-deploy-prod
+PULUMI_STATE_BUCKET=test-pulumi-state
+PULUMI_KMS_ALIAS=alias/test-pulumi-secrets
+EOF
+
+if [[ -x "${SCRIPT_PATH}" ]]; then
+  if ! output="$("${SCRIPT_PATH}" --env-file "${temp_dir}/.env" --output-dir "${temp_dir}/dist" 2>&1)"; then
+    rm -rf "${temp_dir}"
+    fail "expected script to succeed when implemented, got: ${output}"
+  fi
+
+  assert_file_contains "${temp_dir}/dist/devo-trust-policy.json" "token.actions.githubusercontent.com"
+  assert_file_contains "${temp_dir}/dist/devo-trust-policy.json" "repo:customer-org/customer-ltbase"
+  assert_file_contains "${temp_dir}/dist/prod-trust-policy.json" "arn:aws:iam::210987654321:oidc-provider/token.actions.githubusercontent.com"
+  assert_file_contains "${temp_dir}/dist/devo-role-policy.json" "arn:aws:s3:::test-pulumi-state"
+  assert_file_contains "${temp_dir}/dist/prod-role-policy.json" "kms:Decrypt"
+  assert_file_contains "${temp_dir}/dist/bootstrap-summary.env" "PULUMI_SECRETS_PROVIDER_DEVO=awskms://alias/test-pulumi-secrets?region=ap-northeast-1"
+  assert_file_contains "${temp_dir}/dist/bootstrap-summary.env" "PULUMI_SECRETS_PROVIDER_PROD=awskms://alias/test-pulumi-secrets?region=us-west-2"
+else
+  fail "missing executable script: ${SCRIPT_PATH}"
+fi
+
+rm -rf "${temp_dir}"
+printf 'PASS: render-bootstrap-policies tests\n'
