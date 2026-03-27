@@ -18,11 +18,24 @@ Your deployment repository does not build LTBase application source code. It dow
 ## What You Need Before Starting
 
 - A GitHub organization or account that can host a private repository.
-- An AWS account for deployment.
-- A Cloudflare zone for the customer domains you will use.
-- A Pulumi backend bucket in your AWS account.
-- An AWS KMS key for Pulumi stack secret encryption, or permission for the bootstrap script to create one.
+- A devo AWS account and, optionally, a separate prod AWS account.
+- A Cloudflare zone for the domains you will use.
+- Permission to create or update IAM roles, IAM OIDC providers, S3 buckets, and KMS keys in the target AWS accounts.
 - A customer-specific `LTBASE_RELEASES_TOKEN` issued by LTBase.
+- A Gemini API key for runtime summarization features.
+
+## End State
+
+When setup is complete, you will have:
+
+- one private deployment repository created from `ltbase-private-deployment`
+- one GitHub OIDC trust relationship per AWS account used for deployment
+- one deploy role for `devo` and one deploy role for `prod`
+- one Pulumi state bucket
+- one AWS KMS key alias used for Pulumi stack secret encryption
+- repository secrets and variables populated through the bootstrap scripts
+- a `devo` stack ready for preview and deploy
+- a `prod` stack ready for promotion after `devo` is validated
 
 ## Required Repository Secrets
 
@@ -56,7 +69,6 @@ Recommended initial values:
 - `LTBASE_RELEASE_ID=v1.0.0`
 
 `env.template` includes these values as placeholders. Copy it to a local `.env` file, fill in the real values, and keep that file private.
-Use separate account identifiers for `AWS_ACCOUNT_ID_DEVO` and `AWS_ACCOUNT_ID_PROD` when devo and prod live in different AWS accounts.
 
 ## Required Pulumi Configuration
 
@@ -74,7 +86,6 @@ For each stack, configure these non-secret values:
 - `githubOrg`
 - `githubRepo`
 - `releaseId`
-- `dsqlHost` or `dsqlEndpoint`
 - `dsqlPort`
 - `dsqlDB`
 - `dsqlUser`
@@ -82,31 +93,269 @@ For each stack, configure these non-secret values:
 
 Configure these as Pulumi secrets:
 
-- `dsqlPassword`
 - `geminiApiKey`
 
-## Initial Setup
+Aurora DSQL itself is created by the Pulumi blueprint. You do not supply an external `dsqlHost`, `dsqlEndpoint`, or `dsqlPassword` for managed deployments.
+
+## Step-By-Step Deployment
+
+### 1. Create the deployment repository
 
 1. Create a private repository from the public `ltbase-private-deployment` template.
-2. Copy `env.template` to a local `.env` file and fill in the real deployment values.
-3. Run `./scripts/bootstrap-pulumi-backend.sh --env-file .env`.
-4. Review and apply the generated IAM/KMS policy if your deploy role still needs access to the Pulumi secrets key.
-5. Run `./scripts/bootstrap-deployment-repo.sh --env-file .env --stack devo --infra-dir infra`.
-6. Copy or update `Pulumi.devo.yaml` and `Pulumi.prod.yaml` from the template examples if you want file-based stack config in addition to the scripted setup.
-7. Confirm your deploy roles can be assumed through GitHub OIDC.
-8. Confirm `LTBASE_RELEASES_TOKEN` can read the LTBase private releases repository.
+2. Clone that repository locally.
+3. Confirm the repository contains:
+   - `infra/`
+   - `.github/workflows/`
+   - `env.template`
+   - `scripts/bootstrap-pulumi-backend.sh`
+   - `scripts/bootstrap-deployment-repo.sh`
 
-## First Deployment
+### 2. Create or confirm the GitHub OIDC provider
 
-1. Set `LTBASE_RELEASE_ID` to `v1.0.0`.
-2. Run the preview workflow manually after the repository secrets and variables are configured.
+You need a GitHub OIDC provider in each AWS account used by deployment. If it already exists, reuse it.
+
+Typical provider ARN:
+
+```text
+arn:aws:iam::<account-id>:oidc-provider/token.actions.githubusercontent.com
+```
+
+If you need to create it, create it once per account with the standard GitHub issuer:
+
+- URL: `https://token.actions.githubusercontent.com`
+- audience: `sts.amazonaws.com`
+
+### 3. Create the deploy roles
+
+Create one IAM role for `devo` and one for `prod`. If `devo` and `prod` live in different AWS accounts, create one role in each account.
+
+The bootstrap scripts do **not** create these IAM roles. They consume the role ARNs you provide in `.env` and write them into GitHub Actions secrets.
+
+#### 3.1 Trust policy template
+
+Use this trust policy as a starting point for each deploy role. Replace the placeholders:
+
+- `<github-org>`
+- `<repo-name>`
+- `<default-branch>`
+
+```json
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "AllowGitHubActionsOidc",
+      "Effect": "Allow",
+      "Principal": {
+        "Federated": "arn:aws:iam::<account-id>:oidc-provider/token.actions.githubusercontent.com"
+      },
+      "Action": "sts:AssumeRoleWithWebIdentity",
+      "Condition": {
+        "StringEquals": {
+          "token.actions.githubusercontent.com:aud": "sts.amazonaws.com"
+        },
+        "StringLike": {
+          "token.actions.githubusercontent.com:sub": [
+            "repo:<github-org>/<repo-name>:ref:refs/heads/<default-branch>",
+            "repo:<github-org>/<repo-name>:ref:refs/heads/feature/*",
+            "repo:<github-org>/<repo-name>:pull_request"
+          ]
+        }
+      }
+    }
+  ]
+}
+```
+
+If you want to tighten this later, reduce the allowed `sub` patterns after your deployment process stabilizes.
+
+#### 3.2 Permissions policy guidance
+
+For the first successful deployment, the simplest path is to give the deploy role an administrator-scoped policy in the target account or an organization-approved equivalent broad deployment role. This is the fastest way to avoid chasing missing service permissions during the first bootstrap.
+
+After the first deployment works, you can replace that with a tighter policy.
+
+At minimum, the deploy role must be able to:
+
+- read and write the Pulumi state bucket
+- use the Pulumi KMS key
+- create and update the AWS resources managed by the LTBase blueprint
+- pass any IAM roles created during deployment if the blueprint requires it
+
+#### 3.3 Minimal backend and KMS policy template
+
+This is a useful baseline policy fragment for the Pulumi state bucket and secrets key. Replace the placeholders:
+
+- `<state-bucket>`
+- `<kms-key-arn>`
+
+```json
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "AllowPulumiStateBucket",
+      "Effect": "Allow",
+      "Action": [
+        "s3:ListBucket"
+      ],
+      "Resource": "arn:aws:s3:::<state-bucket>"
+    },
+    {
+      "Sid": "AllowPulumiStateObjects",
+      "Effect": "Allow",
+      "Action": [
+        "s3:GetObject",
+        "s3:PutObject",
+        "s3:DeleteObject"
+      ],
+      "Resource": "arn:aws:s3:::<state-bucket>/*"
+    },
+    {
+      "Sid": "AllowPulumiSecretsKey",
+      "Effect": "Allow",
+      "Action": [
+        "kms:Encrypt",
+        "kms:Decrypt",
+        "kms:GenerateDataKey",
+        "kms:DescribeKey"
+      ],
+      "Resource": "<kms-key-arn>"
+    }
+  ]
+}
+```
+
+The bootstrap script also generates `dist/pulumi-kms-policy.json`, which you can use as a role-specific KMS access template.
+
+### 4. Prepare the local `.env` file
+
+1. Copy `env.template` to `.env`.
+2. Fill in the real values.
+3. Do not commit `.env`.
+
+Minimum values you must provide:
+
+```bash
+DEPLOYMENT_REPO=<github-org>/<repo-name>
+
+AWS_REGION_DEVO=<devo-region>
+AWS_REGION_PROD=<prod-region>
+AWS_ACCOUNT_ID_DEVO=<devo-account-id>
+AWS_ACCOUNT_ID_PROD=<prod-account-id>
+AWS_ROLE_ARN_DEVO=arn:aws:iam::<devo-account-id>:role/<devo-role>
+AWS_ROLE_ARN_PROD=arn:aws:iam::<prod-account-id>:role/<prod-role>
+
+PULUMI_STATE_BUCKET=<global-unique-state-bucket>
+PULUMI_KMS_ALIAS=alias/ltbase-pulumi-secrets
+
+LTBASE_RELEASES_REPO=Lychee-Technology/ltbase-releases
+LTBASE_RELEASE_ID=v1.0.0
+
+API_DOMAIN=api.devo.example.com
+CONTROL_DOMAIN=control.devo.example.com
+AUTH_DOMAIN=auth.devo.example.com
+CLOUDFLARE_ZONE_ID=<cloudflare-zone-id>
+OIDC_ISSUER_URL=https://<issuer>
+JWKS_URL=https://<issuer>/.well-known/jwks.json
+
+RUNTIME_BUCKET=<global-unique-runtime-bucket>
+TABLE_NAME=<devo-table-name>
+GITHUB_ORG=<github-org>
+GITHUB_REPO=<repo-name>
+GEMINI_MODEL=gemini-3-flash-preview
+DSQL_PORT=5432
+DSQL_DB=ltbase
+DSQL_USER=ltbase
+DSQL_PROJECT_SCHEMA=ltbase
+
+GEMINI_API_KEY=<gemini-api-key>
+CLOUDFLARE_API_TOKEN=<cloudflare-api-token>
+LTBASE_RELEASES_TOKEN=<ltbase-releases-token>
+```
+
+### 5. Bootstrap the Pulumi backend and KMS configuration
+
+Run:
+
+```bash
+./scripts/bootstrap-pulumi-backend.sh --env-file .env
+```
+
+This script will:
+
+- create or reuse the Pulumi state bucket
+- create or reuse the Pulumi KMS alias
+- generate `dist/pulumi-backend.env`
+- generate `dist/pulumi-kms-policy.json`
+
+Review the outputs:
+
+- `dist/pulumi-backend.env`
+- `dist/pulumi-kms-policy.json`
+
+If needed, merge the generated values back into `.env`:
+
+```bash
+source dist/pulumi-backend.env
+```
+
+### 6. Bootstrap the repository configuration and the `devo` stack
+
+Run:
+
+```bash
+./scripts/bootstrap-deployment-repo.sh --env-file .env --stack devo --infra-dir infra
+```
+
+This script will:
+
+- write GitHub Actions variables
+- write GitHub Actions secrets
+- log into the Pulumi backend
+- initialize the `devo` stack if it does not exist
+- write Pulumi config for the `devo` stack
+- store `geminiApiKey` as a Pulumi secret
+
+### 7. Bootstrap the `prod` stack
+
+Run the same script for `prod`:
+
+```bash
+./scripts/bootstrap-deployment-repo.sh --env-file .env --stack prod --infra-dir infra
+```
+
+This will reuse the same repository secrets and variables, but apply the `prod` region and `prod` Pulumi secrets provider when configuring the `prod` stack.
+
+### 8. Confirm repository configuration
+
+Before running any deployment workflow, confirm the repository contains:
+
+- secrets
+  - `AWS_ROLE_ARN_DEVO`
+  - `AWS_ROLE_ARN_PROD`
+  - `LTBASE_RELEASES_TOKEN`
+  - `CLOUDFLARE_API_TOKEN`
+- variables
+  - `AWS_REGION_DEVO`
+  - `AWS_REGION_PROD`
+  - `PULUMI_BACKEND_URL`
+  - `PULUMI_SECRETS_PROVIDER_DEVO`
+  - `PULUMI_SECRETS_PROVIDER_PROD`
+  - `LTBASE_RELEASES_REPO`
+  - `LTBASE_RELEASE_ID`
+
+### 9. First deployment
+
+1. Set `LTBASE_RELEASE_ID` to the release you want, such as `v1.0.0`.
+2. Run the `preview` workflow manually.
 3. Review the Pulumi preview output.
-4. Run the devo deployment workflow.
-5. Verify the devo environment.
-6. Run the prod promotion workflow.
+4. Run the `devo` deployment workflow.
+5. Verify the `devo` environment.
+6. Run the `prod` promotion workflow.
 7. Approve the `prod` environment when GitHub asks for approval.
 
-## Day-2 Upgrades
+### 10. Day-2 upgrades
 
 To adopt a new LTBase application version:
 
