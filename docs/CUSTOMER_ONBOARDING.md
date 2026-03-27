@@ -328,6 +328,36 @@ If you want more control, run the steps individually.
 ./scripts/bootstrap-aws-foundation.sh --env-file .env
 ```
 
+This script will:
+
+- create or reuse the GitHub Actions OIDC provider
+- create or reuse the `devo` and `prod` deploy roles
+- update the generated trust policy for both deploy roles
+- attach the generated inline access policy for both deploy roles
+- create or reuse the Pulumi state bucket
+- create or reuse the Pulumi KMS alias
+- generate `dist/foundation.env`
+- generate `dist/devo-trust-policy.json`
+- generate `dist/prod-trust-policy.json`
+- generate `dist/devo-role-policy.json`
+- generate `dist/prod-role-policy.json`
+
+Review the outputs:
+
+- `dist/foundation.env`
+- `dist/devo-trust-policy.json`
+- `dist/prod-trust-policy.json`
+- `dist/devo-role-policy.json`
+- `dist/prod-role-policy.json`
+
+If needed, merge the generated values back into your local shell before bootstrapping the repository configuration:
+
+```bash
+source dist/foundation.env
+```
+
+If `devo` and `prod` use different AWS accounts, also set `AWS_PROFILE_DEVO` and `AWS_PROFILE_PROD` in your local shell or `.env` so the script can manage IAM, OIDC, and KMS resources in both accounts.
+
 #### 7.3 Bootstrap the Pulumi backend and KMS configuration
 
 Run:
@@ -335,6 +365,8 @@ Run:
 ```bash
 ./scripts/bootstrap-pulumi-backend.sh --env-file .env
 ```
+
+This script can still be used as a standalone backend-only fallback. If you already ran `bootstrap-aws-foundation.sh`, it should mostly confirm the bucket and KMS state and regenerate the backend artifacts.
 
 This script will:
 
