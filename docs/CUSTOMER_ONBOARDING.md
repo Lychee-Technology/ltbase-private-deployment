@@ -107,8 +107,12 @@ Aurora DSQL itself is created by the Pulumi blueprint. You do not supply an exte
    - `infra/`
    - `.github/workflows/`
    - `env.template`
+   - `scripts/render-bootstrap-policies.sh`
+   - `scripts/create-deployment-repo.sh`
+   - `scripts/bootstrap-aws-foundation.sh`
    - `scripts/bootstrap-pulumi-backend.sh`
    - `scripts/bootstrap-deployment-repo.sh`
+   - `scripts/bootstrap-all.sh`
 
 ### 2. Create or confirm the GitHub OIDC provider
 
@@ -274,7 +278,57 @@ CLOUDFLARE_API_TOKEN=<cloudflare-api-token>
 LTBASE_RELEASES_TOKEN=<ltbase-releases-token>
 ```
 
-### 5. Bootstrap the Pulumi backend and KMS configuration
+### 5. Optional review step: render copy-paste policies
+
+If your security or platform team wants to review the exact trust and permissions policies before bootstrap, run:
+
+```bash
+./scripts/render-bootstrap-policies.sh --env-file .env
+```
+
+This writes copy-paste-ready artifacts to `dist/`, including:
+
+- `devo-trust-policy.json`
+- `prod-trust-policy.json`
+- `devo-role-policy.json`
+- `prod-role-policy.json`
+- `pulumi-kms-policy.json`
+- `bootstrap-summary.env`
+
+### 6. One-click bootstrap path
+
+If you have enough GitHub and AWS permissions, use the one-click path:
+
+```bash
+./scripts/bootstrap-all.sh --env-file .env --mode apply --infra-dir infra
+```
+
+This orchestrates:
+
+- creating the real deployment repo from the template
+- creating or reusing the GitHub OIDC provider
+- creating or reusing the deploy roles
+- creating or reusing the Pulumi backend bucket and KMS key
+- writing GitHub vars and secrets
+- initializing `devo` and `prod` Pulumi stacks
+
+### 7. Manual bootstrap path
+
+If you want more control, run the steps individually.
+
+#### 7.1 Create the real deployment repo
+
+```bash
+./scripts/create-deployment-repo.sh --env-file .env
+```
+
+#### 7.2 Bootstrap the AWS foundation
+
+```bash
+./scripts/bootstrap-aws-foundation.sh --env-file .env
+```
+
+#### 7.3 Bootstrap the Pulumi backend and KMS configuration
 
 Run:
 
@@ -300,7 +354,7 @@ If needed, merge the generated values back into `.env`:
 source dist/pulumi-backend.env
 ```
 
-### 6. Bootstrap the repository configuration and the `devo` stack
+#### 7.4 Bootstrap the repository configuration and the `devo` stack
 
 Run:
 
@@ -317,7 +371,7 @@ This script will:
 - write Pulumi config for the `devo` stack
 - store `geminiApiKey` as a Pulumi secret
 
-### 7. Bootstrap the `prod` stack
+#### 7.5 Bootstrap the `prod` stack
 
 Run the same script for `prod`:
 
