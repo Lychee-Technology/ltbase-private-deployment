@@ -1,5 +1,5 @@
 # LTBase Customer Infra Seed
 
-Copy the upstream Pulumi Go blueprint from [`infra/`](/Users/ruoshi/code/Lychee/ltbase.api/infra) into this directory when creating the standalone `ltbase-private-deployment` repository.
+This repository is the source of truth for the LTBase customer Pulumi blueprint.
 
-This template directory only carries customer-facing sample stack config because the source repository remains the current source of truth until the repo split is completed.
+Use the example stack files in this directory as the starting point for customer-specific `Pulumi.<stack>.yaml` values. The blueprint provisions the Aurora DSQL cluster itself and keeps the database contract focused on managed deployment inputs instead of customer-supplied host and password settings.

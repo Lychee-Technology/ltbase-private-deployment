@@ -26,12 +26,9 @@ type StackConfig struct {
 	JWKSURL                  string
 	ReleaseID                string
 	FormaCdcSchedule         string
-	DSQLEndpoint             string
-	DSQLHost                 string
 	DSQLPort                 string
 	DSQLDB                   string
 	DSQLUser                 string
-	DSQLPassword             pulumi.StringOutput
 	DSQLProjectSchema        string
 	GeminiAPIKey             pulumi.StringOutput
 	GeminiModel              string
@@ -62,12 +59,9 @@ func Load(ctx *pulumi.Context) (StackConfig, error) {
 		JWKSURL:                  cfg.Require("jwksUrl"),
 		ReleaseID:                cfg.Require("releaseId"),
 		FormaCdcSchedule:         valueOrDefault(cfg.Get("formaCdcSchedule"), "rate(15 minutes)"),
-		DSQLEndpoint:             strings.TrimSpace(cfg.Get("dsqlEndpoint")),
-		DSQLHost:                 strings.TrimSpace(cfg.Get("dsqlHost")),
 		DSQLPort:                 valueOrDefault(cfg.Get("dsqlPort"), "5432"),
-		DSQLDB:                   valueOrDefault(cfg.Get("dsqlDB"), "ltbase"),
-		DSQLUser:                 cfg.Require("dsqlUser"),
-		DSQLPassword:             cfg.RequireSecret("dsqlPassword"),
+		DSQLDB:                   valueOrDefault(cfg.Get("dsqlDB"), "postgres"),
+		DSQLUser:                 valueOrDefault(cfg.Get("dsqlUser"), "admin"),
 		DSQLProjectSchema:        valueOrDefault(cfg.Get("dsqlProjectSchema"), "ltbase"),
 		GeminiAPIKey:             cfg.RequireSecret("geminiApiKey"),
 		GeminiModel:              valueOrDefault(cfg.Get("geminiModel"), "gemini-3-flash-preview"),
@@ -88,9 +82,6 @@ func Load(ctx *pulumi.Context) (StackConfig, error) {
 }
 
 func (c StackConfig) Validate() error {
-	if c.DSQLEndpoint == "" && c.DSQLHost == "" {
-		return fmt.Errorf("either dsqlEndpoint or dsqlHost must be configured")
-	}
 	if !c.ManageGitHubOIDCProvider && c.GitHubOIDCProviderArn == "" {
 		return fmt.Errorf("githubOidcProviderArn is required when manageGithubOidcProvider is false")
 	}

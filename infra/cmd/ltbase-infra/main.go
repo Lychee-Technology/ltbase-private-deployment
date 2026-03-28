@@ -48,6 +48,9 @@ func main() {
 		}
 		ctx.Export("runtimeBucket", runtime.RuntimeBucket.Bucket)
 		ctx.Export("tableName", runtime.Table.Name)
+		ctx.Export("dsqlClusterArn", runtime.DSQL.Cluster.Arn)
+		ctx.Export("dsqlClusterIdentifier", runtime.DSQL.Cluster.Identifier)
+		ctx.Export("dsqlVpcEndpointServiceName", runtime.DSQL.Cluster.VpcEndpointServiceName)
 		ctx.Export("authKmsKeyArn", runtime.AuthKey.Arn)
 		ctx.Export("dataPlaneFunctionName", lambdas.DataPlane.Function.Name)
 		ctx.Export("dataPlaneAliasName", lambdas.DataPlane.Alias.Name)

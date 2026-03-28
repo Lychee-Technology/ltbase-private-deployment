@@ -1,6 +1,6 @@
 # Customer Bootstrap
 
-This file is the short bootstrap checklist. For the full customer runbook, use [`CUSTOMER_ONBOARDING.md`](/Users/ruoshi/code/Lychee/ltbase.api/templates/ltbase-private-deployment/docs/CUSTOMER_ONBOARDING.md).
+This file is the short bootstrap checklist. For the full customer runbook, use [`CUSTOMER_ONBOARDING.md`](CUSTOMER_ONBOARDING.md).
 
 ## Repository Layout
 
@@ -54,6 +54,7 @@ The standalone customer repository should contain:
 - `bootstrap-aws-foundation.sh` writes `dist/foundation.env`, `dist/devo-trust-policy.json`, `dist/prod-trust-policy.json`, `dist/devo-role-policy.json`, and `dist/prod-role-policy.json` so operators can both apply and review the generated AWS foundation state.
 - `env.template` separates `AWS_REGION_DEVO` and `AWS_REGION_PROD` so you can bootstrap split-region deployments.
 - `env.template` separates `AWS_ACCOUNT_ID_DEVO` and `AWS_ACCOUNT_ID_PROD` so you can bootstrap split-account deployments.
+- Keep the managed Aurora DSQL cluster in the same AWS account and region as the rest of the stack unless LTBase explicitly documents a different topology.
 - `bootstrap-all.sh` is intended for operators who have enough AWS and GitHub permissions to create the real deployment repo and its foundation resources.
 - In split-account setups, `bootstrap-aws-foundation.sh` requires `AWS_PROFILE_DEVO` and `AWS_PROFILE_PROD` so it can manage IAM and KMS resources in both accounts from one machine.
 - This template repository keeps preview as a manual workflow because the template itself does not ship with live customer secrets or AWS roles.

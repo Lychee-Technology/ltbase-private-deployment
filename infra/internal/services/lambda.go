@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	"github.com/pulumi/pulumi-aws/sdk/v7/go/aws/cloudwatch"
+	"github.com/pulumi/pulumi-aws/sdk/v7/go/aws/dsql"
 	"github.com/pulumi/pulumi-aws/sdk/v7/go/aws/dynamodb"
 	"github.com/pulumi/pulumi-aws/sdk/v7/go/aws/iam"
 	"github.com/pulumi/pulumi-aws/sdk/v7/go/aws/kms"
@@ -19,7 +20,12 @@ import (
 type RuntimeResources struct {
 	RuntimeBucket *s3.BucketV2
 	Table         *dynamodb.Table
+	DSQL          *DSQLResources
 	AuthKey       *kms.Key
+}
+
+type DSQLResources struct {
+	Cluster *dsql.Cluster
 }
 
 type LambdaService struct {
@@ -36,6 +42,10 @@ type ServiceSet struct {
 }
 
 func NewRuntimeResources(ctx *pulumi.Context, cfg config.StackConfig, providers Providers) (*RuntimeResources, error) {
+	dsqlResources, err := NewDSQLResources(ctx, cfg, providers)
+	if err != nil {
+		return nil, err
+	}
 	runtimeBucket, err := s3.NewBucketV2(ctx, naming.ResourceName(cfg.Project, cfg.Stack, "runtime"), &s3.BucketV2Args{
 		Bucket: pulumi.String(cfg.RuntimeBucket),
 	}, pulumi.Provider(providers.AWS))
@@ -76,6 +86,7 @@ func NewRuntimeResources(ctx *pulumi.Context, cfg config.StackConfig, providers 
 	return &RuntimeResources{
 		RuntimeBucket: runtimeBucket,
 		Table:         table,
+		DSQL:          dsqlResources,
 		AuthKey:       authKey,
 	}, nil
 }
@@ -91,12 +102,6 @@ func NewLambdaServices(ctx *pulumi.Context, cfg config.StackConfig, runtime *Run
 		"DSQL_USER":           pulumi.String(cfg.DSQLUser),
 		"FORMA_SCHEMA_DIR":    pulumi.String("/var/task/schemas"),
 		"S3_BUCKET_NAME":      runtime.RuntimeBucket.Bucket,
-	}
-	if cfg.DSQLEndpoint != "" {
-		commonEnv["DSQL_ENDPOINT"] = pulumi.String(cfg.DSQLEndpoint)
-	} else {
-		commonEnv["DSQL_HOST"] = pulumi.String(cfg.DSQLHost)
-		commonEnv["DSQL_PASSWORD"] = cfg.DSQLPassword
 	}
 	commonEnv["DSQL_PROJECT_SCHEMA"] = pulumi.String(cfg.DSQLProjectSchema)
 	dataPlane, err := newLambdaService(ctx, cfg, providers, lambdaSpec{

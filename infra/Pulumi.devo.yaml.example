@@ -13,9 +13,8 @@ config:
   ltbase-infra:manageGithubOidcProvider: "true"
   ltbase-infra:formaCdcSchedule: rate(15 minutes)
   ltbase-infra:releaseId: v1.0.0
-  ltbase-infra:dsqlHost: replace-with-dsql-host
   ltbase-infra:dsqlPort: "5432"
-  ltbase-infra:dsqlDB: ltbase
-  ltbase-infra:dsqlUser: ltbase
+  ltbase-infra:dsqlDB: postgres
+  ltbase-infra:dsqlUser: admin
   ltbase-infra:dsqlProjectSchema: ltbase
   ltbase-infra:geminiModel: gemini-3-flash-preview

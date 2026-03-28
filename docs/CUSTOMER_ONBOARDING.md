@@ -269,8 +269,8 @@ GITHUB_ORG=<github-org>
 GITHUB_REPO=<repo-name>
 GEMINI_MODEL=gemini-3-flash-preview
 DSQL_PORT=5432
-DSQL_DB=ltbase
-DSQL_USER=ltbase
+DSQL_DB=postgres
+DSQL_USER=admin
 DSQL_PROJECT_SCHEMA=ltbase
 
 GEMINI_API_KEY=<gemini-api-key>
@@ -451,6 +451,13 @@ To adopt a new LTBase application version:
 4. Promote the same `release_id` to prod.
 
 You do not need to rebuild application binaries in your repository.
+
+## Managed DSQL Notes
+
+- The customer infra blueprint now creates the Aurora DSQL cluster as part of the managed deployment stack.
+- For managed deployments, do not set external `dsqlHost`, `dsqlEndpoint`, or `dsqlPassword` values.
+- Use the documented stack config inputs for `DSQL_DB`, `DSQL_USER`, `DSQL_PORT`, and `DSQL_PROJECT_SCHEMA` instead.
+- If you are migrating from an older private deployment setup that expected external DSQL connection settings, align the application/runtime contract before reusing an existing stack.
 
 ## Operational Constraints
 

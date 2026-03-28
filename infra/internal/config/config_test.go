@@ -15,18 +15,8 @@ func TestSplitCSV(t *testing.T) {
 	}
 }
 
-func TestValidateRequiresDSQLHostOrEndpoint(t *testing.T) {
-	cfg := StackConfig{
-		ManageGitHubOIDCProvider: true,
-	}
-	if err := cfg.Validate(); err == nil {
-		t.Fatal("Validate() expected error for missing dsql host and endpoint")
-	}
-}
-
 func TestValidateRequiresOIDCProviderArnWhenNotManaged(t *testing.T) {
 	cfg := StackConfig{
-		DSQLHost:                 "db.example.internal",
 		ManageGitHubOIDCProvider: false,
 	}
 	if err := cfg.Validate(); err == nil {
@@ -36,10 +26,18 @@ func TestValidateRequiresOIDCProviderArnWhenNotManaged(t *testing.T) {
 
 func TestValidateAcceptsManagedProvider(t *testing.T) {
 	cfg := StackConfig{
-		DSQLHost:                 "db.example.internal",
 		ManageGitHubOIDCProvider: true,
 	}
 	if err := cfg.Validate(); err != nil {
 		t.Fatalf("Validate() unexpected error: %v", err)
+	}
+}
+
+func TestValueOrDefaultKeepsManagedDSQLDefaults(t *testing.T) {
+	if got := valueOrDefault("", "postgres"); got != "postgres" {
+		t.Fatalf("default db = %q", got)
+	}
+	if got := valueOrDefault("", "admin"); got != "admin" {
+		t.Fatalf("default user = %q", got)
 	}
 }
