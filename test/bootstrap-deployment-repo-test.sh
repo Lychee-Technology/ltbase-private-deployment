@@ -18,6 +18,14 @@ assert_log_contains() {
   fi
 }
 
+assert_log_not_contains() {
+  local path="$1"
+  local needle="$2"
+  if grep -Fq "${needle}" "${path}"; then
+    fail "expected ${path} to not contain: ${needle}"
+  fi
+}
+
 temp_dir="$(mktemp -d)"
 fake_bin="${temp_dir}/bin"
 log_file="${temp_dir}/commands.log"
@@ -50,8 +58,8 @@ GITHUB_ORG=Lychee-Technology
 GITHUB_REPO=ltbase-private-deployment
 GEMINI_MODEL=gemini-3-flash-preview
 DSQL_PORT=5432
-DSQL_DB=ltbase
-DSQL_USER=ltbase
+DSQL_DB=postgres
+DSQL_USER=admin
 DSQL_PROJECT_SCHEMA=ltbase
 EOF
 
@@ -83,7 +91,14 @@ if [[ -x "${SCRIPT_PATH}" ]]; then
   assert_log_contains "${log_file}" "gh variable set AWS_REGION_PROD --repo Lychee-Technology/ltbase-private-deployment --body us-west-2"
   assert_log_contains "${log_file}" "gh secret set AWS_ROLE_ARN_DEVO --repo Lychee-Technology/ltbase-private-deployment --body arn:aws:iam::123456789012:role/test-deploy-role"
   assert_log_contains "${log_file}" "pulumi stack init devo --secrets-provider awskms://alias/test-pulumi-secrets?region=ap-northeast-1"
+  assert_log_contains "${log_file}" "pulumi config set runtimeBucket runtime-bucket --stack devo"
+  assert_log_contains "${log_file}" "pulumi config set dsqlDB postgres --stack devo"
+  assert_log_contains "${log_file}" "pulumi config set dsqlUser admin --stack devo"
   assert_log_contains "${log_file}" "pulumi config set --secret geminiApiKey test-gemini-key --stack devo"
+  assert_log_not_contains "${log_file}" "pulumi stack output dsqlClusterIdentifier"
+  assert_log_not_contains "${log_file}" "pulumi up --stack devo --yes --skip-preview"
+  assert_log_not_contains "${log_file}" "pulumi config set dsqlEndpoint"
+  assert_log_not_contains "${log_file}" "aws dsql get-cluster"
 else
   fail "missing executable script: ${SCRIPT_PATH}"
 fi

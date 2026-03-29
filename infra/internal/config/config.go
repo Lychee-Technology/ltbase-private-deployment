@@ -27,6 +27,7 @@ type StackConfig struct {
 	ReleaseID                string
 	FormaCdcSchedule         string
 	DSQLPort                 string
+	DSQLEndpoint             string
 	DSQLDB                   string
 	DSQLUser                 string
 	DSQLProjectSchema        string
@@ -60,6 +61,7 @@ func Load(ctx *pulumi.Context) (StackConfig, error) {
 		ReleaseID:                cfg.Require("releaseId"),
 		FormaCdcSchedule:         valueOrDefault(cfg.Get("formaCdcSchedule"), "rate(15 minutes)"),
 		DSQLPort:                 valueOrDefault(cfg.Get("dsqlPort"), "5432"),
+		DSQLEndpoint:             strings.TrimSpace(cfg.Get("dsqlEndpoint")),
 		DSQLDB:                   valueOrDefault(cfg.Get("dsqlDB"), "postgres"),
 		DSQLUser:                 valueOrDefault(cfg.Get("dsqlUser"), "admin"),
 		DSQLProjectSchema:        valueOrDefault(cfg.Get("dsqlProjectSchema"), "ltbase"),

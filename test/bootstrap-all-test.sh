@@ -18,6 +18,14 @@ assert_log_contains() {
   fi
 }
 
+assert_log_not_contains() {
+  local path="$1"
+  local needle="$2"
+  if grep -Fq "${needle}" "${path}"; then
+    fail "expected ${path} to not contain: ${needle}"
+  fi
+}
+
 temp_dir="$(mktemp -d)"
 fake_bin="${temp_dir}/bin"
 log_file="${temp_dir}/commands.log"
@@ -58,15 +66,15 @@ GITHUB_ORG=customer-org
 GITHUB_REPO=customer-ltbase
 GEMINI_MODEL=gemini-3-flash-preview
 DSQL_PORT=5432
-DSQL_DB=ltbase
-DSQL_USER=ltbase
+DSQL_DB=postgres
+DSQL_USER=admin
 DSQL_PROJECT_SCHEMA=ltbase
 GEMINI_API_KEY=test-gemini-key
 CLOUDFLARE_API_TOKEN=test-cloudflare-token
 LTBASE_RELEASES_TOKEN=test-release-token
 EOF
 
-for name in render-bootstrap-policies.sh create-deployment-repo.sh bootstrap-aws-foundation.sh bootstrap-deployment-repo.sh; do
+for name in render-bootstrap-policies.sh create-deployment-repo.sh bootstrap-aws-foundation.sh bootstrap-deployment-repo.sh reconcile-managed-dsql-endpoint.sh; do
   cat >"${fake_bin}/${name}" <<EOF
 #!/usr/bin/env bash
 set -euo pipefail
@@ -86,6 +94,8 @@ if [[ -x "${SCRIPT_PATH}" ]]; then
   assert_log_contains "${log_file}" "bootstrap-aws-foundation.sh --env-file ${temp_dir}/.env"
   assert_log_contains "${log_file}" "bootstrap-deployment-repo.sh --env-file ${temp_dir}/.env --stack devo --infra-dir ${temp_dir}/infra"
   assert_log_contains "${log_file}" "bootstrap-deployment-repo.sh --env-file ${temp_dir}/.env --stack prod --infra-dir ${temp_dir}/infra"
+  assert_log_not_contains "${log_file}" "reconcile-managed-dsql-endpoint.sh --env-file ${temp_dir}/.env --stack devo --infra-dir ${temp_dir}/infra"
+  assert_log_not_contains "${log_file}" "reconcile-managed-dsql-endpoint.sh --env-file ${temp_dir}/.env --stack prod --infra-dir ${temp_dir}/infra"
 else
   fail "missing executable script: ${SCRIPT_PATH}"
 fi
