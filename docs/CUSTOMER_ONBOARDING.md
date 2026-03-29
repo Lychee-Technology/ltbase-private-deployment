@@ -95,7 +95,7 @@ Configure these as Pulumi secrets:
 
 - `geminiApiKey`
 
-Aurora DSQL itself is created by the Pulumi blueprint. You do not supply an external `dsqlHost`, `dsqlEndpoint`, or `dsqlPassword` for managed deployments.
+Aurora DSQL itself is created by the Pulumi blueprint. You do not supply an external `dsqlHost`, `dsqlEndpoint`, or `dsqlPassword` for managed deployments. Bootstrap resolves the authoritative managed endpoint from AWS by using the Pulumi-exported `dsqlClusterIdentifier`, then publishes it to stack config as `dsqlEndpoint`.
 
 ## Step-By-Step Deployment
 
@@ -312,6 +312,8 @@ This orchestrates:
 - writing GitHub vars and secrets
 - initializing `devo` and `prod` Pulumi stacks
 
+This one-click path is still bootstrap-safe and configuration-only. It does not run a first full infrastructure apply and it does not reconcile `dsqlEndpoint` yet.
+
 ### 7. Manual bootstrap path
 
 If you want more control, run the steps individually.
@@ -403,7 +405,37 @@ This script will:
 - write Pulumi config for the `devo` stack
 - store `geminiApiKey` as a Pulumi secret
 
-#### 7.5 Bootstrap the `prod` stack
+This step is configuration-only. It does not run a full infrastructure apply and it does not publish `dsqlEndpoint` yet.
+
+#### 7.5 Run the first real infrastructure apply for `devo`
+
+After bootstrap finishes, run your normal preview and deploy flow for `devo` so the managed DSQL cluster actually exists.
+
+#### 7.6 Reconcile the managed DSQL endpoint after infrastructure exists
+
+After that first real infrastructure apply creates the managed DSQL cluster, run:
+
+```bash
+./scripts/reconcile-managed-dsql-endpoint.sh --env-file .env --stack devo --infra-dir infra
+```
+
+This script will:
+
+- read the Pulumi-exported `dsqlClusterIdentifier`
+- resolve the authoritative managed endpoint from AWS
+- publish the resolved endpoint into Pulumi stack config as `dsqlEndpoint`
+- reconcile existing managed stacks by overwriting stale or manually supplied values
+- remove any existing managed `dsqlEndpoint` stack config and fail closed if the authoritative lookup does not succeed
+
+Run the same reconciliation step for `prod` after the `prod` infrastructure exists:
+
+```bash
+./scripts/reconcile-managed-dsql-endpoint.sh --env-file .env --stack prod --infra-dir infra
+```
+
+After reconciliation publishes `dsqlEndpoint`, run the next preview/deploy cycle for that stack so the resolved endpoint is rolled into Lambda environment configuration.
+
+#### 7.7 Bootstrap the `prod` stack
 
 Run the same script for `prod`:
 
@@ -456,6 +488,10 @@ You do not need to rebuild application binaries in your repository.
 
 - The customer infra blueprint now creates the Aurora DSQL cluster as part of the managed deployment stack.
 - For managed deployments, do not set external `dsqlHost`, `dsqlEndpoint`, or `dsqlPassword` values.
+- `bootstrap-all.sh` and `bootstrap-deployment-repo.sh` prepare stack config only; they do not do the first authoritative managed endpoint publish.
+- `reconcile-managed-dsql-endpoint.sh` is the authoritative publisher for managed `dsqlEndpoint` stack config after infrastructure exists.
+- During reconciliation, the script resolves `dsqlEndpoint` from AWS with `dsqlClusterIdentifier` and overwrites stale or manually supplied values.
+- If that authoritative lookup fails, the reconcile step removes any existing managed `dsqlEndpoint` stack config and exits before publishing replacement managed config.
 - Use the documented stack config inputs for `DSQL_DB`, `DSQL_USER`, `DSQL_PORT`, and `DSQL_PROJECT_SCHEMA` instead.
 - If you are migrating from an older private deployment setup that expected external DSQL connection settings, align the application/runtime contract before reusing an existing stack.
 
