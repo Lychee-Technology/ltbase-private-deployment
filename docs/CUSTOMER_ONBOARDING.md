@@ -1,54 +1,173 @@
-# LTBase Customer Onboarding Runbook
+# LTBase Customer Onboarding Runbook / LTBase 客户部署入门指南
 
-This runbook is for customers deploying LTBase through the private deployment channel.
+This document is the main entry point for customers deploying LTBase with the private deployment template.
 
-## Deployment Model
+本文档是客户使用私有部署模板部署 LTBase 时的主入口文档。
 
-Your deployment uses three repositories:
+## What This Document Is For / 本文档的用途
+
+- explain the overall deployment model
+- show the full onboarding order from preparation to first production promotion
+- link to detailed step-by-step guides for every longer operation
+
+- 解释整体部署模型
+- 给出从准备到首次生产发布的完整顺序
+- 为每个较长操作链接到详细步骤文档
+
+## Deployment Model / 部署模型
+
+Your LTBase deployment uses three repositories:
+
+你的 LTBase 部署会涉及三个仓库：
 
 - `ltbase-deploy-workflows`
-  Public reusable GitHub Actions workflows maintained by LTBase.
+  - reusable public GitHub Actions workflows maintained by LTBase
+  - LTBase 维护的公共可复用 GitHub Actions 工作流
 - `ltbase-releases`
-  Private official LTBase application releases. Access is controlled by your customer-specific token.
+  - private release repository containing official LTBase application artifacts
+  - 私有发布仓库，存放官方 LTBase 应用发布产物
 - your deployment repository
-  A private repository created from the `ltbase-private-deployment` template. This repository holds your Pulumi stacks and deployment wrapper workflows.
+  - a private repository created from `ltbase-private-deployment`
+  - your customer-owned repo that stores workflows, bootstrap scripts, and Pulumi stack configuration
+  - 由 `ltbase-private-deployment` 模板创建出来的私有仓库
+  - 这是你自己的部署仓库，用来保存工作流、bootstrap 脚本和 Pulumi stack 配置
 
-Your deployment repository does not build LTBase application source code. It downloads an official LTBase release and deploys that version into your AWS account.
+Your deployment repository does not build LTBase application source code. It downloads an official LTBase release and deploys it into your AWS account.
 
-## What You Need Before Starting
+你的部署仓库不会自行构建 LTBase 应用源码。它会下载官方 LTBase release，并将其部署到你的 AWS 账户中。
 
-- A GitHub organization or account that can host a private repository.
-- A devo AWS account and, optionally, a separate prod AWS account.
-- A Cloudflare zone for the domains you will use.
-- Permission to create or update IAM roles, IAM OIDC providers, S3 buckets, and KMS keys in the target AWS accounts.
-- A customer-specific `LTBASE_RELEASES_TOKEN` issued by LTBase.
-- A Gemini API key for runtime summarization features.
+## End State / 最终完成状态
 
-## End State
+When onboarding is complete, you should have:
 
-When setup is complete, you will have:
+完成 onboarding 后，你应该具备以下结果：
 
-- one private deployment repository created from `ltbase-private-deployment`
-- one GitHub OIDC trust relationship per AWS account used for deployment
-- one deploy role for `devo` and one deploy role for `prod`
+- one private deployment repository based on this template
+- one GitHub OIDC trust relationship in each AWS account used for deployment
+- one deploy role for `devo` and one for `prod`
 - one Pulumi state bucket
-- one AWS KMS key alias used for Pulumi stack secret encryption
-- repository secrets and variables populated through the bootstrap scripts
-- a `devo` stack ready for preview and deploy
+- one KMS alias for Pulumi secrets encryption
+- GitHub repository secrets and variables configured
+- a `devo` stack ready for preview and deployment
 - a `prod` stack ready for promotion after `devo` is validated
 
-## Required Repository Secrets
+- 一个基于本模板创建的私有部署仓库
+- 每个用于部署的 AWS 账户中各自存在 GitHub OIDC 信任关系
+- 一个 `devo` deploy role 和一个 `prod` deploy role
+- 一个 Pulumi state bucket
+- 一个用于 Pulumi secrets 加密的 KMS alias
+- 已配置好的 GitHub 仓库 secrets 和 variables
+- 一个可用于 preview 与部署的 `devo` stack
+- 一个在 `devo` 验证完成后可用于 promotion 的 `prod` stack
 
-Set these GitHub Actions secrets in your deployment repository:
+## Before You Start / 开始之前
+
+You will need:
+
+你需要提前准备：
+
+- a GitHub organization or account that can host a private repository
+- a devo AWS account and optionally a separate prod AWS account
+- a Cloudflare zone for your domains
+- permission to create or update IAM roles, IAM OIDC providers, S3 buckets, and KMS keys
+- a customer-specific `LTBASE_RELEASES_TOKEN`
+- a Gemini API key
+
+- 一个可以创建私有仓库的 GitHub 组织或账号
+- 一个 devo AWS 账户，以及可选的单独 prod AWS 账户
+- 一个用于业务域名的 Cloudflare zone
+- 创建或更新 IAM role、IAM OIDC provider、S3 bucket、KMS key 的权限
+- 一个客户专用的 `LTBASE_RELEASES_TOKEN`
+- 一个 Gemini API key
+
+For the detailed preparation checklist, use:
+
+更详细的准备清单请看：
+
+- [`docs/onboarding/01-prerequisites.md`](onboarding/01-prerequisites.md)
+
+## Full Onboarding Order / 完整操作顺序
+
+Follow the steps in this order:
+
+请按下面顺序操作：
+
+### Step 1 - Prepare prerequisites / 第一步：准备前置条件
+
+- Read: [`docs/onboarding/01-prerequisites.md`](onboarding/01-prerequisites.md)
+- Covers: accounts, permissions, tokens, domains, local tools
+
+- 阅读：[`docs/onboarding/01-prerequisites.md`](onboarding/01-prerequisites.md)
+- 内容包括：账户、权限、token、域名、本地工具
+
+### Step 2 - Create the deployment repository and clone it / 第二步：创建部署仓库并克隆到本地
+
+- Read: [`docs/onboarding/02-create-repo-and-clone.md`](onboarding/02-create-repo-and-clone.md)
+- Covers: creating the private repo from template, cloning locally, verifying repository layout
+
+- 阅读：[`docs/onboarding/02-create-repo-and-clone.md`](onboarding/02-create-repo-and-clone.md)
+- 内容包括：从模板创建私有仓库、拉取到本地、确认目录结构
+
+### Step 3 - Create GitHub OIDC and deploy roles / 第三步：创建 GitHub OIDC 和 deploy role
+
+- Read: [`docs/onboarding/03-create-oidc-and-deploy-roles.md`](onboarding/03-create-oidc-and-deploy-roles.md)
+- Covers: OIDC provider, devo/prod deploy roles, trust policy, permissions policy
+
+- 阅读：[`docs/onboarding/03-create-oidc-and-deploy-roles.md`](onboarding/03-create-oidc-and-deploy-roles.md)
+- 内容包括：OIDC provider、devo/prod deploy role、信任策略、权限策略
+
+### Step 4 - Prepare the local `.env` file / 第四步：准备本地 `.env` 文件
+
+- Read: [`docs/onboarding/04-prepare-env-file.md`](onboarding/04-prepare-env-file.md)
+- Covers: every required `.env` field, where each value comes from, what must not be edited manually
+
+- 阅读：[`docs/onboarding/04-prepare-env-file.md`](onboarding/04-prepare-env-file.md)
+- 内容包括：`.env` 每个必填字段、每个值从哪里来、哪些值不能手填
+
+### Step 5 - Choose a bootstrap path / 第五步：选择 bootstrap 路径
+
+If you have enough GitHub and AWS permissions, use the one-click path:
+
+如果你拥有足够的 GitHub 和 AWS 权限，优先使用一键路径：
+
+- [`docs/onboarding/05-bootstrap-one-click.md`](onboarding/05-bootstrap-one-click.md)
+
+If you want to control each stage manually, use the manual path:
+
+如果你希望逐步控制每一个阶段，请使用手动路径：
+
+- [`docs/onboarding/06-bootstrap-manual.md`](onboarding/06-bootstrap-manual.md)
+
+### Step 6 - Run the first preview and deployment / 第六步：执行第一次 preview 和部署
+
+- Read: [`docs/onboarding/07-first-deploy-and-managed-dsql.md`](onboarding/07-first-deploy-and-managed-dsql.md)
+- Covers: preview, devo deploy, prod promotion, managed DSQL post-bootstrap handling
+
+- 阅读：[`docs/onboarding/07-first-deploy-and-managed-dsql.md`](onboarding/07-first-deploy-and-managed-dsql.md)
+- 内容包括：preview、devo deploy、prod promotion、managed DSQL 的 bootstrap 后处理
+
+### Step 7 - Day-2 operations / 第七步：日常运维与升级
+
+- Read: [`docs/onboarding/08-day-2-operations.md`](onboarding/08-day-2-operations.md)
+- Covers: release upgrades, repeated previews, deployment rhythm, operational reminders
+
+- 阅读：[`docs/onboarding/08-day-2-operations.md`](onboarding/08-day-2-operations.md)
+- 内容包括：release 升级、重复 preview、部署节奏、运维提醒
+
+## Required GitHub Secrets and Variables / 必需的 GitHub Secrets 与 Variables
+
+Set these repository secrets in your deployment repository:
+
+在你的部署仓库中设置以下 secrets：
 
 - `AWS_ROLE_ARN_DEVO`
 - `AWS_ROLE_ARN_PROD`
 - `LTBASE_RELEASES_TOKEN`
 - `CLOUDFLARE_API_TOKEN`
 
-## Required Repository Variables
+Set these repository variables in your deployment repository:
 
-Set these GitHub Actions variables in your deployment repository:
+在你的部署仓库中设置以下 variables：
 
 - `AWS_REGION_DEVO`
 - `AWS_REGION_PROD`
@@ -58,455 +177,60 @@ Set these GitHub Actions variables in your deployment repository:
 - `LTBASE_RELEASES_REPO`
 - `LTBASE_RELEASE_ID`
 
-Recommended initial values:
-
-- `AWS_REGION_DEVO=ap-northeast-1`
-- `AWS_REGION_PROD=us-west-2`
-- `PULUMI_BACKEND_URL=s3://ltbase-pulumi-state`
-- `PULUMI_SECRETS_PROVIDER_DEVO=awskms://alias/ltbase-pulumi-secrets?region=ap-northeast-1`
-- `PULUMI_SECRETS_PROVIDER_PROD=awskms://alias/ltbase-pulumi-secrets?region=us-west-2`
-- `LTBASE_RELEASES_REPO=Lychee-Technology/ltbase-releases`
-- `LTBASE_RELEASE_ID=v1.0.0`
-
-`env.template` includes these values as placeholders. Copy it to a local `.env` file, fill in the real values, and keep that file private.
-
-## Required Pulumi Configuration
-
-For each stack, configure these non-secret values:
-
-- `awsRegion`
-- `runtimeBucket`
-- `tableName`
-- `apiDomain`
-- `controlPlaneDomain`
-- `authDomain`
-- `cloudflareZoneId`
-- `oidcIssuerUrl`
-- `jwksUrl`
-- `githubOrg`
-- `githubRepo`
-- `releaseId`
-- `dsqlPort`
-- `dsqlDB`
-- `dsqlUser`
-- `dsqlProjectSchema`
+The bootstrap scripts write these values for you when `.env` is correct.
 
-Configure these as Pulumi secrets:
-
-- `geminiApiKey`
+当 `.env` 正确时，bootstrap 脚本会帮你写入这些值。
 
-Aurora DSQL itself is created by the Pulumi blueprint. You do not supply an external `dsqlHost`, `dsqlEndpoint`, or `dsqlPassword` for managed deployments. Bootstrap resolves the authoritative managed endpoint from AWS by using the Pulumi-exported `dsqlClusterIdentifier`, then publishes it to stack config as `dsqlEndpoint`.
-
-## Step-By-Step Deployment
-
-### 1. Create the deployment repository
-
-1. Create a private repository from the public `ltbase-private-deployment` template.
-2. Clone that repository locally.
-3. Confirm the repository contains:
-   - `infra/`
-   - `.github/workflows/`
-   - `env.template`
-   - `scripts/render-bootstrap-policies.sh`
-   - `scripts/create-deployment-repo.sh`
-   - `scripts/bootstrap-aws-foundation.sh`
-   - `scripts/bootstrap-pulumi-backend.sh`
-   - `scripts/bootstrap-deployment-repo.sh`
-   - `scripts/bootstrap-all.sh`
-
-### 2. Create or confirm the GitHub OIDC provider
-
-You need a GitHub OIDC provider in each AWS account used by deployment. If it already exists, reuse it.
-
-Typical provider ARN:
-
-```text
-arn:aws:iam::<account-id>:oidc-provider/token.actions.githubusercontent.com
-```
-
-If you need to create it, create it once per account with the standard GitHub issuer:
-
-- URL: `https://token.actions.githubusercontent.com`
-- audience: `sts.amazonaws.com`
-
-### 3. Create the deploy roles
-
-Create one IAM role for `devo` and one for `prod`. If `devo` and `prod` live in different AWS accounts, create one role in each account.
-
-The bootstrap scripts do **not** create these IAM roles. They consume the role ARNs you provide in `.env` and write them into GitHub Actions secrets.
-
-#### 3.1 Trust policy template
-
-Use this trust policy as a starting point for each deploy role. Replace the placeholders:
-
-- `<github-org>`
-- `<repo-name>`
-- `<default-branch>`
-
-```json
-{
-  "Version": "2012-10-17",
-  "Statement": [
-    {
-      "Sid": "AllowGitHubActionsOidc",
-      "Effect": "Allow",
-      "Principal": {
-        "Federated": "arn:aws:iam::<account-id>:oidc-provider/token.actions.githubusercontent.com"
-      },
-      "Action": "sts:AssumeRoleWithWebIdentity",
-      "Condition": {
-        "StringEquals": {
-          "token.actions.githubusercontent.com:aud": "sts.amazonaws.com"
-        },
-        "StringLike": {
-          "token.actions.githubusercontent.com:sub": [
-            "repo:<github-org>/<repo-name>:ref:refs/heads/<default-branch>",
-            "repo:<github-org>/<repo-name>:ref:refs/heads/feature/*",
-            "repo:<github-org>/<repo-name>:pull_request"
-          ]
-        }
-      }
-    }
-  ]
-}
-```
-
-If you want to tighten this later, reduce the allowed `sub` patterns after your deployment process stabilizes.
-
-#### 3.2 Permissions policy guidance
-
-For the first successful deployment, the simplest path is to give the deploy role an administrator-scoped policy in the target account or an organization-approved equivalent broad deployment role. This is the fastest way to avoid chasing missing service permissions during the first bootstrap.
-
-After the first deployment works, you can replace that with a tighter policy.
-
-At minimum, the deploy role must be able to:
-
-- read and write the Pulumi state bucket
-- use the Pulumi KMS key
-- create and update the AWS resources managed by the LTBase blueprint
-- pass any IAM roles created during deployment if the blueprint requires it
-
-#### 3.3 Minimal backend and KMS policy template
-
-This is a useful baseline policy fragment for the Pulumi state bucket and secrets key. Replace the placeholders:
-
-- `<state-bucket>`
-- `<kms-key-arn>`
-
-```json
-{
-  "Version": "2012-10-17",
-  "Statement": [
-    {
-      "Sid": "AllowPulumiStateBucket",
-      "Effect": "Allow",
-      "Action": [
-        "s3:ListBucket"
-      ],
-      "Resource": "arn:aws:s3:::<state-bucket>"
-    },
-    {
-      "Sid": "AllowPulumiStateObjects",
-      "Effect": "Allow",
-      "Action": [
-        "s3:GetObject",
-        "s3:PutObject",
-        "s3:DeleteObject"
-      ],
-      "Resource": "arn:aws:s3:::<state-bucket>/*"
-    },
-    {
-      "Sid": "AllowPulumiSecretsKey",
-      "Effect": "Allow",
-      "Action": [
-        "kms:Encrypt",
-        "kms:Decrypt",
-        "kms:GenerateDataKey",
-        "kms:DescribeKey"
-      ],
-      "Resource": "<kms-key-arn>"
-    }
-  ]
-}
-```
-
-The bootstrap script also generates `dist/pulumi-kms-policy.json`, which you can use as a role-specific KMS access template.
-
-### 4. Prepare the local `.env` file
-
-1. Copy `env.template` to `.env`.
-2. Fill in the real values.
-3. Do not commit `.env`.
-
-Minimum values you must provide:
-
-```bash
-DEPLOYMENT_REPO=<github-org>/<repo-name>
-
-AWS_REGION_DEVO=<devo-region>
-AWS_REGION_PROD=<prod-region>
-AWS_ACCOUNT_ID_DEVO=<devo-account-id>
-AWS_ACCOUNT_ID_PROD=<prod-account-id>
-AWS_ROLE_ARN_DEVO=arn:aws:iam::<devo-account-id>:role/<devo-role>
-AWS_ROLE_ARN_PROD=arn:aws:iam::<prod-account-id>:role/<prod-role>
-
-PULUMI_STATE_BUCKET=<global-unique-state-bucket>
-PULUMI_KMS_ALIAS=alias/ltbase-pulumi-secrets
-
-LTBASE_RELEASES_REPO=Lychee-Technology/ltbase-releases
-LTBASE_RELEASE_ID=v1.0.0
-
-API_DOMAIN=api.devo.example.com
-CONTROL_DOMAIN=control.devo.example.com
-AUTH_DOMAIN=auth.devo.example.com
-CLOUDFLARE_ZONE_ID=<cloudflare-zone-id>
-OIDC_ISSUER_URL=https://<issuer>
-JWKS_URL=https://<issuer>/.well-known/jwks.json
-
-RUNTIME_BUCKET=<global-unique-runtime-bucket>
-TABLE_NAME=<devo-table-name>
-GITHUB_ORG=<github-org>
-GITHUB_REPO=<repo-name>
-GEMINI_MODEL=gemini-3-flash-preview
-DSQL_PORT=5432
-DSQL_DB=postgres
-DSQL_USER=admin
-DSQL_PROJECT_SCHEMA=ltbase
-
-GEMINI_API_KEY=<gemini-api-key>
-CLOUDFLARE_API_TOKEN=<cloudflare-api-token>
-LTBASE_RELEASES_TOKEN=<ltbase-releases-token>
-```
-
-### 5. Optional review step: render copy-paste policies
-
-If your security or platform team wants to review the exact trust and permissions policies before bootstrap, run:
-
-```bash
-./scripts/render-bootstrap-policies.sh --env-file .env
-```
-
-This writes copy-paste-ready artifacts to `dist/`, including:
-
-- `devo-trust-policy.json`
-- `prod-trust-policy.json`
-- `devo-role-policy.json`
-- `prod-role-policy.json`
-- `pulumi-kms-policy.json`
-- `bootstrap-summary.env`
-
-### 6. One-click bootstrap path
-
-If you have enough GitHub and AWS permissions, use the one-click path:
+## Important Managed DSQL Note / Managed DSQL 重要说明
 
-```bash
-./scripts/bootstrap-all.sh --env-file .env --mode apply --infra-dir infra
-```
-
-This orchestrates:
-
-- creating the real deployment repo from the template
-- creating or reusing the GitHub OIDC provider
-- creating or reusing the deploy roles
-- creating or reusing the Pulumi backend bucket and KMS key
-- writing GitHub vars and secrets
-- initializing `devo` and `prod` Pulumi stacks
+For managed deployments, do not manually provide an external `dsqlHost`, `dsqlEndpoint`, or `dsqlPassword`.
 
-This one-click path is still bootstrap-safe and configuration-only. It does not run a first full infrastructure apply and it does not reconcile `dsqlEndpoint` yet.
+对于 managed 部署，不要手动提供外部 `dsqlHost`、`dsqlEndpoint` 或 `dsqlPassword`。
 
-### 7. Manual bootstrap path
+At the time of writing, this repository's bootstrap scripts use a bootstrap-safe split: bootstrap prepares GitHub and Pulumi state first, and `scripts/reconcile-managed-dsql-endpoint.sh` publishes the managed DSQL endpoint after infrastructure exists.
 
-If you want more control, run the steps individually.
+在当前仓库版本中，bootstrap 脚本采用 bootstrap-safe 的拆分流程：bootstrap 先准备 GitHub 与 Pulumi 状态，`scripts/reconcile-managed-dsql-endpoint.sh` 会在基础设施实际存在之后发布 managed DSQL endpoint。
 
-#### 7.1 Create the real deployment repo
+Aurora DSQL itself is created by the Pulumi blueprint. You do not supply an external `dsqlHost`, `dsqlEndpoint`, or `dsqlPassword` for managed deployments.
 
-```bash
-./scripts/create-deployment-repo.sh --env-file .env
-```
+Aurora DSQL 由 Pulumi blueprint 自动创建。对于 managed 部署，你不需要提供外部 `dsqlHost`、`dsqlEndpoint` 或 `dsqlPassword`。
 
-#### 7.2 Bootstrap the AWS foundation
+The current repository version uses a bootstrap-safe flow:
 
-```bash
-./scripts/bootstrap-aws-foundation.sh --env-file .env
-```
+当前仓库版本采用 bootstrap-safe 流程：
 
-This script will:
+- `bootstrap-all.sh` and `bootstrap-deployment-repo.sh` prepare configuration only
+- the first real infrastructure apply creates the managed DSQL cluster
+- `scripts/reconcile-managed-dsql-endpoint.sh` resolves the authoritative endpoint from AWS by using the Pulumi-exported `dsqlClusterIdentifier`
+- the reconcile step publishes the resolved endpoint into stack config as `dsqlEndpoint`
+- after reconciliation, run the next preview/deploy cycle so Lambda environment configuration picks up the managed endpoint
 
-- create or reuse the GitHub Actions OIDC provider
-- create or reuse the `devo` and `prod` deploy roles
-- update the generated trust policy for both deploy roles
-- attach the generated inline access policy for both deploy roles
-- create or reuse the Pulumi state bucket
-- create or reuse the Pulumi KMS alias
-- generate `dist/foundation.env`
-- generate `dist/devo-trust-policy.json`
-- generate `dist/prod-trust-policy.json`
-- generate `dist/devo-role-policy.json`
-- generate `dist/prod-role-policy.json`
+- `bootstrap-all.sh` 和 `bootstrap-deployment-repo.sh` 只负责准备配置
+- 第一次真实基础设施 apply 会创建 managed DSQL cluster
+- `scripts/reconcile-managed-dsql-endpoint.sh` 会通过 Pulumi 导出的 `dsqlClusterIdentifier` 从 AWS 获取权威 endpoint
+- reconcile 步骤会把解析出的 endpoint 写入 stack config 的 `dsqlEndpoint`
+- reconcile 完成后，需要再执行下一轮 preview/deploy，才能让 Lambda 环境变量拿到这个 managed endpoint
 
-Review the outputs:
+## Operational Constraints / 运维约束
 
-- `dist/foundation.env`
-- `dist/devo-trust-policy.json`
-- `dist/prod-trust-policy.json`
-- `dist/devo-role-policy.json`
-- `dist/prod-role-policy.json`
+- `LTBASE_RELEASES_TOKEN` is only for downloading official LTBase releases
+- local `.env` files contain secrets and must never be committed
+- the template repository does not auto-run preview on pull requests because it has no live customer credentials
+- production approval happens in your own repository through the `prod` environment gate
 
-If needed, merge the generated values back into your local shell before bootstrapping the repository configuration:
+- `LTBASE_RELEASES_TOKEN` 仅用于下载官方 LTBase release
+- 本地 `.env` 文件包含敏感信息，绝对不能提交到仓库
+- 模板仓库不会在 pull request 上自动执行 preview，因为模板仓库不包含真实客户凭据
+- 生产环境审批发生在你自己的仓库中，通过 `prod` environment gate 实现
 
-```bash
-source dist/foundation.env
-```
+## Related Documents / 相关文档
 
-If `devo` and `prod` use different AWS accounts, also set `AWS_PROFILE_DEVO` and `AWS_PROFILE_PROD` in your local shell or `.env` so the script can manage IAM, OIDC, and KMS resources in both accounts.
-
-#### 7.3 Bootstrap the Pulumi backend and KMS configuration
-
-Run:
-
-```bash
-./scripts/bootstrap-pulumi-backend.sh --env-file .env
-```
-
-This script can still be used as a standalone backend-only fallback. If you already ran `bootstrap-aws-foundation.sh`, it should mostly confirm the bucket and KMS state and regenerate the backend artifacts.
-
-This script will:
-
-- create or reuse the Pulumi state bucket
-- create or reuse the Pulumi KMS alias
-- generate `dist/pulumi-backend.env`
-- generate `dist/pulumi-kms-policy.json`
-
-Review the outputs:
-
-- `dist/pulumi-backend.env`
-- `dist/pulumi-kms-policy.json`
-
-If needed, merge the generated values back into `.env`:
-
-```bash
-source dist/pulumi-backend.env
-```
-
-#### 7.4 Bootstrap the repository configuration and the `devo` stack
-
-Run:
-
-```bash
-./scripts/bootstrap-deployment-repo.sh --env-file .env --stack devo --infra-dir infra
-```
-
-This script will:
-
-- write GitHub Actions variables
-- write GitHub Actions secrets
-- log into the Pulumi backend
-- initialize the `devo` stack if it does not exist
-- write Pulumi config for the `devo` stack
-- store `geminiApiKey` as a Pulumi secret
-
-This step is configuration-only. It does not run a full infrastructure apply and it does not publish `dsqlEndpoint` yet.
-
-#### 7.5 Run the first real infrastructure apply for `devo`
-
-After bootstrap finishes, run your normal preview and deploy flow for `devo` so the managed DSQL cluster actually exists.
-
-#### 7.6 Reconcile the managed DSQL endpoint after infrastructure exists
-
-After that first real infrastructure apply creates the managed DSQL cluster, run:
-
-```bash
-./scripts/reconcile-managed-dsql-endpoint.sh --env-file .env --stack devo --infra-dir infra
-```
-
-This script will:
-
-- read the Pulumi-exported `dsqlClusterIdentifier`
-- resolve the authoritative managed endpoint from AWS
-- publish the resolved endpoint into Pulumi stack config as `dsqlEndpoint`
-- reconcile existing managed stacks by overwriting stale or manually supplied values
-- remove any existing managed `dsqlEndpoint` stack config and fail closed if the authoritative lookup does not succeed
-
-Run the same reconciliation step for `prod` after the `prod` infrastructure exists:
-
-```bash
-./scripts/reconcile-managed-dsql-endpoint.sh --env-file .env --stack prod --infra-dir infra
-```
-
-After reconciliation publishes `dsqlEndpoint`, run the next preview/deploy cycle for that stack so the resolved endpoint is rolled into Lambda environment configuration.
-
-#### 7.7 Bootstrap the `prod` stack
-
-Run the same script for `prod`:
-
-```bash
-./scripts/bootstrap-deployment-repo.sh --env-file .env --stack prod --infra-dir infra
-```
-
-This will reuse the same repository secrets and variables, but apply the `prod` region and `prod` Pulumi secrets provider when configuring the `prod` stack.
-
-### 8. Confirm repository configuration
-
-Before running any deployment workflow, confirm the repository contains:
-
-- secrets
-  - `AWS_ROLE_ARN_DEVO`
-  - `AWS_ROLE_ARN_PROD`
-  - `LTBASE_RELEASES_TOKEN`
-  - `CLOUDFLARE_API_TOKEN`
-- variables
-  - `AWS_REGION_DEVO`
-  - `AWS_REGION_PROD`
-  - `PULUMI_BACKEND_URL`
-  - `PULUMI_SECRETS_PROVIDER_DEVO`
-  - `PULUMI_SECRETS_PROVIDER_PROD`
-  - `LTBASE_RELEASES_REPO`
-  - `LTBASE_RELEASE_ID`
-
-### 9. First deployment
-
-1. Set `LTBASE_RELEASE_ID` to the release you want, such as `v1.0.0`.
-2. Run the `preview` workflow manually.
-3. Review the Pulumi preview output.
-4. Run the `devo` deployment workflow.
-5. Verify the `devo` environment.
-6. Run the `prod` promotion workflow.
-7. Approve the `prod` environment when GitHub asks for approval.
-
-### 10. Day-2 upgrades
-
-To adopt a new LTBase application version:
-
-1. Change `LTBASE_RELEASE_ID` or pass a new `release_id` to the workflow.
-2. Run preview.
-3. Deploy to devo.
-4. Promote the same `release_id` to prod.
-
-You do not need to rebuild application binaries in your repository.
-
-## Managed DSQL Notes
-
-- The customer infra blueprint now creates the Aurora DSQL cluster as part of the managed deployment stack.
-- For managed deployments, do not set external `dsqlHost`, `dsqlEndpoint`, or `dsqlPassword` values.
-- `bootstrap-all.sh` and `bootstrap-deployment-repo.sh` prepare stack config only; they do not do the first authoritative managed endpoint publish.
-- `reconcile-managed-dsql-endpoint.sh` is the authoritative publisher for managed `dsqlEndpoint` stack config after infrastructure exists.
-- During reconciliation, the script resolves `dsqlEndpoint` from AWS with `dsqlClusterIdentifier` and overwrites stale or manually supplied values.
-- If that authoritative lookup fails, the reconcile step removes any existing managed `dsqlEndpoint` stack config and exits before publishing replacement managed config.
-- Use the documented stack config inputs for `DSQL_DB`, `DSQL_USER`, `DSQL_PORT`, and `DSQL_PROJECT_SCHEMA` instead.
-- If you are migrating from an older private deployment setup that expected external DSQL connection settings, align the application/runtime contract before reusing an existing stack.
-
-## Operational Constraints
-
-- `LTBASE_RELEASES_TOKEN` is only for downloading official LTBase releases.
-- Local `.env` files contain sensitive values and are ignored by git on purpose.
-- The template repository does not auto-run preview on pull requests because template PRs do not have live customer deployment credentials.
-- If your subscription ends, LTBase can revoke that token.
-- Revoking the token does not shut down your existing environment.
-- Revoking the token prevents your repository from downloading future LTBase releases.
-- Prod approval happens in your repository through `environment: prod`.
-
-## Default Version Policy
-
-- Reusable workflows are consumed through `@v1`.
-- The first stable LTBase release for this deployment channel is `v1.0.0`.
-- `release_id` is the same value as the GitHub release tag in `ltbase-releases`.
+- quick checklist: [`docs/BOOTSTRAP.md`](BOOTSTRAP.md)
+- prerequisites: [`docs/onboarding/01-prerequisites.md`](onboarding/01-prerequisites.md)
+- create repo and clone: [`docs/onboarding/02-create-repo-and-clone.md`](onboarding/02-create-repo-and-clone.md)
+- create OIDC and roles: [`docs/onboarding/03-create-oidc-and-deploy-roles.md`](onboarding/03-create-oidc-and-deploy-roles.md)
+- prepare `.env`: [`docs/onboarding/04-prepare-env-file.md`](onboarding/04-prepare-env-file.md)
+- one-click bootstrap: [`docs/onboarding/05-bootstrap-one-click.md`](onboarding/05-bootstrap-one-click.md)
+- manual bootstrap: [`docs/onboarding/06-bootstrap-manual.md`](onboarding/06-bootstrap-manual.md)
+- first deploy: [`docs/onboarding/07-first-deploy-and-managed-dsql.md`](onboarding/07-first-deploy-and-managed-dsql.md)
+- day-2 operations: [`docs/onboarding/08-day-2-operations.md`](onboarding/08-day-2-operations.md)
