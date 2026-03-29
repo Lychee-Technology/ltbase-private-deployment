@@ -103,6 +103,9 @@ func NewLambdaServices(ctx *pulumi.Context, cfg config.StackConfig, runtime *Run
 		"FORMA_SCHEMA_DIR":    pulumi.String("/var/task/schemas"),
 		"S3_BUCKET_NAME":      runtime.RuntimeBucket.Bucket,
 	}
+	for key, value := range optionalDSQLEnv(cfg) {
+		commonEnv[key] = pulumi.String(value)
+	}
 	commonEnv["DSQL_PROJECT_SCHEMA"] = pulumi.String(cfg.DSQLProjectSchema)
 	dataPlane, err := newLambdaService(ctx, cfg, providers, lambdaSpec{
 		Name:         "data-plane",
@@ -372,6 +375,14 @@ func mergeEnv(parts ...pulumi.StringMap) pulumi.StringMap {
 		for key, value := range part {
 			out[key] = value
 		}
+	}
+	return out
+}
+
+func optionalDSQLEnv(cfg config.StackConfig) map[string]string {
+	out := map[string]string{}
+	if cfg.DSQLEndpoint != "" {
+		out["DSQL_ENDPOINT"] = cfg.DSQLEndpoint
 	}
 	return out
 }

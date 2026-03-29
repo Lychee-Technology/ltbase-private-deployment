@@ -41,3 +41,13 @@ func TestValueOrDefaultKeepsManagedDSQLDefaults(t *testing.T) {
 		t.Fatalf("default user = %q", got)
 	}
 }
+
+func TestValidateAllowsOptionalDSQLEndpoint(t *testing.T) {
+	cfg := StackConfig{
+		ManageGitHubOIDCProvider: true,
+		DSQLEndpoint:             "",
+	}
+	if err := cfg.Validate(); err != nil {
+		t.Fatalf("Validate() unexpected error: %v", err)
+	}
+}

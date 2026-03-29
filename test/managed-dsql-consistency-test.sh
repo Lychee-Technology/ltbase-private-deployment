@@ -31,7 +31,9 @@ assert_not_contains "${ROOT_DIR}/docs/CUSTOMER_ONBOARDING.md" "DSQL_DB=ltbase"
 assert_not_contains "${ROOT_DIR}/docs/CUSTOMER_ONBOARDING.md" "DSQL_USER=ltbase"
 
 assert_not_contains "${ROOT_DIR}/infra/README.md" 'injects its derived `DSQL_ENDPOINT`'
+assert_contains "${ROOT_DIR}/infra/internal/config/config.go" "DSQLEndpoint"
 assert_not_contains "${ROOT_DIR}/infra/cmd/ltbase-infra/main.go" "ctx.Export(\"dsqlEndpoint\""
-assert_not_contains "${ROOT_DIR}/infra/internal/services/lambda.go" "\"DSQL_ENDPOINT\""
+assert_contains "${ROOT_DIR}/infra/internal/services/lambda.go" "\"DSQL_ENDPOINT\""
+assert_not_contains "${ROOT_DIR}/infra/internal/services/lambda.go" "VpcEndpointServiceName"
 
 printf 'PASS: managed DSQL consistency tests\n'

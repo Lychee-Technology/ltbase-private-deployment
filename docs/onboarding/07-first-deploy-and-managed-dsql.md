@@ -70,9 +70,9 @@ Treat managed DSQL details as deployment-owned state produced by the infrastruct
 
 请将 managed DSQL 的具体连接信息视为由你当前仓库版本的基础设施与发布流程生成和维护的部署状态。
 
-If LTBase later ships a repository version that introduces an explicit post-deploy reconciliation step, follow that version's instructions exactly and do not invent your own endpoint values.
+In the current repository version, follow the explicit post-deploy reconciliation step when managed DSQL infrastructure exists, and do not invent your own endpoint values.
 
-如果 LTBase 后续发布的仓库版本引入了显式的部署后 reconcile 步骤，请严格按该版本文档执行，不要自行构造 endpoint 值。
+在当前仓库版本中，当 managed DSQL 基础设施已经存在时，请按显式的部署后 reconcile 步骤执行，不要自行构造 endpoint 值。
 
 ## Expected Result / 预期结果
 

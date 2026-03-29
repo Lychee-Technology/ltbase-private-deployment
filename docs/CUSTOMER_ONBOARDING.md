@@ -187,17 +187,29 @@ For managed deployments, do not manually provide an external `dsqlHost`, `dsqlEn
 
 对于 managed 部署，不要手动提供外部 `dsqlHost`、`dsqlEndpoint` 或 `dsqlPassword`。
 
-At the time of writing, this repository's bootstrap scripts are configuration-oriented: they prepare GitHub and Pulumi state, but they do not describe a separate customer-facing managed DSQL reconciliation command in the current tree.
+At the time of writing, this repository's bootstrap scripts use a bootstrap-safe split: bootstrap prepares GitHub and Pulumi state first, and `scripts/reconcile-managed-dsql-endpoint.sh` publishes the managed DSQL endpoint after infrastructure exists.
 
-在当前仓库版本中，bootstrap 脚本主要负责配置初始化：它们会准备 GitHub 与 Pulumi 状态，但当前仓库树中并没有单独暴露一个面向客户的 managed DSQL reconcile 命令文档。
+在当前仓库版本中，bootstrap 脚本采用 bootstrap-safe 的拆分流程：bootstrap 先准备 GitHub 与 Pulumi 状态，`scripts/reconcile-managed-dsql-endpoint.sh` 会在基础设施实际存在之后发布 managed DSQL endpoint。
 
-That means you should treat managed DSQL endpoint publication as part of the post-bootstrap deployment lifecycle defined by the current repo version and release process.
+Aurora DSQL itself is created by the Pulumi blueprint. You do not supply an external `dsqlHost`, `dsqlEndpoint`, or `dsqlPassword` for managed deployments.
 
-这意味着你应将 managed DSQL endpoint 的发布视为 bootstrap 之后部署生命周期的一部分，并以当前仓库版本和发布流程说明为准。
+Aurora DSQL 由 Pulumi blueprint 自动创建。对于 managed 部署，你不需要提供外部 `dsqlHost`、`dsqlEndpoint` 或 `dsqlPassword`。
 
-If LTBase provides a later repository version that includes an explicit reconciliation step, follow that version's customer guide for the post-deploy endpoint publication sequence.
+The current repository version uses a bootstrap-safe flow:
 
-如果 LTBase 后续提供了包含显式 reconcile 步骤的新仓库版本，请以该版本的客户文档为准完成部署后 endpoint 发布流程。
+当前仓库版本采用 bootstrap-safe 流程：
+
+- `bootstrap-all.sh` and `bootstrap-deployment-repo.sh` prepare configuration only
+- the first real infrastructure apply creates the managed DSQL cluster
+- `scripts/reconcile-managed-dsql-endpoint.sh` resolves the authoritative endpoint from AWS by using the Pulumi-exported `dsqlClusterIdentifier`
+- the reconcile step publishes the resolved endpoint into stack config as `dsqlEndpoint`
+- after reconciliation, run the next preview/deploy cycle so Lambda environment configuration picks up the managed endpoint
+
+- `bootstrap-all.sh` 和 `bootstrap-deployment-repo.sh` 只负责准备配置
+- 第一次真实基础设施 apply 会创建 managed DSQL cluster
+- `scripts/reconcile-managed-dsql-endpoint.sh` 会通过 Pulumi 导出的 `dsqlClusterIdentifier` 从 AWS 获取权威 endpoint
+- reconcile 步骤会把解析出的 endpoint 写入 stack config 的 `dsqlEndpoint`
+- reconcile 完成后，需要再执行下一轮 preview/deploy，才能让 Lambda 环境变量拿到这个 managed endpoint
 
 ## Operational Constraints / 运维约束
 
