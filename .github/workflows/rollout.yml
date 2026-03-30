@@ -1,10 +1,10 @@
-name: Deploy LTBase Start Stack
+name: Rollout LTBase Release
 
 on:
   workflow_dispatch:
     inputs:
       release_id:
-        description: Official LTBase release tag to deploy into the first promotion stack
+        description: Official LTBase release tag to roll out across the full promotion path
         required: true
         type: string
 
@@ -32,11 +32,11 @@ jobs:
           fi
           echo "start_stack=${start_stack}" >> "${GITHUB_OUTPUT}"
 
-  deploy:
+  rollout:
     needs: prepare
     uses: ./.github/workflows/rollout-hop.yml
     with:
       release_id: ${{ inputs.release_id }}
       target_stack: ${{ needs.prepare.outputs.start_stack }}
-      continue_chain: false
+      continue_chain: true
     secrets: inherit

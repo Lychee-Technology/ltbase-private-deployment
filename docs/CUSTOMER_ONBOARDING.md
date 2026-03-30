@@ -7,11 +7,11 @@ This document is the main entry point for customers deploying LTBase with the pr
 ## What This Document Is For / 本文档的用途
 
 - explain the overall deployment model
-- show the full onboarding order from preparation to first production promotion
+- show the full onboarding order from preparation to first promotion-path rollout
 - link to detailed step-by-step guides for every longer operation
 
 - 解释整体部署模型
-- 给出从准备到首次生产发布的完整顺序
+- 给出从准备到第一次按 promotion path 推进 rollout 的完整顺序
 - 为每个较长操作链接到详细步骤文档
 
 ## Deployment Model / 部署模型
@@ -44,21 +44,21 @@ When onboarding is complete, you should have:
 
 - one private deployment repository based on this template
 - one GitHub OIDC trust relationship in each AWS account used for deployment
-- one deploy role for `devo` and one for `prod`
+- one deploy role per configured stack in `STACKS`
 - one Pulumi state bucket
 - one KMS alias for Pulumi secrets encryption
 - GitHub repository secrets and variables configured
-- a `devo` stack ready for preview and deployment
-- a `prod` stack ready for promotion after `devo` is validated
+- a first promotion stack ready for preview and deployment
+- each later stack in `PROMOTION_PATH` ready for protected promotion after the previous hop is validated
 
 - 一个基于本模板创建的私有部署仓库
 - 每个用于部署的 AWS 账户中各自存在 GitHub OIDC 信任关系
-- 一个 `devo` deploy role 和一个 `prod` deploy role
+- `STACKS` 中每个环境各自对应一个 deploy role
 - 一个 Pulumi state bucket
 - 一个用于 Pulumi secrets 加密的 KMS alias
 - 已配置好的 GitHub 仓库 secrets 和 variables
-- 一个可用于 preview 与部署的 `devo` stack
-- 一个在 `devo` 验证完成后可用于 promotion 的 `prod` stack
+- 一个可用于 preview 与部署的起点 stack
+- `PROMOTION_PATH` 中每个后续环境在前一跳验证后都可用于受保护 promotion
 
 ## Before You Start / 开始之前
 
@@ -67,14 +67,14 @@ You will need:
 你需要提前准备：
 
 - a GitHub organization or account that can host a private repository
-- a devo AWS account and optionally a separate prod AWS account
+- one or more AWS accounts that will host the stacks listed in `STACKS`
 - a Cloudflare zone for your domains
 - permission to create or update IAM roles, IAM OIDC providers, S3 buckets, and KMS keys
 - a customer-specific `LTBASE_RELEASES_TOKEN`
 - a Gemini API key
 
 - 一个可以创建私有仓库的 GitHub 组织或账号
-- 一个 devo AWS 账户，以及可选的单独 prod AWS 账户
+- 一个或多个将承载 `STACKS` 中各环境的 AWS 账户
 - 一个用于业务域名的 Cloudflare zone
 - 创建或更新 IAM role、IAM OIDC provider、S3 bucket、KMS key 的权限
 - 一个客户专用的 `LTBASE_RELEASES_TOKEN`
@@ -111,10 +111,10 @@ Follow the steps in this order:
 ### Step 3 - Create GitHub OIDC and deploy roles / 第三步：创建 GitHub OIDC 和 deploy role
 
 - Read: [`docs/onboarding/03-create-oidc-and-deploy-roles.md`](onboarding/03-create-oidc-and-deploy-roles.md)
-- Covers: OIDC provider, devo/prod deploy roles, trust policy, permissions policy
+- Covers: OIDC provider, per-stack deploy roles, trust policy, permissions policy
 
 - 阅读：[`docs/onboarding/03-create-oidc-and-deploy-roles.md`](onboarding/03-create-oidc-and-deploy-roles.md)
-- 内容包括：OIDC provider、devo/prod deploy role、信任策略、权限策略
+- 内容包括：OIDC provider、按 stack 划分的 deploy role、信任策略、权限策略
 
 ### Step 4 - Prepare the local `.env` file / 第四步：准备本地 `.env` 文件
 
@@ -141,10 +141,10 @@ If you want to control each stage manually, use the manual path:
 ### Step 6 - Run the first preview and deployment / 第六步：执行第一次 preview 和部署
 
 - Read: [`docs/onboarding/07-first-deploy-and-managed-dsql.md`](onboarding/07-first-deploy-and-managed-dsql.md)
-- Covers: preview, devo deploy, prod promotion, managed DSQL post-bootstrap handling
+- Covers: preview, promotion-path rollout, protected-environment approvals, managed DSQL post-bootstrap handling
 
 - 阅读：[`docs/onboarding/07-first-deploy-and-managed-dsql.md`](onboarding/07-first-deploy-and-managed-dsql.md)
-- 内容包括：preview、devo deploy、prod promotion、managed DSQL 的 bootstrap 后处理
+- 内容包括：preview、按 promotion path 推进的 rollout、受保护环境审批、managed DSQL 的 bootstrap 后处理
 
 ### Step 7 - Day-2 operations / 第七步：日常运维与升级
 
@@ -160,8 +160,7 @@ Set these repository secrets in your deployment repository:
 
 在你的部署仓库中设置以下 secrets：
 
-- `AWS_ROLE_ARN_DEVO`
-- `AWS_ROLE_ARN_PROD`
+- `AWS_ROLE_ARN_<STACK>` for every stack in `STACKS`
 - `LTBASE_RELEASES_TOKEN`
 - `CLOUDFLARE_API_TOKEN`
 
@@ -169,13 +168,13 @@ Set these repository variables in your deployment repository:
 
 在你的部署仓库中设置以下 variables：
 
-- `AWS_REGION_DEVO`
-- `AWS_REGION_PROD`
+- `AWS_REGION_<STACK>` for every stack in `STACKS`
 - `PULUMI_BACKEND_URL`
-- `PULUMI_SECRETS_PROVIDER_DEVO`
-- `PULUMI_SECRETS_PROVIDER_PROD`
+- `PULUMI_SECRETS_PROVIDER_<STACK>` for every stack in `STACKS`
 - `LTBASE_RELEASES_REPO`
 - `LTBASE_RELEASE_ID`
+- `STACKS`
+- `PROMOTION_PATH`
 
 The bootstrap scripts write these values for you when `.env` is correct.
 
@@ -216,12 +215,14 @@ The current repository version uses a bootstrap-safe flow:
 - `LTBASE_RELEASES_TOKEN` is only for downloading official LTBase releases
 - local `.env` files contain secrets and must never be committed
 - the template repository does not auto-run preview on pull requests because it has no live customer credentials
-- production approval happens in your own repository through the `prod` environment gate
+- manual preview only supports the first stack in `PROMOTION_PATH`
+- protected promotions happen in your own repository through per-stack GitHub environment gates
 
 - `LTBASE_RELEASES_TOKEN` 仅用于下载官方 LTBase release
 - 本地 `.env` 文件包含敏感信息，绝对不能提交到仓库
 - 模板仓库不会在 pull request 上自动执行 preview，因为模板仓库不包含真实客户凭据
-- 生产环境审批发生在你自己的仓库中，通过 `prod` environment gate 实现
+- 手动 preview 只支持 `PROMOTION_PATH` 中的第一个环境
+- 受保护环境的 promotion 会在你自己的仓库中通过各自的 GitHub environment gate 完成
 
 ## Related Documents / 相关文档
 

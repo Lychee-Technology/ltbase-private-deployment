@@ -25,6 +25,7 @@ Your deployment repository should contain:
 - `scripts/bootstrap-pulumi-backend.sh`
 - `scripts/bootstrap-deployment-repo.sh`
 - `scripts/bootstrap-all.sh`
+- `scripts/evaluate-and-continue.sh`
 
 ## Quick Checklist / 快速清单
 
@@ -47,10 +48,10 @@ Your deployment repository should contain:
 ### 3. Create OIDC and deploy roles / 3. 创建 OIDC 和 deploy role
 
 - read [`onboarding/03-create-oidc-and-deploy-roles.md`](onboarding/03-create-oidc-and-deploy-roles.md)
-- create one deploy role for `devo` and one for `prod`
+- create one deploy role for each stack in `STACKS`
 
 - 阅读 [`onboarding/03-create-oidc-and-deploy-roles.md`](onboarding/03-create-oidc-and-deploy-roles.md)
-- 为 `devo` 和 `prod` 各创建一个 deploy role
+- 为 `STACKS` 中的每个环境各创建一个 deploy role
 
 ### 4. Prepare `.env` / 4. 准备 `.env`
 
@@ -69,10 +70,10 @@ One-click path:
 一键路径：
 
 - read [`onboarding/05-bootstrap-one-click.md`](onboarding/05-bootstrap-one-click.md)
-- run `./scripts/bootstrap-all.sh --env-file .env --mode apply --infra-dir infra`
+- run `./scripts/evaluate-and-continue.sh --env-file .env --scope bootstrap --force --infra-dir infra`
 
 - 阅读 [`onboarding/05-bootstrap-one-click.md`](onboarding/05-bootstrap-one-click.md)
-- 运行 `./scripts/bootstrap-all.sh --env-file .env --mode apply --infra-dir infra`
+- 运行 `./scripts/evaluate-and-continue.sh --env-file .env --scope bootstrap --force --infra-dir infra`
 
 Manual path:
 
@@ -87,50 +88,49 @@ Manual path:
 ### 6. Run the first deployment / 6. 执行首次部署
 
 - read [`onboarding/07-first-deploy-and-managed-dsql.md`](onboarding/07-first-deploy-and-managed-dsql.md)
-- run preview
-- deploy `devo`
-- validate `devo`
-- promote to `prod`
+- run preview for the first stack in `PROMOTION_PATH`
+- trigger `rollout.yml` once for the chosen release
+- approve each protected target stack as GitHub requests it
 
 - 阅读 [`onboarding/07-first-deploy-and-managed-dsql.md`](onboarding/07-first-deploy-and-managed-dsql.md)
-- 执行 preview
-- 部署 `devo`
-- 验证 `devo`
-- 推进到 `prod`
+- 对 `PROMOTION_PATH` 第一个环境执行 preview
+- 针对目标 release 触发一次 `rollout.yml`
+- 在 GitHub 请求时依次审批受保护目标环境
 
 ### 7. Day-2 operations / 7. 日常运维
 
 - read [`onboarding/08-day-2-operations.md`](onboarding/08-day-2-operations.md)
-- use the same preview -> devo -> prod rhythm for upgrades
+- use the same preview -> rollout rhythm for upgrades
 
 - 阅读 [`onboarding/08-day-2-operations.md`](onboarding/08-day-2-operations.md)
-- 后续升级继续沿用 preview -> devo -> prod 的节奏
+- 后续升级继续沿用 preview -> rollout 的节奏
 
 ## Required GitHub Secrets / 必需的 GitHub Secrets
 
-- `AWS_ROLE_ARN_DEVO`
-- `AWS_ROLE_ARN_PROD`
+- `AWS_ROLE_ARN_<STACK>` for every stack in `STACKS`
 - `LTBASE_RELEASES_TOKEN`
 - `CLOUDFLARE_API_TOKEN`
 
 ## Required GitHub Variables / 必需的 GitHub Variables
 
-- `AWS_REGION_DEVO`
-- `AWS_REGION_PROD`
+- `AWS_REGION_<STACK>` for every stack in `STACKS`
 - `PULUMI_BACKEND_URL`
-- `PULUMI_SECRETS_PROVIDER_DEVO`
-- `PULUMI_SECRETS_PROVIDER_PROD`
+- `PULUMI_SECRETS_PROVIDER_<STACK>` for every stack in `STACKS`
 - `LTBASE_RELEASES_REPO`
 - `LTBASE_RELEASE_ID`
+- `STACKS`
+- `PROMOTION_PATH`
 
 ## Notes / 说明
 
 - keep `.env` private and outside version control
 - the deployment repository downloads official LTBase releases; it does not build the app itself
 - preview is manual in the customer repo because live credentials are customer-owned
-- production deployment is guarded by the `prod` environment approval gate
+- manual preview only supports the first stack in `PROMOTION_PATH`
+- protected target environments are guarded by per-stack GitHub environment approval gates during rollout
 
 - 保持 `.env` 私密，不要纳入版本控制
 - 部署仓库负责下载官方 LTBase release，不负责自行构建应用
 - 客户仓库中的 preview 默认为手动触发，因为真实凭据由客户持有
-- 生产部署由 `prod` environment 审批 gate 保护
+- 手动 preview 只支持 `PROMOTION_PATH` 的第一个环境
+- rollout 中的受保护目标环境由各自的 GitHub environment 审批 gate 保护

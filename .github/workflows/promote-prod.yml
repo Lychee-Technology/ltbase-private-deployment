@@ -1,4 +1,4 @@
-name: Promote LTBase Prod
+name: Promote LTBase Between Stacks
 
 on:
   workflow_dispatch:
@@ -7,31 +7,26 @@ on:
         description: Official LTBase release tag to promote
         required: true
         type: string
+      from_stack:
+        description: Current deployed stack in PROMOTION_PATH
+        required: true
+        type: string
+      to_stack:
+        description: Next stack in PROMOTION_PATH
+        required: true
+        type: string
 
 permissions:
+  actions: write
   contents: read
   id-token: write
 
 jobs:
-  approve:
-    runs-on: ubuntu-24.04
-    environment: prod
-    steps:
-      - run: echo "prod approval granted"
-
   promote:
-    needs:
-      - approve
-    uses: Lychee-Technology/ltbase-deploy-workflows/.github/workflows/promote-prod.yml@v1
+    uses: ./.github/workflows/rollout-hop.yml
     with:
-      pulumi_stack: prod
-      aws_region: ${{ vars.AWS_REGION_PROD || 'ap-northeast-1' }}
       release_id: ${{ inputs.release_id }}
-      pulumi_backend_url: ${{ vars.PULUMI_BACKEND_URL }}
-      pulumi_secrets_provider: ${{ vars.PULUMI_SECRETS_PROVIDER_PROD }}
-      releases_repo: ${{ vars.LTBASE_RELEASES_REPO || 'Lychee-Technology/ltbase-releases' }}
-      working_directory: infra
-    secrets:
-      aws_role_arn: ${{ secrets.AWS_ROLE_ARN_PROD }}
-      ltbase_releases_token: ${{ secrets.LTBASE_RELEASES_TOKEN }}
-      cloudflare_api_token: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      from_stack: ${{ inputs.from_stack }}
+      target_stack: ${{ inputs.to_stack }}
+      continue_chain: false
+    secrets: inherit

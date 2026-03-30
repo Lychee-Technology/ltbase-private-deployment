@@ -6,6 +6,7 @@ ENV_FILE=""
 FORCE="false"
 INFRA_DIR="infra"
 REPORT_DIR="dist/evaluate-and-continue"
+RELEASE_ID=""
 SCOPE="all"
 
 while [[ $# -gt 0 ]]; do
@@ -24,6 +25,10 @@ while [[ $# -gt 0 ]]; do
       ;;
     --report-dir)
       REPORT_DIR="$2"
+      shift 2
+      ;;
+    --release-id)
+      RELEASE_ID="$2"
       shift 2
       ;;
     --scope)
@@ -472,6 +477,10 @@ run_force_actions() {
 
   if [[ "${needs_oidc_companion}" == "true" && "${SCOPE}" != "foundation" ]]; then
     run_logged "${script_dir}/bootstrap-oidc-discovery-companion.sh" --env-file "${ENV_FILE}"
+  fi
+
+  if [[ -n "${RELEASE_ID}" && "${SCOPE}" != "foundation" ]]; then
+    run_logged gh workflow run rollout.yml --repo "${DEPLOYMENT_REPO}" -f release_id="${RELEASE_ID}"
   fi
 }
 
