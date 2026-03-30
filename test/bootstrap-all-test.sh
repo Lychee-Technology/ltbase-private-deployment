@@ -40,6 +40,8 @@ GITHUB_OWNER=customer-org
 DEPLOYMENT_REPO_NAME=customer-ltbase
 DEPLOYMENT_REPO_VISIBILITY=private
 DEPLOYMENT_REPO_DESCRIPTION="Customer LTBase deployment repo"
+OIDC_DISCOVERY_DOMAIN=oidc.customer.example.com
+CLOUDFLARE_ACCOUNT_ID=cf-account-123
 AWS_REGION_DEVO=ap-northeast-1
 AWS_REGION_STAGING=us-east-1
 AWS_REGION_PROD=us-west-2
@@ -79,7 +81,7 @@ CLOUDFLARE_API_TOKEN=test-cloudflare-token
 LTBASE_RELEASES_TOKEN=test-release-token
 EOF
 
-for name in render-bootstrap-policies.sh create-deployment-repo.sh bootstrap-aws-foundation.sh bootstrap-deployment-repo.sh reconcile-managed-dsql-endpoint.sh; do
+for name in render-bootstrap-policies.sh create-deployment-repo.sh bootstrap-aws-foundation.sh bootstrap-oidc-discovery-companion.sh bootstrap-deployment-repo.sh reconcile-managed-dsql-endpoint.sh; do
   cat >"${fake_bin}/${name}" <<EOF
 #!/usr/bin/env bash
 set -euo pipefail
@@ -97,6 +99,7 @@ if [[ -x "${SCRIPT_PATH}" ]]; then
   assert_log_contains "${log_file}" "create-deployment-repo.sh --env-file ${temp_dir}/.env"
   assert_log_contains "${log_file}" "render-bootstrap-policies.sh --env-file ${temp_dir}/.env"
   assert_log_contains "${log_file}" "bootstrap-aws-foundation.sh --env-file ${temp_dir}/.env"
+  assert_log_contains "${log_file}" "bootstrap-oidc-discovery-companion.sh --env-file ${temp_dir}/.env"
   assert_log_contains "${log_file}" "bootstrap-deployment-repo.sh --env-file ${temp_dir}/.env --stack devo --infra-dir ${temp_dir}/infra"
   assert_log_contains "${log_file}" "bootstrap-deployment-repo.sh --env-file ${temp_dir}/.env --stack staging --infra-dir ${temp_dir}/infra"
   assert_log_contains "${log_file}" "bootstrap-deployment-repo.sh --env-file ${temp_dir}/.env --stack prod --infra-dir ${temp_dir}/infra"

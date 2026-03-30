@@ -71,6 +71,8 @@ OIDC_ISSUER_URL_PROD=https://issuer.example.com/prod
 JWKS_URL_DEVO=https://issuer.example.com/devo/jwks.json
 JWKS_URL_STAGING=https://issuer.example.com/staging/jwks.json
 JWKS_URL_PROD=https://issuer.example.com/prod/jwks.json
+OIDC_DISCOVERY_DOMAIN=oidc.customer.example.com
+CLOUDFLARE_ACCOUNT_ID=cf-account-123
 GEMINI_MODEL=gemini-3-flash-preview
 DSQL_PORT=5432
 DSQL_DB=postgres
@@ -98,9 +100,20 @@ if [[ "${cmd} ${sub}" == "repo view" ]]; then
   if [[ "${SCENARIO}" == "repo_config_missing" || "${SCENARIO}" == "bootstrap_force" ]]; then
     exit 1
   fi
+  if [[ "${3:-}" == "customer-org/customer-ltbase-oidc-discovery" && "${SCENARIO}" == "oidc_companion_missing" ]]; then
+    exit 1
+  fi
   exit 0
 fi
 if [[ "${cmd} ${sub}" == "variable list" ]]; then
+  if [[ "${4:-}" == "customer-org/customer-ltbase-oidc-discovery" ]]; then
+    if [[ "${SCENARIO}" == "oidc_companion_missing" ]]; then
+      printf '[]'
+    else
+      printf '[{"name":"OIDC_DISCOVERY_DOMAIN"},{"name":"OIDC_DISCOVERY_STACK_CONFIG"}]'
+    fi
+    exit 0
+  fi
   if [[ "${SCENARIO}" == "repo_config_missing" ]]; then
     printf '[]'
   else
@@ -109,6 +122,10 @@ if [[ "${cmd} ${sub}" == "variable list" ]]; then
   exit 0
 fi
 if [[ "${cmd} ${sub}" == "secret list" ]]; then
+  if [[ "${4:-}" == "customer-org/customer-ltbase-oidc-discovery" ]]; then
+    printf '[]'
+    exit 0
+  fi
   if [[ "${SCENARIO}" == "repo_config_missing" ]]; then
     printf '[]'
   else
@@ -120,7 +137,7 @@ exit 0
 EOF
   chmod +x "${fake_bin}/gh"
 
-  cat >"${fake_bin}/aws" <<'EOF'
+cat >"${fake_bin}/aws" <<'EOF'
 #!/usr/bin/env bash
 set -euo pipefail
 printf 'aws %s\n' "$*" >>"${COMMAND_LOG}"
@@ -150,6 +167,12 @@ case "${SCENARIO}:${command_key}" in
     printf '{"Aliases":[]}'
     exit 0
     ;;
+  oidc_companion_missing:iam\ get-role)
+    if printf '%s\n' "$*" | grep -Fq 'oidc-discovery'; then
+      exit 255
+    fi
+    exit 0
+    ;;
   bootstrap_force:kms\ create-key)
     printf 'key-123\n'
     exit 0
@@ -162,6 +185,39 @@ esac
 exit 0
 EOF
   chmod +x "${fake_bin}/aws"
+
+  cat >"${fake_bin}/curl" <<'EOF'
+#!/usr/bin/env bash
+set -euo pipefail
+printf 'curl %s\n' "$*" >>"${COMMAND_LOG}"
+method="GET"
+url=""
+args=("$@")
+index=0
+while [[ ${index} -lt ${#args[@]} ]]; do
+  case "${args[${index}]}" in
+    -X)
+      method="${args[$((index + 1))]}"
+      index=$((index + 2))
+      ;;
+    http*)
+      url="${args[${index}]}"
+      index=$((index + 1))
+      ;;
+    *)
+      index=$((index + 1))
+      ;;
+  esac
+done
+if [[ "${SCENARIO}" == "oidc_companion_missing" && "${method}" == "GET" && "${url}" == *"/pages/projects/customer-ltbase-oidc-discovery" ]]; then
+  exit 22
+fi
+if [[ "${SCENARIO}" == "oidc_companion_missing" && "${method}" == "GET" && "${url}" == *"/pages/projects/customer-ltbase-oidc-discovery/domains/oidc.customer.example.com" ]]; then
+  exit 22
+fi
+printf '{"success":true}'
+EOF
+  chmod +x "${fake_bin}/curl"
 
   cat >"${fake_bin}/pulumi" <<'EOF'
 #!/usr/bin/env bash
@@ -301,6 +357,15 @@ assert_file_contains "${temp_dir}/report-rollout/report.json" '"status": "needs_
 assert_file_contains "${temp_dir}/report-rollout/report.json" '"stack": "prod"'
 assert_file_contains "${temp_dir}/report-rollout/report.json" '"status": "complete"'
 
+run_expect_exit_code 2 env \
+  PATH="${temp_dir}/bin:$PATH" \
+  COMMAND_LOG="${temp_dir}/commands.log" \
+  SCENARIO="oidc_companion_missing" \
+  "${SCRIPT_PATH}" --env-file "${temp_dir}/.env" --infra-dir "${temp_dir}/infra" --report-dir "${temp_dir}/report-oidc"
+
+assert_file_contains "${temp_dir}/report-oidc/report.json" '"oidcDiscovery"'
+assert_file_contains "${temp_dir}/report-oidc/report.json" '"status": "needs_oidc_companion"'
+
 rm -rf "${temp_dir}/infra"
 mkdir -p "${temp_dir}/infra"
 run_expect_exit_code 0 env \
@@ -312,6 +377,8 @@ run_expect_exit_code 0 env \
 assert_log_contains "${temp_dir}/commands.log" "gh repo create customer-org/customer-ltbase"
 assert_log_contains "${temp_dir}/commands.log" "aws --profile devo-profile iam create-open-id-connect-provider"
 assert_log_contains "${temp_dir}/commands.log" "aws --profile prod-profile iam create-open-id-connect-provider"
+assert_log_contains "${temp_dir}/commands.log" "gh repo create customer-org/customer-ltbase-oidc-discovery"
+assert_log_contains "${temp_dir}/commands.log" "https://api.cloudflare.com/client/v4/accounts/cf-account-123/pages/projects"
 assert_log_contains "${temp_dir}/commands.log" "pulumi stack init devo --secrets-provider awskms://alias/test-pulumi-secrets?region=ap-northeast-1"
 assert_log_contains "${temp_dir}/commands.log" "pulumi stack init staging --secrets-provider awskms://alias/test-pulumi-secrets?region=us-east-1"
 assert_log_contains "${temp_dir}/commands.log" "pulumi stack init prod --secrets-provider awskms://alias/test-pulumi-secrets?region=us-west-2"
