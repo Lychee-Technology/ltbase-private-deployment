@@ -33,29 +33,33 @@ mkdir -p "${fake_bin}" "${temp_dir}/infra"
 touch "${log_file}"
 
 cat >"${temp_dir}/.env" <<'EOF'
-DEPLOYMENT_REPO=Lychee-Technology/ltbase-private-deployment
+STACKS=devo,prod
+GITHUB_OWNER=Lychee-Technology
+DEPLOYMENT_REPO_NAME=ltbase-private-deployment
 AWS_REGION_DEVO=ap-northeast-1
 AWS_REGION_PROD=us-west-2
-PULUMI_BACKEND_URL=s3://test-pulumi-state
-PULUMI_SECRETS_PROVIDER_DEVO=awskms://alias/test-pulumi-secrets?region=ap-northeast-1
-PULUMI_SECRETS_PROVIDER_PROD=awskms://alias/test-pulumi-secrets?region=us-west-2
+AWS_ACCOUNT_ID_DEVO=123456789012
+AWS_ACCOUNT_ID_PROD=123456789012
+AWS_ROLE_NAME_DEVO=test-deploy-role
+AWS_ROLE_NAME_PROD=test-prod-role
+PULUMI_STATE_BUCKET=test-pulumi-state
+PULUMI_KMS_ALIAS=alias/test-pulumi-secrets
 LTBASE_RELEASES_REPO=Lychee-Technology/ltbase-releases
 LTBASE_RELEASE_ID=v1.0.0
-AWS_ROLE_ARN_DEVO=arn:aws:iam::123456789012:role/test-deploy-role
-AWS_ROLE_ARN_PROD=arn:aws:iam::123456789012:role/test-prod-role
 LTBASE_RELEASES_TOKEN=test-release-token
 CLOUDFLARE_API_TOKEN=test-cloudflare-token
 GEMINI_API_KEY=test-gemini-key
-API_DOMAIN=api.devo.example.com
-CONTROL_DOMAIN=control.devo.example.com
-AUTH_DOMAIN=auth.devo.example.com
+API_DOMAIN_DEVO=api.devo.example.com
+API_DOMAIN_PROD=api.example.com
+CONTROL_DOMAIN_DEVO=control.devo.example.com
+CONTROL_DOMAIN_PROD=control.example.com
+AUTH_DOMAIN_DEVO=auth.devo.example.com
+AUTH_DOMAIN_PROD=auth.example.com
 CLOUDFLARE_ZONE_ID=zone-123
-OIDC_ISSUER_URL=https://issuer.example.com
-JWKS_URL=https://issuer.example.com/jwks.json
-RUNTIME_BUCKET=runtime-bucket
-TABLE_NAME=ltbase-devo
-GITHUB_ORG=Lychee-Technology
-GITHUB_REPO=ltbase-private-deployment
+OIDC_ISSUER_URL_DEVO=https://issuer.example.com/devo
+OIDC_ISSUER_URL_PROD=https://issuer.example.com/prod
+JWKS_URL_DEVO=https://issuer.example.com/devo/jwks.json
+JWKS_URL_PROD=https://issuer.example.com/prod/jwks.json
 GEMINI_MODEL=gemini-3-flash-preview
 DSQL_PORT=5432
 DSQL_DB=postgres
@@ -82,7 +86,7 @@ EOF
 chmod +x "${fake_bin}/pulumi"
 
 if [[ -x "${SCRIPT_PATH}" ]]; then
-  if ! output="$(PATH="${fake_bin}:$PATH" "${SCRIPT_PATH}" --env-file "${temp_dir}/.env" --stack devo --infra-dir "${temp_dir}/infra" 2>&1)"; then
+  if ! output="$(PATH="${fake_bin}:$PATH" "${SCRIPT_PATH}" --env-file "${temp_dir}/.env" --stack prod --infra-dir "${temp_dir}/infra" 2>&1)"; then
     rm -rf "${temp_dir}"
     fail "expected script to succeed when implemented, got: ${output}"
   fi
@@ -90,13 +94,17 @@ if [[ -x "${SCRIPT_PATH}" ]]; then
   assert_log_contains "${log_file}" "gh variable set AWS_REGION_DEVO --repo Lychee-Technology/ltbase-private-deployment --body ap-northeast-1"
   assert_log_contains "${log_file}" "gh variable set AWS_REGION_PROD --repo Lychee-Technology/ltbase-private-deployment --body us-west-2"
   assert_log_contains "${log_file}" "gh secret set AWS_ROLE_ARN_DEVO --repo Lychee-Technology/ltbase-private-deployment --body arn:aws:iam::123456789012:role/test-deploy-role"
-  assert_log_contains "${log_file}" "pulumi stack init devo --secrets-provider awskms://alias/test-pulumi-secrets?region=ap-northeast-1"
-  assert_log_contains "${log_file}" "pulumi config set runtimeBucket runtime-bucket --stack devo"
-  assert_log_contains "${log_file}" "pulumi config set dsqlDB postgres --stack devo"
-  assert_log_contains "${log_file}" "pulumi config set dsqlUser admin --stack devo"
-  assert_log_contains "${log_file}" "pulumi config set --secret geminiApiKey test-gemini-key --stack devo"
+  assert_log_contains "${log_file}" "gh secret set AWS_ROLE_ARN_PROD --repo Lychee-Technology/ltbase-private-deployment --body arn:aws:iam::123456789012:role/test-prod-role"
+  assert_log_contains "${log_file}" "pulumi stack init prod --secrets-provider awskms://alias/test-pulumi-secrets?region=us-west-2"
+  assert_log_contains "${log_file}" "pulumi config set runtimeBucket ltbase-private-deployment-runtime-prod --stack prod"
+  assert_log_contains "${log_file}" "pulumi config set apiDomain api.example.com --stack prod"
+  assert_log_contains "${log_file}" "pulumi config set oidcIssuerUrl https://issuer.example.com/prod --stack prod"
+  assert_log_contains "${log_file}" "pulumi config set tableName ltbase-private-deployment-prod --stack prod"
+  assert_log_contains "${log_file}" "pulumi config set dsqlDB postgres --stack prod"
+  assert_log_contains "${log_file}" "pulumi config set dsqlUser admin --stack prod"
+  assert_log_contains "${log_file}" "pulumi config set --secret geminiApiKey test-gemini-key --stack prod"
   assert_log_not_contains "${log_file}" "pulumi stack output dsqlClusterIdentifier"
-  assert_log_not_contains "${log_file}" "pulumi up --stack devo --yes --skip-preview"
+  assert_log_not_contains "${log_file}" "pulumi up --stack prod --yes --skip-preview"
   assert_log_not_contains "${log_file}" "pulumi config set dsqlEndpoint"
   assert_log_not_contains "${log_file}" "aws dsql get-cluster"
 else

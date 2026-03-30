@@ -33,6 +33,9 @@ if [[ -z "${ENV_FILE}" ]]; then
 fi
 
 script_dir="$(cd "$(dirname "$0")" && pwd)"
+# shellcheck disable=SC1091
+source "${script_dir}/lib/bootstrap-env.sh"
+bootstrap_env_load "${ENV_FILE}"
 
 if [[ "${MODE}" != "apply" ]]; then
   echo "unsupported mode: ${MODE}" >&2
@@ -42,5 +45,6 @@ fi
 create-deployment-repo.sh --env-file "${ENV_FILE}"
 render-bootstrap-policies.sh --env-file "${ENV_FILE}"
 bootstrap-aws-foundation.sh --env-file "${ENV_FILE}"
-bootstrap-deployment-repo.sh --env-file "${ENV_FILE}" --stack devo --infra-dir "${INFRA_DIR}"
-bootstrap-deployment-repo.sh --env-file "${ENV_FILE}" --stack prod --infra-dir "${INFRA_DIR}"
+while IFS= read -r stack; do
+  bootstrap-deployment-repo.sh --env-file "${ENV_FILE}" --stack "${stack}" --infra-dir "${INFRA_DIR}"
+done < <(bootstrap_env_each_stack)

@@ -22,8 +22,10 @@ if [[ -z "${ENV_FILE}" ]]; then
   exit 1
 fi
 
-# shellcheck disable=SC1090
-source "${ENV_FILE}"
+script_dir="$(cd "$(dirname "$0")" && pwd)"
+# shellcheck disable=SC1091
+source "${script_dir}/lib/bootstrap-env.sh"
+bootstrap_env_load "${ENV_FILE}"
 
 required_vars=(TEMPLATE_REPO GITHUB_OWNER DEPLOYMENT_REPO_NAME DEPLOYMENT_REPO_VISIBILITY DEPLOYMENT_REPO_DESCRIPTION DEPLOYMENT_REPO)
 for name in "${required_vars[@]}"; do
@@ -40,6 +42,14 @@ fi
 
 gh repo create "${DEPLOYMENT_REPO}" --template "${TEMPLATE_REPO}" ${visibility_flag} --description "${DEPLOYMENT_REPO_DESCRIPTION}" --clone=false
 
-if [[ -n "${PROD_ENVIRONMENT_NAME:-}" ]]; then
+promotion_index=0
+while IFS= read -r stack; do
+  if [[ "${promotion_index}" -gt 0 ]]; then
+    gh api "repos/${DEPLOYMENT_REPO}/environments/${stack}" --method PUT >/dev/null
+  fi
+  promotion_index=$((promotion_index + 1))
+done < <(bootstrap_env_each_stack "${PROMOTION_PATH}")
+
+if [[ "${promotion_index}" -eq 0 && -n "${PROD_ENVIRONMENT_NAME:-}" ]]; then
   gh api "repos/${DEPLOYMENT_REPO}/environments/${PROD_ENVIRONMENT_NAME}" --method PUT >/dev/null
 fi
