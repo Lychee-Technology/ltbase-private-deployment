@@ -116,8 +116,10 @@ if [[ "${cmd} ${sub}" == "variable list" ]]; then
   fi
   if [[ "${SCENARIO}" == "repo_config_missing" ]]; then
     printf '[]'
-  else
+  elif [[ "${SCENARIO}" == "repo_topology_missing" ]]; then
     printf '[{"name":"AWS_REGION_DEVO"},{"name":"AWS_REGION_STAGING"},{"name":"AWS_REGION_PROD"},{"name":"PULUMI_BACKEND_URL"},{"name":"PULUMI_SECRETS_PROVIDER_DEVO"},{"name":"PULUMI_SECRETS_PROVIDER_STAGING"},{"name":"PULUMI_SECRETS_PROVIDER_PROD"},{"name":"LTBASE_RELEASES_REPO"},{"name":"LTBASE_RELEASE_ID"}]'
+  else
+    printf '[{"name":"AWS_REGION_DEVO"},{"name":"AWS_REGION_STAGING"},{"name":"AWS_REGION_PROD"},{"name":"PULUMI_BACKEND_URL"},{"name":"PULUMI_SECRETS_PROVIDER_DEVO"},{"name":"PULUMI_SECRETS_PROVIDER_STAGING"},{"name":"PULUMI_SECRETS_PROVIDER_PROD"},{"name":"LTBASE_RELEASES_REPO"},{"name":"LTBASE_RELEASE_ID"},{"name":"STACKS"},{"name":"PROMOTION_PATH"},{"name":"PREVIEW_DEFAULT_STACK"}]'
   fi
   exit 0
 fi
@@ -327,6 +329,14 @@ run_expect_exit_code 2 env \
   "${SCRIPT_PATH}" --env-file "${temp_dir}/.env" --infra-dir "${temp_dir}/infra" --report-dir "${temp_dir}/report-repo"
 
 assert_file_contains "${temp_dir}/report-repo/report.json" '"status": "needs_repo_config"'
+
+run_expect_exit_code 2 env \
+  PATH="${temp_dir}/bin:$PATH" \
+  COMMAND_LOG="${temp_dir}/commands.log" \
+  SCENARIO="repo_topology_missing" \
+  "${SCRIPT_PATH}" --env-file "${temp_dir}/.env" --infra-dir "${temp_dir}/infra" --report-dir "${temp_dir}/report-topology-missing"
+
+assert_file_contains "${temp_dir}/report-topology-missing/report.json" '"status": "needs_repo_config"'
 
 rm -f "${temp_dir}/infra/Pulumi.devo.yaml" "${temp_dir}/infra/Pulumi.staging.yaml" "${temp_dir}/infra/Pulumi.prod.yaml"
 run_expect_exit_code 2 env \
