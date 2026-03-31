@@ -74,6 +74,14 @@ Important files and scripts:
 - `scripts/bootstrap-pulumi-backend.sh`
 - `scripts/bootstrap-deployment-repo.sh`
 - `scripts/bootstrap-all.sh`
+- `scripts/evaluate-and-continue.sh`
+
+Preferred recovery-aware bootstrap entrypoint:
+
+推荐的可恢复 bootstrap 入口：
+
+- `./scripts/evaluate-and-continue.sh --env-file .env --scope bootstrap`
+- `./scripts/evaluate-and-continue.sh --env-file .env --scope bootstrap --force`
 
 ## Deployment Principles / 部署原则
 

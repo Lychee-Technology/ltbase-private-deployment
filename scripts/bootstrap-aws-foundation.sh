@@ -27,8 +27,10 @@ if [[ -z "${ENV_FILE}" ]]; then
   exit 1
 fi
 
-# shellcheck disable=SC1090
-source "${ENV_FILE}"
+script_dir="$(cd "$(dirname "$0")" && pwd)"
+# shellcheck disable=SC1091
+source "${script_dir}/lib/bootstrap-env.sh"
+bootstrap_env_load "${ENV_FILE}"
 
 required_vars=(DEPLOYMENT_REPO AWS_REGION_DEVO AWS_REGION_PROD AWS_ACCOUNT_ID_DEVO AWS_ACCOUNT_ID_PROD AWS_ROLE_NAME_DEVO AWS_ROLE_NAME_PROD PULUMI_STATE_BUCKET PULUMI_KMS_ALIAS)
 for name in "${required_vars[@]}"; do

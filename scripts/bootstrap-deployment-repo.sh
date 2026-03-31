@@ -32,10 +32,17 @@ if [[ -z "${ENV_FILE}" ]]; then
   exit 1
 fi
 
-# shellcheck disable=SC1090
-source "${ENV_FILE}"
+script_dir="$(cd "$(dirname "$0")" && pwd)"
+# shellcheck disable=SC1091
+source "${script_dir}/lib/bootstrap-env.sh"
+bootstrap_env_load "${ENV_FILE}"
 
-required_vars=(DEPLOYMENT_REPO AWS_REGION_DEVO AWS_REGION_PROD PULUMI_BACKEND_URL PULUMI_SECRETS_PROVIDER_DEVO PULUMI_SECRETS_PROVIDER_PROD LTBASE_RELEASES_REPO LTBASE_RELEASE_ID AWS_ROLE_ARN_DEVO AWS_ROLE_ARN_PROD LTBASE_RELEASES_TOKEN CLOUDFLARE_API_TOKEN GEMINI_API_KEY API_DOMAIN CONTROL_DOMAIN AUTH_DOMAIN CLOUDFLARE_ZONE_ID OIDC_ISSUER_URL JWKS_URL RUNTIME_BUCKET TABLE_NAME GITHUB_ORG GITHUB_REPO GEMINI_MODEL DSQL_PORT DSQL_DB DSQL_USER DSQL_PROJECT_SCHEMA)
+if ! bootstrap_env_has_stack "${STACK}"; then
+  echo "unknown stack: ${STACK}" >&2
+  exit 1
+fi
+
+required_vars=(DEPLOYMENT_REPO PULUMI_BACKEND_URL LTBASE_RELEASES_REPO LTBASE_RELEASE_ID LTBASE_RELEASES_TOKEN CLOUDFLARE_API_TOKEN GEMINI_API_KEY CLOUDFLARE_ZONE_ID GITHUB_ORG GITHUB_REPO GEMINI_MODEL DSQL_PORT DSQL_DB DSQL_USER DSQL_PROJECT_SCHEMA)
 for name in "${required_vars[@]}"; do
   if [[ -z "${!name:-}" ]]; then
     echo "${name} is required" >&2
@@ -43,25 +50,37 @@ for name in "${required_vars[@]}"; do
   fi
 done
 
-gh variable set AWS_REGION_DEVO --repo "${DEPLOYMENT_REPO}" --body "${AWS_REGION_DEVO}"
-gh variable set AWS_REGION_PROD --repo "${DEPLOYMENT_REPO}" --body "${AWS_REGION_PROD}"
+if ! bootstrap_env_require_stack_values "${STACK}" AWS_REGION AWS_ROLE_ARN PULUMI_SECRETS_PROVIDER API_DOMAIN CONTROL_DOMAIN AUTH_DOMAIN OIDC_ISSUER_URL JWKS_URL RUNTIME_BUCKET TABLE_NAME; then
+  exit 1
+fi
+
+while IFS= read -r target_stack; do
+  target_upper="$(bootstrap_env_stack_upper "${target_stack}")"
+  target_region="$(bootstrap_env_resolve_stack_value AWS_REGION "${target_stack}")"
+  target_secrets_provider="$(bootstrap_env_resolve_stack_value PULUMI_SECRETS_PROVIDER "${target_stack}")"
+  target_role_arn="$(bootstrap_env_resolve_stack_value AWS_ROLE_ARN "${target_stack}")"
+
+  gh variable set "AWS_REGION_${target_upper}" --repo "${DEPLOYMENT_REPO}" --body "${target_region}"
+  gh variable set "PULUMI_SECRETS_PROVIDER_${target_upper}" --repo "${DEPLOYMENT_REPO}" --body "${target_secrets_provider}"
+  gh secret set "AWS_ROLE_ARN_${target_upper}" --repo "${DEPLOYMENT_REPO}" --body "${target_role_arn}"
+done < <(bootstrap_env_each_stack)
+
 gh variable set PULUMI_BACKEND_URL --repo "${DEPLOYMENT_REPO}" --body "${PULUMI_BACKEND_URL}"
-gh variable set PULUMI_SECRETS_PROVIDER_DEVO --repo "${DEPLOYMENT_REPO}" --body "${PULUMI_SECRETS_PROVIDER_DEVO}"
-gh variable set PULUMI_SECRETS_PROVIDER_PROD --repo "${DEPLOYMENT_REPO}" --body "${PULUMI_SECRETS_PROVIDER_PROD}"
 gh variable set LTBASE_RELEASES_REPO --repo "${DEPLOYMENT_REPO}" --body "${LTBASE_RELEASES_REPO}"
 gh variable set LTBASE_RELEASE_ID --repo "${DEPLOYMENT_REPO}" --body "${LTBASE_RELEASE_ID}"
 
-gh secret set AWS_ROLE_ARN_DEVO --repo "${DEPLOYMENT_REPO}" --body "${AWS_ROLE_ARN_DEVO}"
-gh secret set AWS_ROLE_ARN_PROD --repo "${DEPLOYMENT_REPO}" --body "${AWS_ROLE_ARN_PROD}"
 gh secret set LTBASE_RELEASES_TOKEN --repo "${DEPLOYMENT_REPO}" --body "${LTBASE_RELEASES_TOKEN}"
 gh secret set CLOUDFLARE_API_TOKEN --repo "${DEPLOYMENT_REPO}" --body "${CLOUDFLARE_API_TOKEN}"
 
-selected_region="${AWS_REGION_DEVO}"
-selected_secrets_provider="${PULUMI_SECRETS_PROVIDER_DEVO}"
-if [[ "${STACK}" == "prod" ]]; then
-  selected_region="${AWS_REGION_PROD}"
-  selected_secrets_provider="${PULUMI_SECRETS_PROVIDER_PROD}"
-fi
+selected_region="$(bootstrap_env_resolve_stack_value AWS_REGION "${STACK}")"
+selected_secrets_provider="$(bootstrap_env_resolve_stack_value PULUMI_SECRETS_PROVIDER "${STACK}")"
+selected_runtime_bucket="$(bootstrap_env_resolve_stack_value RUNTIME_BUCKET "${STACK}")"
+selected_table_name="$(bootstrap_env_resolve_stack_value TABLE_NAME "${STACK}")"
+selected_api_domain="$(bootstrap_env_resolve_stack_value API_DOMAIN "${STACK}")"
+selected_control_domain="$(bootstrap_env_resolve_stack_value CONTROL_DOMAIN "${STACK}")"
+selected_auth_domain="$(bootstrap_env_resolve_stack_value AUTH_DOMAIN "${STACK}")"
+selected_oidc_issuer_url="$(bootstrap_env_resolve_stack_value OIDC_ISSUER_URL "${STACK}")"
+selected_jwks_url="$(bootstrap_env_resolve_stack_value JWKS_URL "${STACK}")"
 
 pulumi login "${PULUMI_BACKEND_URL}"
 if ! pulumi stack select "${STACK}" >/dev/null 2>&1; then
@@ -70,14 +89,14 @@ fi
 
 pushd "${INFRA_DIR}" >/dev/null
 pulumi config set awsRegion "${selected_region}" --stack "${STACK}"
-pulumi config set runtimeBucket "${RUNTIME_BUCKET}" --stack "${STACK}"
-pulumi config set tableName "${TABLE_NAME}" --stack "${STACK}"
-pulumi config set apiDomain "${API_DOMAIN}" --stack "${STACK}"
-pulumi config set controlPlaneDomain "${CONTROL_DOMAIN}" --stack "${STACK}"
-pulumi config set authDomain "${AUTH_DOMAIN}" --stack "${STACK}"
+pulumi config set runtimeBucket "${selected_runtime_bucket}" --stack "${STACK}"
+pulumi config set tableName "${selected_table_name}" --stack "${STACK}"
+pulumi config set apiDomain "${selected_api_domain}" --stack "${STACK}"
+pulumi config set controlPlaneDomain "${selected_control_domain}" --stack "${STACK}"
+pulumi config set authDomain "${selected_auth_domain}" --stack "${STACK}"
 pulumi config set cloudflareZoneId "${CLOUDFLARE_ZONE_ID}" --stack "${STACK}"
-pulumi config set oidcIssuerUrl "${OIDC_ISSUER_URL}" --stack "${STACK}"
-pulumi config set jwksUrl "${JWKS_URL}" --stack "${STACK}"
+pulumi config set oidcIssuerUrl "${selected_oidc_issuer_url}" --stack "${STACK}"
+pulumi config set jwksUrl "${selected_jwks_url}" --stack "${STACK}"
 pulumi config set githubOrg "${GITHUB_ORG}" --stack "${STACK}"
 pulumi config set githubRepo "${GITHUB_REPO}" --stack "${STACK}"
 pulumi config set releaseId "${LTBASE_RELEASE_ID}" --stack "${STACK}"

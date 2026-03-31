@@ -30,8 +30,7 @@ GITHUB_OWNER=customer-org
 DEPLOYMENT_REPO_NAME=customer-ltbase
 DEPLOYMENT_REPO_VISIBILITY=private
 DEPLOYMENT_REPO_DESCRIPTION="Customer LTBase deployment repo"
-DEPLOYMENT_REPO=customer-org/customer-ltbase
-PROD_ENVIRONMENT_NAME=prod
+PROMOTION_PATH=devo,prod
 EOF
 
 cat >"${fake_bin}/gh" <<EOF

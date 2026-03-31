@@ -1,0 +1,319 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
+SCRIPT_PATH="${ROOT_DIR}/scripts/evaluate-and-continue.sh"
+
+fail() {
+  printf 'FAIL: %s\n' "$1" >&2
+  exit 1
+}
+
+assert_file_contains() {
+  local path="$1"
+  local needle="$2"
+  if [[ ! -f "${path}" ]]; then
+    fail "missing file: ${path}"
+  fi
+  if ! grep -Fq "${needle}" "${path}"; then
+    fail "expected ${path} to contain: ${needle}"
+  fi
+}
+
+assert_log_contains() {
+  local path="$1"
+  local needle="$2"
+  if ! grep -Fq "${needle}" "${path}"; then
+    fail "expected ${path} to contain: ${needle}"
+  fi
+}
+
+write_env() {
+  local path="$1"
+  cat >"${path}" <<'EOF'
+STACKS=devo,staging,prod
+PROMOTION_PATH=devo,staging,prod
+TEMPLATE_REPO=Lychee-Technology/ltbase-private-deployment
+GITHUB_OWNER=customer-org
+DEPLOYMENT_REPO_NAME=customer-ltbase
+DEPLOYMENT_REPO_VISIBILITY=private
+DEPLOYMENT_REPO_DESCRIPTION="Customer LTBase deployment repo"
+AWS_REGION_DEVO=ap-northeast-1
+AWS_REGION_STAGING=us-east-1
+AWS_REGION_PROD=us-west-2
+AWS_ACCOUNT_ID_DEVO=123456789012
+AWS_ACCOUNT_ID_STAGING=123456789012
+AWS_ACCOUNT_ID_PROD=210987654321
+AWS_PROFILE_DEVO=devo-profile
+AWS_PROFILE_STAGING=staging-profile
+AWS_PROFILE_PROD=prod-profile
+AWS_ROLE_NAME_DEVO=ltbase-deploy-devo
+AWS_ROLE_NAME_STAGING=ltbase-deploy-staging
+AWS_ROLE_NAME_PROD=ltbase-deploy-prod
+PULUMI_STATE_BUCKET=test-pulumi-state
+PULUMI_KMS_ALIAS=alias/test-pulumi-secrets
+LTBASE_RELEASES_REPO=Lychee-Technology/ltbase-releases
+LTBASE_RELEASE_ID=v1.0.0
+API_DOMAIN_DEVO=api.devo.example.com
+API_DOMAIN_STAGING=api.staging.example.com
+API_DOMAIN_PROD=api.example.com
+CONTROL_DOMAIN_DEVO=control.devo.example.com
+CONTROL_DOMAIN_STAGING=control.staging.example.com
+CONTROL_DOMAIN_PROD=control.example.com
+AUTH_DOMAIN_DEVO=auth.devo.example.com
+AUTH_DOMAIN_STAGING=auth.staging.example.com
+AUTH_DOMAIN_PROD=auth.example.com
+CLOUDFLARE_ZONE_ID=zone-123
+OIDC_ISSUER_URL_DEVO=https://issuer.example.com/devo
+OIDC_ISSUER_URL_STAGING=https://issuer.example.com/staging
+OIDC_ISSUER_URL_PROD=https://issuer.example.com/prod
+JWKS_URL_DEVO=https://issuer.example.com/devo/jwks.json
+JWKS_URL_STAGING=https://issuer.example.com/staging/jwks.json
+JWKS_URL_PROD=https://issuer.example.com/prod/jwks.json
+GEMINI_MODEL=gemini-3-flash-preview
+DSQL_PORT=5432
+DSQL_DB=postgres
+DSQL_USER=admin
+DSQL_PROJECT_SCHEMA=ltbase
+GEMINI_API_KEY=test-gemini-key
+CLOUDFLARE_API_TOKEN=test-cloudflare-token
+LTBASE_RELEASES_TOKEN=test-release-token
+EOF
+}
+
+setup_fake_bin() {
+  local fake_bin="$1"
+  local log_file="$2"
+
+  mkdir -p "${fake_bin}"
+
+  cat >"${fake_bin}/gh" <<'EOF'
+#!/usr/bin/env bash
+set -euo pipefail
+printf 'gh %s\n' "$*" >>"${COMMAND_LOG}"
+cmd="${1:-}"
+sub="${2:-}"
+if [[ "${cmd} ${sub}" == "repo view" ]]; then
+  if [[ "${SCENARIO}" == "repo_config_missing" || "${SCENARIO}" == "bootstrap_force" ]]; then
+    exit 1
+  fi
+  exit 0
+fi
+if [[ "${cmd} ${sub}" == "variable list" ]]; then
+  if [[ "${SCENARIO}" == "repo_config_missing" ]]; then
+    printf '[]'
+  else
+    printf '[{"name":"AWS_REGION_DEVO"},{"name":"AWS_REGION_STAGING"},{"name":"AWS_REGION_PROD"},{"name":"PULUMI_BACKEND_URL"},{"name":"PULUMI_SECRETS_PROVIDER_DEVO"},{"name":"PULUMI_SECRETS_PROVIDER_STAGING"},{"name":"PULUMI_SECRETS_PROVIDER_PROD"},{"name":"LTBASE_RELEASES_REPO"},{"name":"LTBASE_RELEASE_ID"}]'
+  fi
+  exit 0
+fi
+if [[ "${cmd} ${sub}" == "secret list" ]]; then
+  if [[ "${SCENARIO}" == "repo_config_missing" ]]; then
+    printf '[]'
+  else
+    printf '[{"name":"AWS_ROLE_ARN_DEVO"},{"name":"AWS_ROLE_ARN_STAGING"},{"name":"AWS_ROLE_ARN_PROD"},{"name":"LTBASE_RELEASES_TOKEN"},{"name":"CLOUDFLARE_API_TOKEN"}]'
+  fi
+  exit 0
+fi
+exit 0
+EOF
+  chmod +x "${fake_bin}/gh"
+
+  cat >"${fake_bin}/aws" <<'EOF'
+#!/usr/bin/env bash
+set -euo pipefail
+printf 'aws %s\n' "$*" >>"${COMMAND_LOG}"
+args=("$@")
+if [[ "${args[0]:-}" == "--profile" ]]; then
+  args=("${args[@]:2}")
+fi
+command_key="${args[0]:-} ${args[1]:-}"
+case "${SCENARIO}:${command_key}" in
+  foundation_missing:iam\ get-open-id-connect-provider|foundation_missing:iam\ get-role)
+    exit 255
+    ;;
+  foundation_missing:s3api\ head-bucket)
+    exit 1
+    ;;
+  foundation_missing:kms\ list-aliases)
+    printf '{"Aliases":[]}'
+    exit 0
+    ;;
+  bootstrap_force:iam\ get-open-id-connect-provider|bootstrap_force:iam\ get-role)
+    exit 255
+    ;;
+  bootstrap_force:s3api\ head-bucket)
+    exit 1
+    ;;
+  bootstrap_force:kms\ list-aliases)
+    printf '{"Aliases":[]}'
+    exit 0
+    ;;
+  bootstrap_force:kms\ create-key)
+    printf 'key-123\n'
+    exit 0
+    ;;
+  *:kms\ list-aliases)
+    printf '{"Aliases":[{"AliasName":"alias/test-pulumi-secrets","TargetKeyId":"key-123"}]}'
+    exit 0
+    ;;
+esac
+exit 0
+EOF
+  chmod +x "${fake_bin}/aws"
+
+  cat >"${fake_bin}/pulumi" <<'EOF'
+#!/usr/bin/env bash
+set -euo pipefail
+printf 'pulumi %s\n' "$*" >>"${COMMAND_LOG}"
+
+stack_name() {
+  local previous=""
+  for arg in "$@"; do
+    if [[ "${previous}" == "--stack" ]]; then
+      printf '%s' "${arg}"
+      return 0
+    fi
+    previous="${arg}"
+  done
+  printf '%s' "${STACK_HINT:-devo}"
+}
+
+if [[ "${1:-}" == "login" ]]; then
+  exit 0
+fi
+if [[ "${1:-} ${2:-}" == "stack select" ]]; then
+  if [[ "${SCENARIO}" == "bootstrap_force" ]]; then
+    exit 1
+  fi
+  exit 0
+fi
+if [[ "${1:-} ${2:-}" == "stack init" ]]; then
+  exit 0
+fi
+if [[ "${1:-} ${2:-} ${3:-} ${4:-}" == "stack output dsqlClusterIdentifier --stack" ]]; then
+  current_stack="$(stack_name "$@")"
+  case "${SCENARIO}:${current_stack}" in
+    rollout_mix:devo)
+      exit 1
+      ;;
+    rollout_mix:staging|rollout_mix:prod)
+      printf 'cluster-%s\n' "${current_stack}"
+      exit 0
+      ;;
+  esac
+  exit 1
+fi
+if [[ "${1:-} ${2:-} ${3:-} ${4:-}" == "config get dsqlEndpoint --stack" ]]; then
+  current_stack="$(stack_name "$@")"
+  case "${SCENARIO}:${current_stack}" in
+    rollout_mix:prod)
+      printf 'managed.prod.endpoint.example.com\n'
+      exit 0
+      ;;
+    rollout_mix:staging)
+      exit 1
+      ;;
+  esac
+  exit 1
+fi
+exit 0
+EOF
+  chmod +x "${fake_bin}/pulumi"
+
+  : >"${log_file}"
+}
+
+run_expect_exit_code() {
+  local expected="$1"
+  shift
+  set +e
+  "$@"
+  local status=$?
+  set -e
+  if [[ "${status}" -ne "${expected}" ]]; then
+    fail "expected exit code ${expected}, got ${status}"
+  fi
+}
+
+if [[ ! -x "${SCRIPT_PATH}" ]]; then
+  fail "missing executable script: ${SCRIPT_PATH}"
+fi
+
+temp_dir="$(mktemp -d)"
+trap 'rm -rf "${temp_dir}"' EXIT
+
+mkdir -p "${temp_dir}/infra"
+for stack in devo staging prod; do
+  cat >"${temp_dir}/infra/Pulumi.${stack}.yaml" <<EOF
+config:
+  ltbase-infra:awsRegion: test
+EOF
+done
+
+write_env "${temp_dir}/.env"
+setup_fake_bin "${temp_dir}/bin" "${temp_dir}/commands.log"
+
+run_expect_exit_code 2 env \
+  PATH="${temp_dir}/bin:$PATH" \
+  COMMAND_LOG="${temp_dir}/commands.log" \
+  SCENARIO="foundation_missing" \
+  "${SCRIPT_PATH}" --env-file "${temp_dir}/.env" --infra-dir "${temp_dir}/infra" --report-dir "${temp_dir}/report-foundation"
+
+assert_file_contains "${temp_dir}/report-foundation/report.json" '"deploymentRepo": "customer-org/customer-ltbase"'
+assert_file_contains "${temp_dir}/report-foundation/report.json" '"status": "needs_foundation"'
+
+run_expect_exit_code 2 env \
+  PATH="${temp_dir}/bin:$PATH" \
+  COMMAND_LOG="${temp_dir}/commands.log" \
+  SCENARIO="repo_config_missing" \
+  "${SCRIPT_PATH}" --env-file "${temp_dir}/.env" --infra-dir "${temp_dir}/infra" --report-dir "${temp_dir}/report-repo"
+
+assert_file_contains "${temp_dir}/report-repo/report.json" '"status": "needs_repo_config"'
+
+rm -f "${temp_dir}/infra/Pulumi.devo.yaml" "${temp_dir}/infra/Pulumi.staging.yaml" "${temp_dir}/infra/Pulumi.prod.yaml"
+run_expect_exit_code 2 env \
+  PATH="${temp_dir}/bin:$PATH" \
+  COMMAND_LOG="${temp_dir}/commands.log" \
+  SCENARIO="rollout_mix" \
+  "${SCRIPT_PATH}" --env-file "${temp_dir}/.env" --infra-dir "${temp_dir}/infra" --report-dir "${temp_dir}/report-stack"
+
+assert_file_contains "${temp_dir}/report-stack/report.json" '"status": "needs_stack_bootstrap"'
+
+for stack in devo staging prod; do
+  cat >"${temp_dir}/infra/Pulumi.${stack}.yaml" <<EOF
+config:
+  ltbase-infra:awsRegion: test
+EOF
+done
+
+run_expect_exit_code 2 env \
+  PATH="${temp_dir}/bin:$PATH" \
+  COMMAND_LOG="${temp_dir}/commands.log" \
+  SCENARIO="rollout_mix" \
+  "${SCRIPT_PATH}" --env-file "${temp_dir}/.env" --infra-dir "${temp_dir}/infra" --report-dir "${temp_dir}/report-rollout"
+
+assert_file_contains "${temp_dir}/report-rollout/report.json" '"stack": "devo"'
+assert_file_contains "${temp_dir}/report-rollout/report.json" '"status": "needs_rollout"'
+assert_file_contains "${temp_dir}/report-rollout/report.json" '"stack": "staging"'
+assert_file_contains "${temp_dir}/report-rollout/report.json" '"status": "needs_dsql_reconcile"'
+assert_file_contains "${temp_dir}/report-rollout/report.json" '"stack": "prod"'
+assert_file_contains "${temp_dir}/report-rollout/report.json" '"status": "complete"'
+
+rm -rf "${temp_dir}/infra"
+mkdir -p "${temp_dir}/infra"
+run_expect_exit_code 0 env \
+  PATH="${temp_dir}/bin:$PATH" \
+  COMMAND_LOG="${temp_dir}/commands.log" \
+  SCENARIO="bootstrap_force" \
+  "${SCRIPT_PATH}" --env-file "${temp_dir}/.env" --infra-dir "${temp_dir}/infra" --scope bootstrap --force --report-dir "${temp_dir}/report-force"
+
+assert_log_contains "${temp_dir}/commands.log" "gh repo create customer-org/customer-ltbase"
+assert_log_contains "${temp_dir}/commands.log" "aws --profile devo-profile iam create-open-id-connect-provider"
+assert_log_contains "${temp_dir}/commands.log" "aws --profile prod-profile iam create-open-id-connect-provider"
+assert_log_contains "${temp_dir}/commands.log" "pulumi stack init devo --secrets-provider awskms://alias/test-pulumi-secrets?region=ap-northeast-1"
+assert_log_contains "${temp_dir}/commands.log" "pulumi stack init staging --secrets-provider awskms://alias/test-pulumi-secrets?region=us-east-1"
+assert_log_contains "${temp_dir}/commands.log" "pulumi stack init prod --secrets-provider awskms://alias/test-pulumi-secrets?region=us-west-2"
+
+printf 'PASS: evaluate-and-continue tests\n'
