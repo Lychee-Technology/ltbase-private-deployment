@@ -1,0 +1,207 @@
+name: Rollout LTBase Promotion Hop
+
+on:
+  workflow_call:
+    inputs:
+      release_id:
+        description: Official LTBase release tag to deploy
+        required: true
+        type: string
+      target_stack:
+        description: Stack to deploy in this hop
+        required: true
+        type: string
+      from_stack:
+        description: Current stack before this hop
+        required: false
+        default: ""
+        type: string
+      continue_chain:
+        description: Dispatch the next hop automatically after success
+        required: false
+        default: false
+        type: boolean
+    outputs:
+      release_id:
+        value: ${{ jobs.rollout.outputs.release_id }}
+      target_stack:
+        value: ${{ jobs.prepare.outputs.target_stack }}
+      next_stack:
+        value: ${{ jobs.prepare.outputs.next_stack }}
+      deployment_outputs_json:
+        value: ${{ jobs.rollout.outputs.deployment_outputs_json }}
+  workflow_dispatch:
+    inputs:
+      release_id:
+        description: Official LTBase release tag to deploy
+        required: true
+        type: string
+      target_stack:
+        description: Stack to deploy in this hop
+        required: true
+        type: string
+      from_stack:
+        description: Current stack before this hop
+        required: false
+        type: string
+      continue_chain:
+        description: Dispatch the next hop automatically after success
+        required: false
+        default: false
+        type: boolean
+
+permissions:
+  actions: write
+  contents: read
+  id-token: write
+
+jobs:
+  prepare:
+    runs-on: ubuntu-24.04
+    outputs:
+      release_id: ${{ steps.plan.outputs.release_id }}
+      start_stack: ${{ steps.plan.outputs.start_stack }}
+      target_stack: ${{ steps.plan.outputs.target_stack }}
+      target_stack_upper: ${{ steps.plan.outputs.target_stack_upper }}
+      next_stack: ${{ steps.plan.outputs.next_stack }}
+      approval_required: ${{ steps.plan.outputs.approval_required }}
+      continue_chain: ${{ steps.plan.outputs.continue_chain }}
+      run_canary: ${{ steps.plan.outputs.run_canary }}
+    steps:
+      - id: plan
+        env:
+          INPUT_RELEASE_ID: ${{ inputs.release_id || vars.LTBASE_RELEASE_ID }}
+          INPUT_TARGET_STACK: ${{ inputs.target_stack }}
+          INPUT_FROM_STACK: ${{ inputs.from_stack }}
+          INPUT_CONTINUE_CHAIN: ${{ inputs.continue_chain }}
+          STACKS: ${{ vars.STACKS || 'devo,prod' }}
+          PROMOTION_PATH: ${{ vars.PROMOTION_PATH || vars.STACKS || 'devo,prod' }}
+        run: |
+          normalize_csv() {
+            printf '%s' "$1" | tr -d '[:space:]'
+          }
+
+          stack_upper() {
+            printf '%s' "$1" | tr '[:lower:]-' '[:upper:]_'
+          }
+
+          stacks="$(normalize_csv "${STACKS}")"
+          promotion_path="$(normalize_csv "${PROMOTION_PATH}")"
+          IFS=',' read -r -a stack_list <<<"${stacks}"
+          IFS=',' read -r -a path <<<"${promotion_path}"
+
+          start_stack="${path[0]:-}"
+          target_stack="${INPUT_TARGET_STACK:-${start_stack}}"
+          from_stack="${INPUT_FROM_STACK:-}"
+          continue_chain="false"
+          if [[ "${INPUT_CONTINUE_CHAIN}" == "true" ]]; then
+            continue_chain="true"
+          fi
+
+          if [[ -z "${start_stack}" ]]; then
+            echo "PROMOTION_PATH must define at least one stack" >&2
+            exit 1
+          fi
+
+          target_index=-1
+          from_index=-1
+          stack_present="false"
+          for index in "${!path[@]}"; do
+            if [[ "${path[$index]}" == "${target_stack}" ]]; then
+              target_index="${index}"
+            fi
+            if [[ -n "${from_stack}" && "${path[$index]}" == "${from_stack}" ]]; then
+              from_index="${index}"
+            fi
+          done
+
+          for stack in "${stack_list[@]}"; do
+            if [[ "${stack}" == "${target_stack}" ]]; then
+              stack_present="true"
+              break
+            fi
+          done
+
+          if [[ "${stack_present}" != "true" || "${target_index}" -lt 0 ]]; then
+            echo "target stack ${target_stack} is not in PROMOTION_PATH" >&2
+            exit 1
+          fi
+
+          if [[ -n "${from_stack}" ]]; then
+            expected_index=$((from_index + 1))
+            if [[ "${from_index}" -lt 0 || "${expected_index}" -ge "${#path[@]}" || "${path[$expected_index]}" != "${target_stack}" ]]; then
+              echo "invalid promotion hop: ${from_stack} -> ${target_stack}" >&2
+              exit 1
+            fi
+          fi
+
+          next_stack=""
+          if (( target_index + 1 < ${#path[@]} )); then
+            next_stack="${path[$((target_index + 1))]}"
+          fi
+
+          approval_required="false"
+          run_canary="false"
+          if [[ "${target_stack}" != "${start_stack}" ]]; then
+            approval_required="true"
+            run_canary="true"
+          fi
+
+          {
+            echo "release_id=${INPUT_RELEASE_ID}"
+            echo "start_stack=${start_stack}"
+            echo "target_stack=${target_stack}"
+            echo "target_stack_upper=$(stack_upper "${target_stack}")"
+            echo "next_stack=${next_stack}"
+            echo "approval_required=${approval_required}"
+            echo "continue_chain=${continue_chain}"
+            echo "run_canary=${run_canary}"
+          } >> "${GITHUB_OUTPUT}"
+
+  approve:
+    needs: prepare
+    if: ${{ needs.prepare.outputs.approval_required == 'true' }}
+    runs-on: ubuntu-24.04
+    environment: ${{ needs.prepare.outputs.target_stack }}
+    steps:
+      - run: echo "approval granted for ${{ needs.prepare.outputs.target_stack }}"
+
+  rollout:
+    needs:
+      - prepare
+      - approve
+    if: ${{ always() && needs.prepare.result == 'success' && (needs.prepare.outputs.approval_required != 'true' || needs.approve.result == 'success') }}
+    uses: Lychee-Technology/ltbase-deploy-workflows/.github/workflows/rollout-hop.yml@codex/minimal-manual-deploy
+    with:
+      pulumi_stack: ${{ needs.prepare.outputs.target_stack }}
+      aws_region: ${{ vars[format('AWS_REGION_{0}', needs.prepare.outputs.target_stack_upper)] }}
+      release_id: ${{ needs.prepare.outputs.release_id }}
+      pulumi_backend_url: ${{ vars.PULUMI_BACKEND_URL }}
+      pulumi_secrets_provider: ${{ vars[format('PULUMI_SECRETS_PROVIDER_{0}', needs.prepare.outputs.target_stack_upper)] }}
+      releases_repo: ${{ vars.LTBASE_RELEASES_REPO || 'Lychee-Technology/ltbase-releases' }}
+      working_directory: infra
+      run_canary: ${{ needs.prepare.outputs.run_canary == 'true' }}
+      refresh_after_apply: true
+    secrets:
+      aws_role_arn: ${{ secrets[format('AWS_ROLE_ARN_{0}', needs.prepare.outputs.target_stack_upper)] }}
+      ltbase_releases_token: ${{ secrets.LTBASE_RELEASES_TOKEN }}
+      cloudflare_api_token: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+
+  dispatch_next:
+    needs:
+      - prepare
+      - rollout
+    if: ${{ needs.rollout.result == 'success' && needs.prepare.outputs.continue_chain == 'true' && needs.prepare.outputs.next_stack != '' }}
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Continue rollout chain
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh api repos/${{ github.repository }}/actions/workflows/rollout-hop.yml/dispatches \
+            --method POST \
+            -f ref="${{ github.ref_name }}" \
+            -f inputs[release_id]="${{ needs.prepare.outputs.release_id }}" \
+            -f inputs[target_stack]="${{ needs.prepare.outputs.next_stack }}" \
+            -f inputs[from_stack]="${{ needs.prepare.outputs.target_stack }}" \
+            -f inputs[continue_chain]=true

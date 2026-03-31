@@ -17,16 +17,16 @@ Use this guide for normal follow-up operations after the first successful deploy
 1. Update `LTBASE_RELEASE_ID` in GitHub variables, or pass a new `release_id` directly to the workflow.
 2. Run the preview workflow.
 3. Review the Pulumi preview output.
-4. Deploy to `devo`.
-5. Validate `devo`.
-6. Promote the same release to `prod`.
+4. Trigger `rollout.yml` once for the new release.
+5. Validate each deployed stack before approving the next protected target environment.
+6. Approve each protected hop in order until the promotion path completes.
 
 1. 更新 GitHub variables 中的 `LTBASE_RELEASE_ID`，或在工作流中直接传入新的 `release_id`。
 2. 运行 preview 工作流。
 3. 审查 Pulumi preview 输出。
-4. 部署到 `devo`。
-5. 验证 `devo`。
-6. 将同一个 release 推进到 `prod`。
+4. 针对新 release 触发一次 `rollout.yml`。
+5. 在审批下一个受保护目标环境前，验证当前已部署 stack。
+6. 按顺序审批每一跳，直到 promotion path 完成。
 
 ### Re-run preview before changes / 在变更前重新执行 preview
 
@@ -54,17 +54,17 @@ Keep `.env` private, current, and outside version control.
 
 ## Expected Result / 预期结果
 
-You can safely repeat previews, deployments, and production promotions after onboarding is complete.
+You can safely repeat previews and promotion-path rollouts after onboarding is complete.
 
-在 onboarding 完成之后，你可以安全地重复执行 preview、部署和生产发布。
+在 onboarding 完成之后，你可以安全地重复执行 preview 与按 promotion path 推进的 rollout。
 
 ## Common Mistakes / 常见问题
 
-- promoting a release to prod that was not validated in devo
+- approving a later stack before validating the previous hop
 - changing deployment inputs without running preview first
 - treating the deployment repository as an application source repository
 
-- 将未经 devo 验证的 release 直接推到 prod
+- 在未验证前一跳之前就审批后续 stack
 - 修改部署输入后没有先执行 preview
 - 把部署仓库当成应用源码仓库来使用
 

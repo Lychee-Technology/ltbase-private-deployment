@@ -17,13 +17,13 @@ You should have access to:
 你应该已经可以访问：
 
 - a GitHub organization or personal account that can create private repositories
-- a devo AWS account, and optionally a separate prod AWS account
+- one or more AWS accounts that will host the stacks listed in `STACKS`
 - a Cloudflare zone for your application domains
 - a Gemini API key
 - a customer-specific `LTBASE_RELEASES_TOKEN`
 
 - 一个可以创建私有仓库的 GitHub 组织或个人账号
-- 一个 devo AWS 账户，以及可选的独立 prod AWS 账户
+- 一个或多个将承载 `STACKS` 中各环境的 AWS 账户
 - 用于应用域名的 Cloudflare zone
 - 一个 Gemini API key
 - 一个客户专用的 `LTBASE_RELEASES_TOKEN`
@@ -42,14 +42,14 @@ Install or confirm these local tools:
 
 1. Confirm you can log in to GitHub from the CLI.
 2. Confirm you can access the AWS accounts that will host LTBase.
-3. Confirm you know which AWS account is `devo` and which is `prod`.
+3. Confirm you know which AWS account will host each stack in `STACKS`.
 4. Confirm you know which GitHub repo name you plan to create.
 5. Confirm you know the Cloudflare zone ID that will host the domains.
 6. Confirm you have both `LTBASE_RELEASES_TOKEN` and `GEMINI_API_KEY` ready.
 
 1. 确认你可以通过命令行登录 GitHub。
 2. 确认你可以访问将承载 LTBase 的 AWS 账户。
-3. 确认你已经知道哪个 AWS 账户对应 `devo`，哪个对应 `prod`。
+3. 确认你已经知道 `STACKS` 中每个环境分别对应哪个 AWS 账户。
 4. 确认你已经确定将要创建的 GitHub 仓库名。
 5. 确认你已经知道托管域名的 Cloudflare zone ID。
 6. 确认你已经准备好 `LTBASE_RELEASES_TOKEN` 和 `GEMINI_API_KEY`。

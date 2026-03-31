@@ -372,7 +372,7 @@ run_expect_exit_code 0 env \
   PATH="${temp_dir}/bin:$PATH" \
   COMMAND_LOG="${temp_dir}/commands.log" \
   SCENARIO="bootstrap_force" \
-  "${SCRIPT_PATH}" --env-file "${temp_dir}/.env" --infra-dir "${temp_dir}/infra" --scope bootstrap --force --report-dir "${temp_dir}/report-force"
+  "${SCRIPT_PATH}" --env-file "${temp_dir}/.env" --infra-dir "${temp_dir}/infra" --scope bootstrap --force --release-id v9.9.9 --report-dir "${temp_dir}/report-force"
 
 assert_log_contains "${temp_dir}/commands.log" "gh repo create customer-org/customer-ltbase"
 assert_log_contains "${temp_dir}/commands.log" "aws --profile devo-profile iam create-open-id-connect-provider"
@@ -382,5 +382,6 @@ assert_log_contains "${temp_dir}/commands.log" "https://api.cloudflare.com/clien
 assert_log_contains "${temp_dir}/commands.log" "pulumi stack init devo --secrets-provider awskms://alias/test-pulumi-secrets?region=ap-northeast-1"
 assert_log_contains "${temp_dir}/commands.log" "pulumi stack init staging --secrets-provider awskms://alias/test-pulumi-secrets?region=us-east-1"
 assert_log_contains "${temp_dir}/commands.log" "pulumi stack init prod --secrets-provider awskms://alias/test-pulumi-secrets?region=us-west-2"
+assert_log_contains "${temp_dir}/commands.log" "gh workflow run rollout.yml --repo customer-org/customer-ltbase -f release_id=v9.9.9"
 
 printf 'PASS: evaluate-and-continue tests\n'

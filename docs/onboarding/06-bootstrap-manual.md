@@ -75,25 +75,19 @@ Run this if you want the backend/KMS path separately:
 ./scripts/bootstrap-pulumi-backend.sh --env-file .env
 ```
 
-### 5. Bootstrap the `devo` stack / 初始化 `devo` stack
+### 5. Bootstrap every configured stack / 初始化所有已配置 stack
 
 Run:
 
 执行：
 
 ```bash
-./scripts/bootstrap-deployment-repo.sh --env-file .env --stack devo --infra-dir infra
+./scripts/bootstrap-deployment-repo.sh --env-file .env --stack <stack> --infra-dir infra
 ```
 
-### 6. Bootstrap the `prod` stack / 初始化 `prod` stack
+Repeat the command once for each stack listed in `STACKS`, in the same order as `PROMOTION_PATH`.
 
-Run:
-
-执行：
-
-```bash
-./scripts/bootstrap-deployment-repo.sh --env-file .env --stack prod --infra-dir infra
-```
+对 `STACKS` 中列出的每个 stack 都执行一次，顺序与 `PROMOTION_PATH` 保持一致。
 
 ### 7. Confirm repository configuration / 确认仓库配置完成
 
@@ -110,11 +104,11 @@ You finish with all bootstrap stages completed manually and the repository is re
 ## Common Mistakes / 常见问题
 
 - forgetting to source `dist/foundation.env` after AWS foundation generated new values
-- skipping the `prod` stack bootstrap and only preparing `devo`
+- skipping later stacks in `STACKS` and only preparing the first stack
 - running manual bootstrap commands outside the repository root
 
 - 在 AWS foundation 生成新值后忘记 `source dist/foundation.env`
-- 只初始化了 `devo`，没有初始化 `prod`
+- 只初始化了第一个 stack，没有初始化 `STACKS` 中后续环境
 - 在仓库根目录之外执行手动 bootstrap 命令
 
 ## Next Step / 下一步

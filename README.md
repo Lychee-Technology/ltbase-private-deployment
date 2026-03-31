@@ -83,6 +83,7 @@ Preferred recovery-aware bootstrap entrypoint:
 
 - `./scripts/evaluate-and-continue.sh --env-file .env --scope bootstrap`
 - `./scripts/evaluate-and-continue.sh --env-file .env --scope bootstrap --force`
+- `./scripts/evaluate-and-continue.sh --env-file .env --scope bootstrap --force --release-id <release>`
 
 The bootstrap flow now also manages the customer-specific `*-oidc-discovery` companion repository, its Cloudflare Pages project and custom domain, and the per-stack read-only discovery roles that the companion publish workflow assumes.
 
@@ -93,12 +94,14 @@ The bootstrap flow now also manages the customer-specific `*-oidc-discovery` com
 - the deployment repository downloads official LTBase releases instead of building the application source code
 - customers own the GitHub repository, AWS account resources, and deployment approvals
 - bootstrap scripts prepare repository state and deployment configuration
-- preview and production approval remain customer-controlled workflow actions
+- manual preview only targets the first stack in `PROMOTION_PATH`
+- automated rollout continues one hop at a time across `PROMOTION_PATH`, with customer-controlled approvals on protected target environments
 
 - 部署仓库负责下载官方 LTBase release，而不是自行构建应用源码
 - 客户自行持有 GitHub 仓库、AWS 资源和部署审批权
 - bootstrap 脚本负责准备仓库状态和部署配置
-- preview 和生产审批仍由客户自己控制和触发
+- 手动 preview 只针对 `PROMOTION_PATH` 的第一个环境
+- 自动 rollout 会按 `PROMOTION_PATH` 逐跳推进，受保护目标环境仍由客户自己审批
 
 ## Notes / 说明
 

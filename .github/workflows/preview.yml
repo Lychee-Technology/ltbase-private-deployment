@@ -3,6 +3,10 @@ name: Preview LTBase Blueprint
 on:
   workflow_dispatch:
     inputs:
+      target_stack:
+        description: Stack to preview; manual preview only supports the first promotion stack
+        required: false
+        type: string
       release_id:
         description: Official LTBase release tag to preview
         required: false
@@ -13,17 +17,49 @@ permissions:
   id-token: write
 
 jobs:
+  prepare:
+    runs-on: ubuntu-24.04
+    outputs:
+      target_stack: ${{ steps.plan.outputs.target_stack }}
+      target_stack_upper: ${{ steps.plan.outputs.target_stack_upper }}
+    steps:
+      - id: plan
+        env:
+          INPUT_TARGET_STACK: ${{ inputs.target_stack }}
+          PROMOTION_PATH: ${{ vars.PROMOTION_PATH || vars.STACKS || 'devo,prod' }}
+        run: |
+          promotion_path="$(printf '%s' "${PROMOTION_PATH}" | tr -d '[:space:]')"
+          IFS=',' read -r -a path <<<"${promotion_path}"
+          start_stack="${path[0]:-}"
+          target_stack="${INPUT_TARGET_STACK:-${start_stack}}"
+
+          if [[ -z "${start_stack}" ]]; then
+            echo "PROMOTION_PATH must define at least one stack" >&2
+            exit 1
+          fi
+
+          if [[ "${target_stack}" != "${start_stack}" ]]; then
+            echo "manual preview only supports the first promotion stack: ${start_stack}" >&2
+            exit 1
+          fi
+
+          {
+            echo "target_stack=${target_stack}"
+            echo "target_stack_upper=$(printf '%s' "${target_stack}" | tr '[:lower:]-' '[:upper:]_')"
+          } >> "${GITHUB_OUTPUT}"
+
   preview:
-    uses: Lychee-Technology/ltbase-deploy-workflows/.github/workflows/preview.yml@v1
+    needs: prepare
+    uses: Lychee-Technology/ltbase-deploy-workflows/.github/workflows/preview-stack.yml@codex/minimal-manual-deploy
     with:
-      pulumi_stack: devo
-      aws_region: ${{ vars.AWS_REGION_DEVO || 'ap-northeast-1' }}
+      pulumi_stack: ${{ needs.prepare.outputs.target_stack }}
+      aws_region: ${{ vars[format('AWS_REGION_{0}', needs.prepare.outputs.target_stack_upper)] }}
       release_id: ${{ inputs.release_id || vars.LTBASE_RELEASE_ID }}
       pulumi_backend_url: ${{ vars.PULUMI_BACKEND_URL }}
-      pulumi_secrets_provider: ${{ vars.PULUMI_SECRETS_PROVIDER_DEVO }}
+      pulumi_secrets_provider: ${{ vars[format('PULUMI_SECRETS_PROVIDER_{0}', needs.prepare.outputs.target_stack_upper)] }}
       releases_repo: ${{ vars.LTBASE_RELEASES_REPO || 'Lychee-Technology/ltbase-releases' }}
       working_directory: infra
     secrets:
-      aws_role_arn: ${{ secrets.AWS_ROLE_ARN_DEVO }}
+      aws_role_arn: ${{ secrets[format('AWS_ROLE_ARN_{0}', needs.prepare.outputs.target_stack_upper)] }}
       ltbase_releases_token: ${{ secrets.LTBASE_RELEASES_TOKEN }}
       cloudflare_api_token: ${{ secrets.CLOUDFLARE_API_TOKEN }}
