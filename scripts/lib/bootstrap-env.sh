@@ -120,6 +120,11 @@ bootstrap_env_apply_derivations() {
   local role_arn_var provider_var runtime_bucket_var table_name_var
   local discovery_role_name_var discovery_role_arn_var issuer_var jwks_var
 
+  if [[ -z "${PULUMI_PROJECT:-}" ]]; then
+    PULUMI_PROJECT="ltbase-infra"
+    export PULUMI_PROJECT
+  fi
+
   if [[ -z "${DEPLOYMENT_REPO:-}" && -n "${GITHUB_OWNER:-}" && -n "${DEPLOYMENT_REPO_NAME:-}" ]]; then
     DEPLOYMENT_REPO="${GITHUB_OWNER}/${DEPLOYMENT_REPO_NAME}"
     export DEPLOYMENT_REPO
@@ -239,10 +244,11 @@ bootstrap_env_load() {
 
 bootstrap_env_oidc_discovery_stack_config_json() {
   while IFS= read -r stack; do
-    printf '%s\t%s\t%s\n' \
+    printf '%s\t%s\t%s\t%s\n' \
       "${stack}" \
       "$(bootstrap_env_resolve_stack_value AWS_REGION "${stack}")" \
-      "$(bootstrap_env_resolve_stack_value OIDC_DISCOVERY_AWS_ROLE_ARN "${stack}")"
+      "$(bootstrap_env_resolve_stack_value OIDC_DISCOVERY_AWS_ROLE_ARN "${stack}")" \
+      "alias/${PULUMI_PROJECT:-ltbase-infra}-${stack}-authservice"
   done < <(bootstrap_env_each_stack) | python3 -c '
 import json
 import sys
@@ -252,10 +258,11 @@ for line in sys.stdin:
     line = line.rstrip("\n")
     if not line:
         continue
-    stack, aws_region, aws_role_arn = line.split("\t", 2)
+    stack, aws_region, aws_role_arn, kms_auth_key_alias = line.split("\t", 3)
     payload[stack] = {
         "aws_region": aws_region,
         "aws_role_arn": aws_role_arn,
+        "kms_auth_key_alias": kms_auth_key_alias,
     }
 
 print(json.dumps(payload, separators=(",", ":")))
