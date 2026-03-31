@@ -45,6 +45,7 @@ fi
 create-deployment-repo.sh --env-file "${ENV_FILE}"
 render-bootstrap-policies.sh --env-file "${ENV_FILE}"
 bootstrap-aws-foundation.sh --env-file "${ENV_FILE}"
+bootstrap-oidc-discovery-companion.sh --env-file "${ENV_FILE}"
 while IFS= read -r stack; do
   bootstrap-deployment-repo.sh --env-file "${ENV_FILE}" --stack "${stack}" --infra-dir "${INFRA_DIR}"
 done < <(bootstrap_env_each_stack)

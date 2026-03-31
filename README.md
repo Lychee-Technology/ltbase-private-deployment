@@ -71,6 +71,7 @@ Important files and scripts:
 - `scripts/render-bootstrap-policies.sh`
 - `scripts/create-deployment-repo.sh`
 - `scripts/bootstrap-aws-foundation.sh`
+- `scripts/bootstrap-oidc-discovery-companion.sh`
 - `scripts/bootstrap-pulumi-backend.sh`
 - `scripts/bootstrap-deployment-repo.sh`
 - `scripts/bootstrap-all.sh`
@@ -82,6 +83,10 @@ Preferred recovery-aware bootstrap entrypoint:
 
 - `./scripts/evaluate-and-continue.sh --env-file .env --scope bootstrap`
 - `./scripts/evaluate-and-continue.sh --env-file .env --scope bootstrap --force`
+
+The bootstrap flow now also manages the customer-specific `*-oidc-discovery` companion repository, its Cloudflare Pages project and custom domain, and the per-stack read-only discovery roles that the companion publish workflow assumes.
+
+当前 bootstrap 流程还会自动管理客户专属的 `*-oidc-discovery` companion repo、对应的 Cloudflare Pages project 与自定义域名，以及 companion publish workflow 需要假设的每个 stack 的只读 discovery role。
 
 ## Deployment Principles / 部署原则
 

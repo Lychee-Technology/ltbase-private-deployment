@@ -56,10 +56,10 @@ script_dir="$(cd "$(dirname "$0")" && pwd)"
 source "${script_dir}/lib/bootstrap-env.sh"
 bootstrap_env_load "${ENV_FILE}"
 
-required_vars=(TEMPLATE_REPO GITHUB_OWNER DEPLOYMENT_REPO_NAME DEPLOYMENT_REPO_VISIBILITY DEPLOYMENT_REPO_DESCRIPTION DEPLOYMENT_REPO PULUMI_STATE_BUCKET PULUMI_KMS_ALIAS PULUMI_BACKEND_URL LTBASE_RELEASES_REPO LTBASE_RELEASE_ID LTBASE_RELEASES_TOKEN CLOUDFLARE_API_TOKEN GEMINI_API_KEY CLOUDFLARE_ZONE_ID GITHUB_ORG GITHUB_REPO GEMINI_MODEL DSQL_PORT DSQL_DB DSQL_USER DSQL_PROJECT_SCHEMA)
+required_vars=(TEMPLATE_REPO GITHUB_OWNER DEPLOYMENT_REPO_NAME DEPLOYMENT_REPO_VISIBILITY DEPLOYMENT_REPO_DESCRIPTION DEPLOYMENT_REPO PULUMI_STATE_BUCKET PULUMI_KMS_ALIAS PULUMI_BACKEND_URL LTBASE_RELEASES_REPO LTBASE_RELEASE_ID LTBASE_RELEASES_TOKEN CLOUDFLARE_API_TOKEN CLOUDFLARE_ACCOUNT_ID OIDC_DISCOVERY_DOMAIN OIDC_DISCOVERY_TEMPLATE_REPO OIDC_DISCOVERY_REPO OIDC_DISCOVERY_PAGES_PROJECT GEMINI_API_KEY CLOUDFLARE_ZONE_ID GITHUB_ORG GITHUB_REPO GEMINI_MODEL DSQL_PORT DSQL_DB DSQL_USER DSQL_PROJECT_SCHEMA)
 bootstrap_env_require_vars "${required_vars[@]}"
 while IFS= read -r stack; do
-  bootstrap_env_require_stack_values "${stack}" AWS_REGION AWS_ACCOUNT_ID AWS_ROLE_NAME AWS_ROLE_ARN PULUMI_SECRETS_PROVIDER API_DOMAIN CONTROL_DOMAIN AUTH_DOMAIN OIDC_ISSUER_URL JWKS_URL RUNTIME_BUCKET TABLE_NAME
+  bootstrap_env_require_stack_values "${stack}" AWS_REGION AWS_ACCOUNT_ID AWS_ROLE_NAME AWS_ROLE_ARN PULUMI_SECRETS_PROVIDER API_DOMAIN CONTROL_DOMAIN AUTH_DOMAIN OIDC_DISCOVERY_AWS_ROLE_NAME OIDC_DISCOVERY_AWS_ROLE_ARN OIDC_ISSUER_URL JWKS_URL RUNTIME_BUCKET TABLE_NAME
 done < <(bootstrap_env_each_stack)
 
 mkdir -p "${REPORT_DIR}"
@@ -67,8 +67,10 @@ mkdir -p "${REPORT_DIR}"
 report_file="${REPORT_DIR}/report.json"
 actions_log="${REPORT_DIR}/actions.log"
 state_file="${REPORT_DIR}/stack-status.tsv"
+oidc_status_file="${REPORT_DIR}/oidc-status.env"
 : >"${actions_log}"
 : >"${state_file}"
+: >"${oidc_status_file}"
 
 run_logged() {
   printf '%s\n' "$*" >>"${actions_log}"
@@ -92,17 +94,6 @@ sys.exit(0 if needle in names else 1)
 PY
 }
 
-aws_command_for_stack() {
-  local stack="$1"
-  shift
-  local command=(aws)
-  while IFS= read -r token; do
-    command+=("${token}")
-  done < <(bootstrap_env_stack_profile_args "${stack}")
-  command+=("$@")
-  "${command[@]}"
-}
-
 foundation_present_for_stack() {
   local stack="$1"
   local region account_id role_name provider_arn alias_json
@@ -112,13 +103,13 @@ foundation_present_for_stack() {
   role_name="$(bootstrap_env_resolve_stack_value AWS_ROLE_NAME "${stack}")"
   provider_arn="arn:aws:iam::${account_id}:oidc-provider/token.actions.githubusercontent.com"
 
-  if ! aws_command_for_stack "${stack}" iam get-open-id-connect-provider --open-id-connect-provider-arn "${provider_arn}" >/dev/null 2>&1; then
+  if ! bootstrap_env_aws_command_for_stack "${stack}" iam get-open-id-connect-provider --open-id-connect-provider-arn "${provider_arn}" >/dev/null 2>&1; then
     return 1
   fi
-  if ! aws_command_for_stack "${stack}" iam get-role --role-name "${role_name}" >/dev/null 2>&1; then
+  if ! bootstrap_env_aws_command_for_stack "${stack}" iam get-role --role-name "${role_name}" >/dev/null 2>&1; then
     return 1
   fi
-  alias_json="$(aws_command_for_stack "${stack}" kms list-aliases --region "${region}" --output json)"
+  alias_json="$(bootstrap_env_aws_command_for_stack "${stack}" kms list-aliases --region "${region}" --output json)"
   python3 - "${PULUMI_KMS_ALIAS}" <<'PY' <<<"${alias_json}"
 import json
 import sys
@@ -135,11 +126,15 @@ shared_foundation_present() {
   if [[ -z "${first_stack}" ]]; then
     return 1
   fi
-  aws_command_for_stack "${first_stack}" s3api head-bucket --bucket "${PULUMI_STATE_BUCKET}" >/dev/null 2>&1
+  bootstrap_env_aws_command_for_stack "${first_stack}" s3api head-bucket --bucket "${PULUMI_STATE_BUCKET}" >/dev/null 2>&1
 }
 
 repo_exists() {
   gh repo view "${DEPLOYMENT_REPO}" >/dev/null 2>&1
+}
+
+oidc_companion_repo_exists() {
+  gh repo view "${OIDC_DISCOVERY_REPO}" >/dev/null 2>&1
 }
 
 repo_config_present() {
@@ -178,6 +173,91 @@ repo_config_present() {
   done < <(bootstrap_env_each_stack)
 
   return 0
+}
+
+oidc_companion_repo_config_present() {
+  local variable_json
+
+  if ! oidc_companion_repo_exists; then
+    return 1
+  fi
+
+  variable_json="$(gh variable list --repo "${OIDC_DISCOVERY_REPO}" --json name)"
+  if ! json_name_list_contains "${variable_json}" "OIDC_DISCOVERY_DOMAIN"; then
+    return 1
+  fi
+  if ! json_name_list_contains "${variable_json}" "OIDC_DISCOVERY_STACK_CONFIG"; then
+    return 1
+  fi
+
+  return 0
+}
+
+cloudflare_pages_project_present() {
+  curl -fsS \
+    -H "Authorization: Bearer ${CLOUDFLARE_API_TOKEN}" \
+    -H "Content-Type: application/json" \
+    "https://api.cloudflare.com/client/v4/accounts/${CLOUDFLARE_ACCOUNT_ID}/pages/projects/${OIDC_DISCOVERY_PAGES_PROJECT}" >/dev/null 2>&1
+}
+
+cloudflare_pages_domain_present() {
+  curl -fsS \
+    -H "Authorization: Bearer ${CLOUDFLARE_API_TOKEN}" \
+    -H "Content-Type: application/json" \
+    "https://api.cloudflare.com/client/v4/accounts/${CLOUDFLARE_ACCOUNT_ID}/pages/projects/${OIDC_DISCOVERY_PAGES_PROJECT}/domains/${OIDC_DISCOVERY_DOMAIN}" >/dev/null 2>&1
+}
+
+oidc_discovery_roles_present() {
+  local stack role_name
+  while IFS= read -r stack; do
+    role_name="$(bootstrap_env_resolve_stack_value OIDC_DISCOVERY_AWS_ROLE_NAME "${stack}")"
+    if ! bootstrap_env_aws_command_for_stack "${stack}" iam get-role --role-name "${role_name}" >/dev/null 2>&1; then
+      return 1
+    fi
+  done < <(bootstrap_env_each_stack)
+  return 0
+}
+
+scan_oidc_discovery_state() {
+  local repo_present="false"
+  local repo_config_present="false"
+  local pages_project_present="false"
+  local pages_domain_present="false"
+  local roles_present="false"
+  local status="needs_oidc_companion"
+
+  if [[ "${SCOPE}" == "foundation" ]]; then
+    status="skipped"
+  else
+    if oidc_companion_repo_exists; then
+      repo_present="true"
+    fi
+    if oidc_companion_repo_config_present; then
+      repo_config_present="true"
+    fi
+    if cloudflare_pages_project_present; then
+      pages_project_present="true"
+    fi
+    if cloudflare_pages_domain_present; then
+      pages_domain_present="true"
+    fi
+    if oidc_discovery_roles_present; then
+      roles_present="true"
+    fi
+
+    if [[ "${repo_present}" == "true" && "${repo_config_present}" == "true" && "${pages_project_present}" == "true" && "${pages_domain_present}" == "true" && "${roles_present}" == "true" ]]; then
+      status="complete"
+    fi
+  fi
+
+  cat >"${oidc_status_file}" <<EOF
+OIDC_DISCOVERY_STATUS=${status}
+OIDC_DISCOVERY_REPO_PRESENT=${repo_present}
+OIDC_DISCOVERY_REPO_CONFIG_PRESENT=${repo_config_present}
+OIDC_DISCOVERY_PAGES_PROJECT_PRESENT=${pages_project_present}
+OIDC_DISCOVERY_PAGES_DOMAIN_PRESENT=${pages_domain_present}
+OIDC_DISCOVERY_ROLES_PRESENT=${roles_present}
+EOF
 }
 
 stack_bootstrap_present() {
@@ -271,20 +351,27 @@ scan_state() {
 
     printf '%s\t%s\n' "${stack}" "${status}" >>"${state_file}"
   done < <(bootstrap_env_each_stack)
+
+  scan_oidc_discovery_state
 }
 
 write_report() {
-  python3 - "${state_file}" "${report_file}" "${DEPLOYMENT_REPO}" "${STACKS}" "${PROMOTION_PATH}" "${SCOPE}" <<'PY'
+  python3 - "${state_file}" "${oidc_status_file}" "${report_file}" "${DEPLOYMENT_REPO}" "${OIDC_DISCOVERY_REPO}" "${OIDC_DISCOVERY_PAGES_PROJECT}" "${OIDC_DISCOVERY_DOMAIN}" "${STACKS}" "${PROMOTION_PATH}" "${SCOPE}" <<'PY'
 import json
+import os
 import sys
 from pathlib import Path
 
 state_path = Path(sys.argv[1])
-report_path = Path(sys.argv[2])
-deployment_repo = sys.argv[3]
-stacks = [item for item in sys.argv[4].split(",") if item]
-promotion_path = [item for item in sys.argv[5].split(",") if item]
-scope = sys.argv[6]
+oidc_state_path = Path(sys.argv[2])
+report_path = Path(sys.argv[3])
+deployment_repo = sys.argv[4]
+oidc_repo = sys.argv[5]
+oidc_pages_project = sys.argv[6]
+oidc_domain = sys.argv[7]
+stacks = [item for item in sys.argv[8].split(",") if item]
+promotion_path = [item for item in sys.argv[9].split(",") if item]
+scope = sys.argv[10]
 
 items = []
 with state_path.open() as handle:
@@ -295,8 +382,28 @@ with state_path.open() as handle:
         stack, status = line.split("\t", 1)
         items.append({"stack": stack, "status": status})
 
+oidc_values = {}
+with oidc_state_path.open() as handle:
+    for line in handle:
+        line = line.strip()
+        if not line or "=" not in line:
+            continue
+        key, value = line.split("=", 1)
+        oidc_values[key] = value
+
 report = {
     "deploymentRepo": deployment_repo,
+    "oidcDiscovery": {
+        "repo": oidc_repo,
+        "pagesProject": oidc_pages_project,
+        "domain": oidc_domain,
+        "status": oidc_values.get("OIDC_DISCOVERY_STATUS", "needs_oidc_companion"),
+        "repoPresent": oidc_values.get("OIDC_DISCOVERY_REPO_PRESENT", "false") == "true",
+        "repoConfigPresent": oidc_values.get("OIDC_DISCOVERY_REPO_CONFIG_PRESENT", "false") == "true",
+        "pagesProjectPresent": oidc_values.get("OIDC_DISCOVERY_PAGES_PROJECT_PRESENT", "false") == "true",
+        "pagesDomainPresent": oidc_values.get("OIDC_DISCOVERY_PAGES_DOMAIN_PRESENT", "false") == "true",
+        "rolesPresent": oidc_values.get("OIDC_DISCOVERY_ROLES_PRESENT", "false") == "true",
+    },
     "scope": scope,
     "stacks": stacks,
     "promotionPath": promotion_path,
@@ -311,12 +418,18 @@ has_non_complete_status() {
   if grep -Fv $'\tcomplete' "${state_file}" >/dev/null 2>&1; then
     return 0
   fi
+  # shellcheck disable=SC1090
+  source "${oidc_status_file}"
+  if [[ "${OIDC_DISCOVERY_STATUS}" != "complete" && "${OIDC_DISCOVERY_STATUS}" != "skipped" ]]; then
+    return 0
+  fi
   return 1
 }
 
 run_force_actions() {
   local needs_foundation="false"
   local needs_repo="false"
+  local needs_oidc_companion="false"
   local stack status
 
   while IFS=$'\t' read -r stack status; do
@@ -330,6 +443,11 @@ run_force_actions() {
         ;;
     esac
   done <"${state_file}"
+  # shellcheck disable=SC1090
+  source "${oidc_status_file}"
+  if [[ "${OIDC_DISCOVERY_STATUS}" != "complete" && "${OIDC_DISCOVERY_STATUS}" != "skipped" ]]; then
+    needs_oidc_companion="true"
+  fi
 
   if [[ "${needs_foundation}" == "true" ]]; then
     run_logged "${script_dir}/render-bootstrap-policies.sh" --env-file "${ENV_FILE}"
@@ -351,6 +469,10 @@ run_force_actions() {
       esac
     done <"${state_file}"
   fi
+
+  if [[ "${needs_oidc_companion}" == "true" && "${SCOPE}" != "foundation" ]]; then
+    run_logged "${script_dir}/bootstrap-oidc-discovery-companion.sh" --env-file "${ENV_FILE}"
+  fi
 }
 
 scan_state
@@ -359,6 +481,9 @@ write_report
 while IFS=$'\t' read -r stack status; do
   printf '%s: %s\n' "${stack}" "${status}"
 done <"${state_file}"
+# shellcheck disable=SC1090
+source "${oidc_status_file}"
+printf 'oidc-discovery: %s\n' "${OIDC_DISCOVERY_STATUS}"
 printf 'report: %s\n' "${report_file}"
 
 if [[ "${FORCE}" == "true" ]]; then

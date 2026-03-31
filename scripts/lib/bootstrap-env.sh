@@ -79,6 +79,17 @@ bootstrap_env_stack_profile_args() {
   fi
 }
 
+bootstrap_env_aws_command_for_stack() {
+  local stack="$1"
+  shift
+  local command=(aws)
+  while IFS= read -r token; do
+    command+=("${token}")
+  done < <(bootstrap_env_stack_profile_args "${stack}")
+  command+=("$@")
+  "${command[@]}"
+}
+
 bootstrap_env_require_vars() {
   local name
   for name in "$@"; do
@@ -107,6 +118,7 @@ bootstrap_env_require_stack_values() {
 bootstrap_env_apply_derivations() {
   local stack upper_name region account_id role_name
   local role_arn_var provider_var runtime_bucket_var table_name_var
+  local discovery_role_name_var discovery_role_arn_var issuer_var jwks_var
 
   if [[ -z "${DEPLOYMENT_REPO:-}" && -n "${GITHUB_OWNER:-}" && -n "${DEPLOYMENT_REPO_NAME:-}" ]]; then
     DEPLOYMENT_REPO="${GITHUB_OWNER}/${DEPLOYMENT_REPO_NAME}"
@@ -123,6 +135,22 @@ bootstrap_env_apply_derivations() {
   if [[ -z "${PULUMI_BACKEND_URL:-}" && -n "${PULUMI_STATE_BUCKET:-}" ]]; then
     PULUMI_BACKEND_URL="s3://${PULUMI_STATE_BUCKET}"
     export PULUMI_BACKEND_URL
+  fi
+  if [[ -z "${OIDC_DISCOVERY_TEMPLATE_REPO:-}" ]]; then
+    OIDC_DISCOVERY_TEMPLATE_REPO="Lychee-Technology/ltbase-oidc-discovery-template"
+    export OIDC_DISCOVERY_TEMPLATE_REPO
+  fi
+  if [[ -z "${OIDC_DISCOVERY_REPO_NAME:-}" && -n "${DEPLOYMENT_REPO_NAME:-}" ]]; then
+    OIDC_DISCOVERY_REPO_NAME="${DEPLOYMENT_REPO_NAME}-oidc-discovery"
+    export OIDC_DISCOVERY_REPO_NAME
+  fi
+  if [[ -z "${OIDC_DISCOVERY_REPO:-}" && -n "${GITHUB_OWNER:-}" && -n "${OIDC_DISCOVERY_REPO_NAME:-}" ]]; then
+    OIDC_DISCOVERY_REPO="${GITHUB_OWNER}/${OIDC_DISCOVERY_REPO_NAME}"
+    export OIDC_DISCOVERY_REPO
+  fi
+  if [[ -z "${OIDC_DISCOVERY_PAGES_PROJECT:-}" && -n "${OIDC_DISCOVERY_REPO_NAME:-}" ]]; then
+    OIDC_DISCOVERY_PAGES_PROJECT="${OIDC_DISCOVERY_REPO_NAME}"
+    export OIDC_DISCOVERY_PAGES_PROJECT
   fi
 
   while IFS= read -r stack; do
@@ -154,6 +182,30 @@ bootstrap_env_apply_derivations() {
       printf -v "${table_name_var}" '%s-%s' "${DEPLOYMENT_REPO_NAME}" "${stack}"
       export "${table_name_var}"
     fi
+
+    discovery_role_name_var="OIDC_DISCOVERY_AWS_ROLE_NAME_${upper_name}"
+    if [[ -z "${!discovery_role_name_var:-}" && -n "${DEPLOYMENT_REPO_NAME:-}" ]]; then
+      printf -v "${discovery_role_name_var}" '%s-oidc-discovery-%s' "${DEPLOYMENT_REPO_NAME}" "${stack}"
+      export "${discovery_role_name_var}"
+    fi
+
+    discovery_role_arn_var="OIDC_DISCOVERY_AWS_ROLE_ARN_${upper_name}"
+    if [[ -z "${!discovery_role_arn_var:-}" && -n "${account_id}" && -n "${!discovery_role_name_var:-}" ]]; then
+      printf -v "${discovery_role_arn_var}" 'arn:aws:iam::%s:role/%s' "${account_id}" "${!discovery_role_name_var}"
+      export "${discovery_role_arn_var}"
+    fi
+
+    issuer_var="OIDC_ISSUER_URL_${upper_name}"
+    if [[ -z "${!issuer_var:-}" && -z "${OIDC_ISSUER_URL:-}" && -n "${OIDC_DISCOVERY_DOMAIN:-}" ]]; then
+      printf -v "${issuer_var}" 'https://%s/%s' "${OIDC_DISCOVERY_DOMAIN}" "${stack}"
+      export "${issuer_var}"
+    fi
+
+    jwks_var="JWKS_URL_${upper_name}"
+    if [[ -z "${!jwks_var:-}" && -z "${JWKS_URL:-}" && -n "${OIDC_DISCOVERY_DOMAIN:-}" ]]; then
+      printf -v "${jwks_var}" 'https://%s/%s/.well-known/jwks.json' "${OIDC_DISCOVERY_DOMAIN}" "${stack}"
+      export "${jwks_var}"
+    fi
   done < <(bootstrap_env_each_stack)
 
   if [[ -z "${PROMOTION_PATH:-}" ]]; then
@@ -183,4 +235,29 @@ bootstrap_env_load() {
   export PROMOTION_PATH
 
   bootstrap_env_apply_derivations
+}
+
+bootstrap_env_oidc_discovery_stack_config_json() {
+  while IFS= read -r stack; do
+    printf '%s\t%s\t%s\n' \
+      "${stack}" \
+      "$(bootstrap_env_resolve_stack_value AWS_REGION "${stack}")" \
+      "$(bootstrap_env_resolve_stack_value OIDC_DISCOVERY_AWS_ROLE_ARN "${stack}")"
+  done < <(bootstrap_env_each_stack) | python3 -c '
+import json
+import sys
+
+payload = {}
+for line in sys.stdin:
+    line = line.rstrip("\n")
+    if not line:
+        continue
+    stack, aws_region, aws_role_arn = line.split("\t", 2)
+    payload[stack] = {
+        "aws_region": aws_region,
+        "aws_role_arn": aws_role_arn,
+    }
+
+print(json.dumps(payload, separators=(",", ":")))
+'
 }
