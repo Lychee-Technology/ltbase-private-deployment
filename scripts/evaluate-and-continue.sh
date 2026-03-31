@@ -142,6 +142,20 @@ oidc_companion_repo_exists() {
   gh repo view "${OIDC_DISCOVERY_REPO}" >/dev/null 2>&1
 }
 
+promotion_environments_present() {
+  local promotion_index=0
+  local stack
+  while IFS= read -r stack; do
+    if [[ "${promotion_index}" -gt 0 ]]; then
+      if ! gh api "repos/${DEPLOYMENT_REPO}/environments/${stack}" >/dev/null 2>&1; then
+        return 1
+      fi
+    fi
+    promotion_index=$((promotion_index + 1))
+  done < <(bootstrap_env_each_stack "${PROMOTION_PATH}")
+  return 0
+}
+
 repo_config_present() {
   local variable_json secret_json stack upper_name
 
@@ -176,6 +190,10 @@ repo_config_present() {
       return 1
     fi
   done < <(bootstrap_env_each_stack)
+
+  if ! promotion_environments_present; then
+    return 1
+  fi
 
   return 0
 }
@@ -435,6 +453,9 @@ run_force_actions() {
   local needs_foundation="false"
   local needs_repo="false"
   local needs_oidc_companion="false"
+  local has_dsql_reconcile="false"
+  local has_needs_rollout="false"
+  local first_needs_rollout_stack=""
   local stack status
 
   while IFS=$'\t' read -r stack status; do
@@ -445,6 +466,15 @@ run_force_actions() {
         ;;
       needs_repo_config|needs_stack_bootstrap)
         needs_repo="true"
+        ;;
+      needs_dsql_reconcile)
+        has_dsql_reconcile="true"
+        ;;
+      needs_rollout)
+        has_needs_rollout="true"
+        if [[ -z "${first_needs_rollout_stack}" ]]; then
+          first_needs_rollout_stack="${stack}"
+        fi
         ;;
     esac
   done <"${state_file}"
@@ -475,11 +505,39 @@ run_force_actions() {
     done <"${state_file}"
   fi
 
+  # Bug #21: repair missing promotion environments
+  if repo_exists && ! promotion_environments_present; then
+    local promotion_index=0
+    while IFS= read -r stack; do
+      if [[ "${promotion_index}" -gt 0 ]]; then
+        if ! gh api "repos/${DEPLOYMENT_REPO}/environments/${stack}" >/dev/null 2>&1; then
+          run_logged gh api "repos/${DEPLOYMENT_REPO}/environments/${stack}" --method PUT
+        fi
+      fi
+      promotion_index=$((promotion_index + 1))
+    done < <(bootstrap_env_each_stack "${PROMOTION_PATH}")
+  fi
+
   if [[ "${needs_oidc_companion}" == "true" && "${SCOPE}" != "foundation" ]]; then
     run_logged "${script_dir}/bootstrap-oidc-discovery-companion.sh" --env-file "${ENV_FILE}"
   fi
 
-  if [[ -n "${RELEASE_ID}" && "${SCOPE}" != "foundation" ]]; then
+  # Bug #20: reconcile DSQL endpoints for stacks that have a cluster but no endpoint set
+  if [[ "${has_dsql_reconcile}" == "true" && "${SCOPE}" != "foundation" ]]; then
+    while IFS=$'\t' read -r stack status; do
+      if [[ "${status}" == "needs_dsql_reconcile" ]]; then
+        run_logged "${script_dir}/reconcile-managed-dsql-endpoint.sh" --env-file "${ENV_FILE}" --stack "${stack}" --infra-dir "${INFRA_DIR}"
+      fi
+    done <"${state_file}"
+  fi
+
+  # Bug #20: resume rollout from the first incomplete stack instead of starting over
+  if [[ "${has_needs_rollout}" == "true" && -n "${RELEASE_ID}" && "${SCOPE}" != "foundation" ]]; then
+    run_logged gh workflow run rollout-hop.yml --repo "${DEPLOYMENT_REPO}" \
+      -f release_id="${RELEASE_ID}" \
+      -f target_stack="${first_needs_rollout_stack}" \
+      -f continue_chain=true
+  elif [[ -n "${RELEASE_ID}" && "${SCOPE}" != "foundation" ]]; then
     run_logged gh workflow run rollout.yml --repo "${DEPLOYMENT_REPO}" -f release_id="${RELEASE_ID}"
   fi
 }

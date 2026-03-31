@@ -53,6 +53,7 @@ AWS_ROLE_NAME_STAGING=ltbase-deploy-staging
 AWS_ROLE_NAME_PROD=ltbase-deploy-prod
 PULUMI_STATE_BUCKET=test-pulumi-state
 PULUMI_KMS_ALIAS=alias/test-pulumi-secrets
+PULUMI_BACKEND_URL=s3://test-pulumi-state
 LTBASE_RELEASES_REPO=Lychee-Technology/ltbase-releases
 LTBASE_RELEASE_ID=v1.0.0
 API_DOMAIN_DEVO=api.devo.example.com
@@ -105,6 +106,37 @@ if [[ "${cmd} ${sub}" == "repo view" ]]; then
   fi
   exit 0
 fi
+if [[ "${cmd}" == "api" ]]; then
+  url="${2:-}"
+  method="GET"
+  for arg in "$@"; do
+    if [[ "${arg}" == "--method" ]]; then
+      shift_next="true"
+    elif [[ "${shift_next:-}" == "true" ]]; then
+      method="${arg}"
+      shift_next=""
+    fi
+  done
+  # Check for method in positional args
+  local_args=("$@")
+  for i in "${!local_args[@]}"; do
+    if [[ "${local_args[$i]}" == "--method" && -n "${local_args[$((i + 1))]:-}" ]]; then
+      method="${local_args[$((i + 1))]}"
+    fi
+  done
+  # Environment check/create
+  if [[ "${url}" == *"/environments/"* ]]; then
+    if [[ "${SCENARIO}" == "envs_missing" && "${method}" == "GET" ]]; then
+      exit 1
+    fi
+    if [[ "${method}" == "PUT" ]]; then
+      printf '{"name":"env-created"}\n'
+      exit 0
+    fi
+    exit 0
+  fi
+  exit 0
+fi
 if [[ "${cmd} ${sub}" == "variable list" ]]; then
   if [[ "${4:-}" == "customer-org/customer-ltbase-oidc-discovery" ]]; then
     if [[ "${SCENARIO}" == "oidc_companion_missing" ]]; then
@@ -133,6 +165,9 @@ if [[ "${cmd} ${sub}" == "secret list" ]]; then
   else
     printf '[{"name":"AWS_ROLE_ARN_DEVO"},{"name":"AWS_ROLE_ARN_STAGING"},{"name":"AWS_ROLE_ARN_PROD"},{"name":"LTBASE_RELEASES_TOKEN"},{"name":"CLOUDFLARE_API_TOKEN"}]'
   fi
+  exit 0
+fi
+if [[ "${cmd} ${sub}" == "workflow run" ]]; then
   exit 0
 fi
 exit 0
@@ -181,6 +216,10 @@ case "${SCENARIO}:${command_key}" in
     ;;
   *:kms\ list-aliases)
     printf '{"Aliases":[{"AliasName":"alias/test-pulumi-secrets","TargetKeyId":"key-123"}]}'
+    exit 0
+    ;;
+  *:dsql\ get-cluster)
+    printf 'managed.%s.endpoint.example.com\n' "${STACK_HINT:-devo}"
     exit 0
     ;;
 esac
@@ -275,6 +314,9 @@ if [[ "${1:-} ${2:-} ${3:-} ${4:-}" == "config get dsqlEndpoint --stack" ]]; the
       ;;
   esac
   exit 1
+fi
+if [[ "${1:-} ${2:-}" == "config set" || "${1:-} ${2:-}" == "config rm" ]]; then
+  exit 0
 fi
 exit 0
 EOF
@@ -393,5 +435,51 @@ assert_log_contains "${temp_dir}/commands.log" "pulumi stack init devo --secrets
 assert_log_contains "${temp_dir}/commands.log" "pulumi stack init staging --secrets-provider awskms://alias/test-pulumi-secrets?region=us-east-1"
 assert_log_contains "${temp_dir}/commands.log" "pulumi stack init prod --secrets-provider awskms://alias/test-pulumi-secrets?region=us-west-2"
 assert_log_contains "${temp_dir}/commands.log" "gh workflow run rollout.yml --repo customer-org/customer-ltbase -f release_id=v9.9.9"
+
+# Bug #20: force mode with rollout_mix should reconcile DSQL and resume rollout via rollout-hop
+for stack in devo staging prod; do
+  cat >"${temp_dir}/infra/Pulumi.${stack}.yaml" <<EOF
+config:
+  ltbase-infra:awsRegion: test
+EOF
+done
+
+: >"${temp_dir}/commands.log"
+run_expect_exit_code 0 env \
+  PATH="${temp_dir}/bin:$PATH" \
+  COMMAND_LOG="${temp_dir}/commands.log" \
+  SCENARIO="rollout_mix" \
+  "${SCRIPT_PATH}" --env-file "${temp_dir}/.env" --infra-dir "${temp_dir}/infra" --report-dir "${temp_dir}/report-force-rollout" --force --release-id v2.0.0
+
+# Should call reconcile for staging (needs_dsql_reconcile)
+assert_log_contains "${temp_dir}/report-force-rollout/actions.log" "reconcile-managed-dsql-endpoint.sh --env-file ${temp_dir}/.env --stack staging --infra-dir ${temp_dir}/infra"
+# Should dispatch rollout-hop.yml for devo (first needs_rollout stack), NOT rollout.yml
+assert_log_contains "${temp_dir}/report-force-rollout/actions.log" "gh workflow run rollout-hop.yml --repo customer-org/customer-ltbase -f release_id=v2.0.0 -f target_stack=devo -f continue_chain=true"
+# Should NOT dispatch rollout.yml
+if grep -Fq "gh workflow run rollout.yml" "${temp_dir}/report-force-rollout/actions.log"; then
+  fail "force mode with needs_rollout should dispatch rollout-hop.yml, not rollout.yml"
+fi
+
+# Bug #21: force mode should repair missing promotion environments
+: >"${temp_dir}/commands.log"
+run_expect_exit_code 0 env \
+  PATH="${temp_dir}/bin:$PATH" \
+  COMMAND_LOG="${temp_dir}/commands.log" \
+  SCENARIO="envs_missing" \
+  "${SCRIPT_PATH}" --env-file "${temp_dir}/.env" --infra-dir "${temp_dir}/infra" --report-dir "${temp_dir}/report-force-envs" --force --release-id v3.0.0
+
+# Should create missing promotion environments (staging and prod, not devo which is first)
+assert_log_contains "${temp_dir}/report-force-envs/actions.log" "gh api repos/customer-org/customer-ltbase/environments/staging --method PUT"
+assert_log_contains "${temp_dir}/report-force-envs/actions.log" "gh api repos/customer-org/customer-ltbase/environments/prod --method PUT"
+
+# Bug #21: envs_missing should be detected as non-complete by repo_config_present
+: >"${temp_dir}/commands.log"
+run_expect_exit_code 2 env \
+  PATH="${temp_dir}/bin:$PATH" \
+  COMMAND_LOG="${temp_dir}/commands.log" \
+  SCENARIO="envs_missing" \
+  "${SCRIPT_PATH}" --env-file "${temp_dir}/.env" --infra-dir "${temp_dir}/infra" --report-dir "${temp_dir}/report-envs-detect"
+
+assert_file_contains "${temp_dir}/report-envs-detect/report.json" '"status": "needs_repo_config"'
 
 printf 'PASS: evaluate-and-continue tests\n'
