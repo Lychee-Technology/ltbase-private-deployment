@@ -108,13 +108,15 @@ Follow the steps in this order:
 - 阅读：[`docs/onboarding/02-create-repo-and-clone.md`](onboarding/02-create-repo-and-clone.md)
 - 内容包括：从模板创建私有仓库、拉取到本地、确认目录结构
 
-### Step 3 - Create GitHub OIDC and deploy roles / 第三步：创建 GitHub OIDC 和 deploy role
+### Step 3 - Prepare OIDC and deploy roles / 第三步：准备 OIDC 和 deploy role
 
 - Read: [`docs/onboarding/03-create-oidc-and-deploy-roles.md`](onboarding/03-create-oidc-and-deploy-roles.md)
 - Covers: OIDC provider, per-stack deploy roles, trust policy, permissions policy
+- If using one-click bootstrap, review only; the script creates these automatically
 
 - 阅读：[`docs/onboarding/03-create-oidc-and-deploy-roles.md`](onboarding/03-create-oidc-and-deploy-roles.md)
 - 内容包括：OIDC provider、按 stack 划分的 deploy role、信任策略、权限策略
+- 如果使用一键 bootstrap，只需确认即可；脚本会自动创建这些资源
 
 ### Step 4 - Prepare the local `.env` file / 第四步：准备本地 `.env` 文件
 
@@ -175,6 +177,7 @@ Set these repository variables in your deployment repository:
 - `LTBASE_RELEASE_ID`
 - `STACKS`
 - `PROMOTION_PATH`
+- `PREVIEW_DEFAULT_STACK`
 
 The bootstrap scripts write these values for you when `.env` is correct.
 

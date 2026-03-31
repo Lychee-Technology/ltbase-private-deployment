@@ -65,6 +65,7 @@ The one-click script runs these stages in order:
 - `create-deployment-repo.sh`
 - `render-bootstrap-policies.sh`
 - `bootstrap-aws-foundation.sh`
+- `bootstrap-oidc-discovery-companion.sh`
 - `bootstrap-deployment-repo.sh --stack <each stack in STACKS>`
 - optional `gh workflow run rollout.yml ...` when `--release-id` is set
 

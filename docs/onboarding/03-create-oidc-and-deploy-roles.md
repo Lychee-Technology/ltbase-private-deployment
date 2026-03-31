@@ -10,6 +10,12 @@ Use this guide to prepare the AWS-side trust and deployment roles that GitHub Ac
 
 使用本文档准备 AWS 侧的信任关系与部署角色，让 GitHub Actions 可以执行 LTBase 的 preview 和 deploy。
 
+## Note for one-click bootstrap users / 一键 bootstrap 用户说明
+
+If you plan to use the one-click bootstrap path (`evaluate-and-continue.sh`), the script runs `bootstrap-aws-foundation.sh` which creates OIDC providers and deploy roles automatically. In that case, use this page to **review and verify** what will be created, rather than creating resources manually. If your AWS permissions do not allow the script to create IAM resources, follow the manual steps below.
+
+如果你打算使用一键 bootstrap 路径（`evaluate-and-continue.sh`），该脚本会自动运行 `bootstrap-aws-foundation.sh` 来创建 OIDC provider 和 deploy role。在这种情况下，本页面的作用是让你 **提前了解和确认** 将会创建哪些资源，而不是手动创建它们。如果你的 AWS 权限不允许脚本自动创建 IAM 资源，请按下面的手动步骤操作。
+
 ## Before You Start / 开始前确认
 
 - complete [`02-create-repo-and-clone.md`](02-create-repo-and-clone.md)
