@@ -68,6 +68,9 @@ done < <(bootstrap_env_each_stack)
 gh variable set PULUMI_BACKEND_URL --repo "${DEPLOYMENT_REPO}" --body "${PULUMI_BACKEND_URL}"
 gh variable set LTBASE_RELEASES_REPO --repo "${DEPLOYMENT_REPO}" --body "${LTBASE_RELEASES_REPO}"
 gh variable set LTBASE_RELEASE_ID --repo "${DEPLOYMENT_REPO}" --body "${LTBASE_RELEASE_ID}"
+gh variable set STACKS --repo "${DEPLOYMENT_REPO}" --body "${STACKS}"
+gh variable set PROMOTION_PATH --repo "${DEPLOYMENT_REPO}" --body "${PROMOTION_PATH}"
+gh variable set PREVIEW_DEFAULT_STACK --repo "${DEPLOYMENT_REPO}" --body "${PREVIEW_DEFAULT_STACK}"
 
 gh secret set LTBASE_RELEASES_TOKEN --repo "${DEPLOYMENT_REPO}" --body "${LTBASE_RELEASES_TOKEN}"
 gh secret set CLOUDFLARE_API_TOKEN --repo "${DEPLOYMENT_REPO}" --body "${CLOUDFLARE_API_TOKEN}"

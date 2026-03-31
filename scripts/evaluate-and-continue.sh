@@ -85,7 +85,7 @@ run_logged() {
 json_name_list_contains() {
   local json_input="$1"
   local needle="$2"
-  python3 - "${needle}" <<'PY' <<<"${json_input}"
+  printf '%s' "${json_input}" | python3 -c '
 import json
 import sys
 
@@ -96,7 +96,7 @@ if not raw:
 
 names = {item.get("name", "") for item in json.loads(raw)}
 sys.exit(0 if needle in names else 1)
-PY
+' "${needle}"
 }
 
 foundation_present_for_stack() {
@@ -152,7 +152,7 @@ repo_config_present() {
   variable_json="$(gh variable list --repo "${DEPLOYMENT_REPO}" --json name)"
   secret_json="$(gh secret list --repo "${DEPLOYMENT_REPO}" --json name)"
 
-  for required_var in PULUMI_BACKEND_URL LTBASE_RELEASES_REPO LTBASE_RELEASE_ID; do
+  for required_var in PULUMI_BACKEND_URL LTBASE_RELEASES_REPO LTBASE_RELEASE_ID STACKS PROMOTION_PATH PREVIEW_DEFAULT_STACK; do
     if ! json_name_list_contains "${variable_json}" "${required_var}"; then
       return 1
     fi

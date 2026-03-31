@@ -33,14 +33,18 @@ mkdir -p "${fake_bin}" "${temp_dir}/infra"
 touch "${log_file}"
 
 cat >"${temp_dir}/.env" <<'EOF'
-STACKS=devo,prod
+STACKS=devo,staging,prod
+PROMOTION_PATH=devo,staging,prod
 GITHUB_OWNER=Lychee-Technology
 DEPLOYMENT_REPO_NAME=ltbase-private-deployment
 AWS_REGION_DEVO=ap-northeast-1
+AWS_REGION_STAGING=us-east-1
 AWS_REGION_PROD=us-west-2
 AWS_ACCOUNT_ID_DEVO=123456789012
+AWS_ACCOUNT_ID_STAGING=123456789012
 AWS_ACCOUNT_ID_PROD=123456789012
 AWS_ROLE_NAME_DEVO=test-deploy-role
+AWS_ROLE_NAME_STAGING=test-staging-role
 AWS_ROLE_NAME_PROD=test-prod-role
 PULUMI_STATE_BUCKET=test-pulumi-state
 PULUMI_KMS_ALIAS=alias/test-pulumi-secrets
@@ -50,15 +54,20 @@ LTBASE_RELEASES_TOKEN=test-release-token
 CLOUDFLARE_API_TOKEN=test-cloudflare-token
 GEMINI_API_KEY=test-gemini-key
 API_DOMAIN_DEVO=api.devo.example.com
+API_DOMAIN_STAGING=api.staging.example.com
 API_DOMAIN_PROD=api.example.com
 CONTROL_DOMAIN_DEVO=control.devo.example.com
+CONTROL_DOMAIN_STAGING=control.staging.example.com
 CONTROL_DOMAIN_PROD=control.example.com
 AUTH_DOMAIN_DEVO=auth.devo.example.com
+AUTH_DOMAIN_STAGING=auth.staging.example.com
 AUTH_DOMAIN_PROD=auth.example.com
 CLOUDFLARE_ZONE_ID=zone-123
 OIDC_ISSUER_URL_DEVO=https://issuer.example.com/devo
+OIDC_ISSUER_URL_STAGING=https://issuer.example.com/staging
 OIDC_ISSUER_URL_PROD=https://issuer.example.com/prod
 JWKS_URL_DEVO=https://issuer.example.com/devo/jwks.json
+JWKS_URL_STAGING=https://issuer.example.com/staging/jwks.json
 JWKS_URL_PROD=https://issuer.example.com/prod/jwks.json
 GEMINI_MODEL=gemini-3-flash-preview
 DSQL_PORT=5432
@@ -92,8 +101,13 @@ if [[ -x "${SCRIPT_PATH}" ]]; then
   fi
 
   assert_log_contains "${log_file}" "gh variable set AWS_REGION_DEVO --repo Lychee-Technology/ltbase-private-deployment --body ap-northeast-1"
+  assert_log_contains "${log_file}" "gh variable set AWS_REGION_STAGING --repo Lychee-Technology/ltbase-private-deployment --body us-east-1"
   assert_log_contains "${log_file}" "gh variable set AWS_REGION_PROD --repo Lychee-Technology/ltbase-private-deployment --body us-west-2"
+  assert_log_contains "${log_file}" "gh variable set STACKS --repo Lychee-Technology/ltbase-private-deployment --body devo,staging,prod"
+  assert_log_contains "${log_file}" "gh variable set PROMOTION_PATH --repo Lychee-Technology/ltbase-private-deployment --body devo,staging,prod"
+  assert_log_contains "${log_file}" "gh variable set PREVIEW_DEFAULT_STACK --repo Lychee-Technology/ltbase-private-deployment --body devo"
   assert_log_contains "${log_file}" "gh secret set AWS_ROLE_ARN_DEVO --repo Lychee-Technology/ltbase-private-deployment --body arn:aws:iam::123456789012:role/test-deploy-role"
+  assert_log_contains "${log_file}" "gh secret set AWS_ROLE_ARN_STAGING --repo Lychee-Technology/ltbase-private-deployment --body arn:aws:iam::123456789012:role/test-staging-role"
   assert_log_contains "${log_file}" "gh secret set AWS_ROLE_ARN_PROD --repo Lychee-Technology/ltbase-private-deployment --body arn:aws:iam::123456789012:role/test-prod-role"
   assert_log_contains "${log_file}" "pulumi stack init prod --secrets-provider awskms://alias/test-pulumi-secrets?region=us-west-2"
   assert_log_contains "${log_file}" "pulumi config set runtimeBucket ltbase-private-deployment-runtime-prod --stack prod"
