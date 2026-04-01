@@ -28,10 +28,14 @@ Use this guide to create your customer-owned deployment repository from the temp
    - `.github/workflows/`
    - `env.template`
    - `scripts/create-deployment-repo.sh`
+   - `scripts/render-bootstrap-policies.sh`
    - `scripts/bootstrap-aws-foundation.sh`
    - `scripts/bootstrap-pulumi-backend.sh`
+   - `scripts/bootstrap-oidc-discovery-companion.sh`
    - `scripts/bootstrap-deployment-repo.sh`
    - `scripts/bootstrap-all.sh`
+   - `scripts/evaluate-and-continue.sh`
+   - `scripts/reconcile-managed-dsql-endpoint.sh`
 5. Confirm that the repository is private.
 6. Confirm that the `prod` environment will be available for later approval gating.
 
@@ -43,10 +47,14 @@ Use this guide to create your customer-owned deployment repository from the temp
    - `.github/workflows/`
    - `env.template`
    - `scripts/create-deployment-repo.sh`
+   - `scripts/render-bootstrap-policies.sh`
    - `scripts/bootstrap-aws-foundation.sh`
    - `scripts/bootstrap-pulumi-backend.sh`
+   - `scripts/bootstrap-oidc-discovery-companion.sh`
    - `scripts/bootstrap-deployment-repo.sh`
    - `scripts/bootstrap-all.sh`
+   - `scripts/evaluate-and-continue.sh`
+   - `scripts/reconcile-managed-dsql-endpoint.sh`
 5. 确认仓库是私有的。
 6. 确认后续用于审批的 `prod` environment 可以创建。
 

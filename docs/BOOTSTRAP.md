@@ -23,9 +23,12 @@ Your deployment repository should contain:
 - `scripts/create-deployment-repo.sh`
 - `scripts/bootstrap-aws-foundation.sh`
 - `scripts/bootstrap-pulumi-backend.sh`
+- `scripts/bootstrap-oidc-discovery-companion.sh`
 - `scripts/bootstrap-deployment-repo.sh`
 - `scripts/bootstrap-all.sh`
 - `scripts/evaluate-and-continue.sh`
+- `scripts/reconcile-managed-dsql-endpoint.sh`
+- `scripts/lib/bootstrap-env.sh`
 
 ## Quick Checklist / 快速清单
 
@@ -120,6 +123,7 @@ Manual path:
 - `LTBASE_RELEASE_ID`
 - `STACKS`
 - `PROMOTION_PATH`
+- `PREVIEW_DEFAULT_STACK`
 
 ## Notes / 说明
 

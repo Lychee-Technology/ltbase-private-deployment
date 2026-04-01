@@ -89,6 +89,20 @@ Repeat the command once for each stack listed in `STACKS`, in the same order as 
 
 对 `STACKS` 中列出的每个 stack 都执行一次，顺序与 `PROMOTION_PATH` 保持一致。
 
+### 6. Bootstrap OIDC discovery companion / 初始化 OIDC discovery 配套资源
+
+Run:
+
+执行：
+
+```bash
+./scripts/bootstrap-oidc-discovery-companion.sh --env-file .env
+```
+
+This step creates or updates the OIDC discovery companion repository, Cloudflare Pages project, custom domain binding, and per-stack OIDC discovery IAM roles.
+
+该步骤会创建或更新 OIDC discovery 配套仓库、Cloudflare Pages 项目、自定义域名绑定，以及每个 stack 对应的 OIDC discovery IAM role。
+
 ### 7. Confirm repository configuration / 确认仓库配置完成
 
 Check that the repository now contains the required GitHub secrets and variables.
