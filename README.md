@@ -1,56 +1,39 @@
-# LTBase Private Deployment Template / LTBase 私有部署模板
+> **中文版：[README.zh.md](README.zh.md)**
+
+# LTBase Private Deployment Template
 
 This repository is the customer-facing deployment template for LTBase.
 
-本仓库是 LTBase 面向客户的部署模板仓库。
-
 It is the seed repository used to create a customer-owned private deployment repository.
 
-它用于生成客户自有的私有部署仓库。
-
-## Purpose / 用途
+## Purpose
 
 This repository exists to help customers deploy official LTBase releases into their own AWS accounts.
 
-本仓库的用途是帮助客户将官方 LTBase release 部署到自己的 AWS 账户中。
-
 It is not the LTBase application source repository.
 
-它不是 LTBase 应用源码仓库。
-
-## What's Included / 仓库包含内容
+## What's Included
 
 - thin wrapper workflows that call the public reusable LTBase deployment workflows
 - bootstrap scripts for GitHub repository setup, AWS foundation setup, and Pulumi stack configuration
 - example deployment inputs such as `env.template`
 - customer onboarding and bootstrap documentation
 
-- 调用 LTBase 公共可复用部署工作流的轻量封装工作流
-- 用于 GitHub 仓库初始化、AWS 基础设施初始化、Pulumi stack 配置的 bootstrap 脚本
-- 例如 `env.template` 这样的部署输入示例
-- 面向客户的 onboarding 与 bootstrap 文档
-
-## Start Here / 从这里开始
+## Start Here
 
 If you are onboarding a new customer deployment, start with:
-
-如果你正在启动一个新的客户部署，请从这里开始：
 
 - full onboarding runbook: [`docs/CUSTOMER_ONBOARDING.md`](docs/CUSTOMER_ONBOARDING.md)
 - quick bootstrap checklist: [`docs/BOOTSTRAP.md`](docs/BOOTSTRAP.md)
 
-## Documentation Map / 文档地图
+## Documentation Map
 
 Main entrypoints:
-
-主入口文档：
 
 - [`docs/CUSTOMER_ONBOARDING.md`](docs/CUSTOMER_ONBOARDING.md)
 - [`docs/BOOTSTRAP.md`](docs/BOOTSTRAP.md)
 
 Detailed onboarding guides:
-
-详细 onboarding 子文档：
 
 - prerequisites: [`docs/onboarding/01-prerequisites.md`](docs/onboarding/01-prerequisites.md)
 - create repo and clone: [`docs/onboarding/02-create-repo-and-clone.md`](docs/onboarding/02-create-repo-and-clone.md)
@@ -61,11 +44,9 @@ Detailed onboarding guides:
 - first deploy and managed DSQL handling: [`docs/onboarding/07-first-deploy-and-managed-dsql.md`](docs/onboarding/07-first-deploy-and-managed-dsql.md)
 - day-2 operations: [`docs/onboarding/08-day-2-operations.md`](docs/onboarding/08-day-2-operations.md)
 
-## Bootstrap Entrypoints / Bootstrap 入口脚本
+## Bootstrap Entrypoints
 
 Important files and scripts:
-
-重要文件与脚本：
 
 - `env.template`
 - `scripts/render-bootstrap-policies.sh`
@@ -79,17 +60,13 @@ Important files and scripts:
 
 Preferred recovery-aware bootstrap entrypoint:
 
-推荐的可恢复 bootstrap 入口：
-
 - `./scripts/evaluate-and-continue.sh --env-file .env --scope bootstrap`
 - `./scripts/evaluate-and-continue.sh --env-file .env --scope bootstrap --force`
 - `./scripts/evaluate-and-continue.sh --env-file .env --scope bootstrap --force --release-id <release>`
 
 The bootstrap flow now also manages the customer-specific `*-oidc-discovery` companion repository, its Cloudflare Pages project and custom domain, and the per-stack read-only discovery roles that the companion publish workflow assumes.
 
-当前 bootstrap 流程还会自动管理客户专属的 `*-oidc-discovery` companion repo、对应的 Cloudflare Pages project 与自定义域名，以及 companion publish workflow 需要假设的每个 stack 的只读 discovery role。
-
-## Deployment Principles / 部署原则
+## Deployment Principles
 
 - the deployment repository downloads official LTBase releases instead of building the application source code
 - customers own the GitHub repository, AWS account resources, and deployment approvals
@@ -97,18 +74,8 @@ The bootstrap flow now also manages the customer-specific `*-oidc-discovery` com
 - manual preview only targets the first stack in `PROMOTION_PATH`
 - automated rollout continues one hop at a time across `PROMOTION_PATH`, with customer-controlled approvals on protected target environments
 
-- 部署仓库负责下载官方 LTBase release，而不是自行构建应用源码
-- 客户自行持有 GitHub 仓库、AWS 资源和部署审批权
-- bootstrap 脚本负责准备仓库状态和部署配置
-- 手动 preview 只针对 `PROMOTION_PATH` 的第一个环境
-- 自动 rollout 会按 `PROMOTION_PATH` 逐跳推进，受保护目标环境仍由客户自己审批
-
-## Notes / 说明
+## Notes
 
 - keep local `.env` files private and out of version control
 - use the documentation in `docs/` as the source of truth for customer onboarding
 - if a later repository version changes the managed DSQL lifecycle, follow the docs shipped with that version
-
-- 保持本地 `.env` 文件私密，不要纳入版本控制
-- 客户 onboarding 请以 `docs/` 下文档为准
-- 如果后续仓库版本调整了 managed DSQL 生命周期，请以该版本自带文档为准
