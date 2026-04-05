@@ -126,6 +126,13 @@ At the time of writing, this repository's bootstrap scripts use a bootstrap-safe
 
 Aurora DSQL itself is created by the Pulumi blueprint. You do not supply an external `dsqlHost`, `dsqlEndpoint`, or `dsqlPassword` for managed deployments.
 
+The managed DSQL cluster uses the following default connection values set by the Lambda environment:
+
+- `DSQL_DB=postgres`
+- `DSQL_USER=admin`
+
+These are the authoritative defaults for managed deployments.
+
 The current repository version uses a bootstrap-safe flow:
 
 - `bootstrap-all.sh` and `bootstrap-deployment-repo.sh` prepare configuration only
