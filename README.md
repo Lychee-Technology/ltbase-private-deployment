@@ -57,6 +57,7 @@ Important files and scripts:
 - `scripts/bootstrap-deployment-repo.sh`
 - `scripts/bootstrap-all.sh`
 - `scripts/evaluate-and-continue.sh`
+- `scripts/sync-template-upstream.sh`
 
 Preferred recovery-aware bootstrap entrypoint:
 
@@ -65,6 +66,10 @@ Preferred recovery-aware bootstrap entrypoint:
 - `./scripts/evaluate-and-continue.sh --env-file .env --scope bootstrap --force --release-id <release>`
 
 The bootstrap flow now also manages the customer-specific `*-oidc-discovery` companion repository, its Cloudflare Pages project and custom domain, and the per-stack read-only discovery roles that the companion publish workflow assumes.
+
+For day-2 maintenance, the generated deployment repository can sync later template changes by running:
+
+- `./scripts/sync-template-upstream.sh`
 
 ## Deployment Principles
 

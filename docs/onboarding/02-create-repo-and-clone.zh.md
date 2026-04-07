@@ -30,6 +30,7 @@
    - `scripts/bootstrap-deployment-repo.sh`
    - `scripts/bootstrap-all.sh`
    - `scripts/evaluate-and-continue.sh`
+   - `scripts/sync-template-upstream.sh`
    - `scripts/reconcile-managed-dsql-endpoint.sh`
 5. 确认仓库是私有的。
 6. 确认后续用于审批的 `prod` environment 可以创建。

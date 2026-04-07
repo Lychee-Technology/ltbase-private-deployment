@@ -12,12 +12,14 @@ Use this guide for normal follow-up operations after the first successful deploy
 
 ### Upgrade to a new LTBase release
 
-1. Update `LTBASE_RELEASE_ID` in GitHub variables, or pass a new `release_id` directly to the workflow.
-2. Run the preview workflow.
-3. Review the Pulumi preview output.
-4. Trigger `rollout.yml` once for the new release.
-5. Validate each deployed stack before approving the next protected target environment.
-6. Approve each protected hop in order until the promotion path completes.
+1. If you want to bring in newer template workflows or scripts first, run `./scripts/sync-template-upstream.sh` from your deployment repository on a clean local `main` branch.
+2. Resolve any merge conflicts and review the incoming template changes.
+3. Update `LTBASE_RELEASE_ID` in GitHub variables, or pass a new `release_id` directly to the workflow.
+4. Run the preview workflow.
+5. Review the Pulumi preview output.
+6. Trigger `rollout.yml` once for the new release.
+7. Validate each deployed stack before approving the next protected target environment.
+8. Approve each protected hop in order until the promotion path completes.
 
 ### Re-run preview before changes
 
@@ -33,6 +35,7 @@ Keep `.env` private, current, and outside version control.
 - do not commit `.env`
 - do not bypass the production approval gate
 - keep `LTBASE_RELEASES_TOKEN` scoped to release download access only
+- run `scripts/sync-template-upstream.sh` only from a clean local `main` branch
 
 ## Expected Result
 
