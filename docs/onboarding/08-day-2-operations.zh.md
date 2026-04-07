@@ -12,12 +12,14 @@
 
 ### 升级到新的 LTBase release
 
-1. 更新 GitHub variables 中的 `LTBASE_RELEASE_ID`，或在工作流中直接传入新的 `release_id`。
-2. 运行 preview 工作流。
-3. 审查 Pulumi preview 输出。
-4. 针对新 release 触发一次 `rollout.yml`。
-5. 在审批下一个受保护目标环境前，验证当前已部署 stack。
-6. 按顺序审批每一跳，直到 promotion path 完成。
+1. 如果你想先同步较新的模板工作流或脚本，请在部署仓库干净的本地 `main` 分支上运行 `./scripts/sync-template-upstream.sh`。
+2. 处理可能出现的 merge conflict，并审查同步进来的模板变更。
+3. 更新 GitHub variables 中的 `LTBASE_RELEASE_ID`，或在工作流中直接传入新的 `release_id`。
+4. 运行 preview 工作流。
+5. 审查 Pulumi preview 输出。
+6. 针对新 release 触发一次 `rollout.yml`。
+7. 在审批下一个受保护目标环境前，验证当前已部署 stack。
+8. 按顺序审批每一跳，直到 promotion path 完成。
 
 ### 在变更前重新执行 preview
 
@@ -33,6 +35,7 @@
 - 不要提交 `.env`
 - 不要绕过生产审批 gate
 - 保持 `LTBASE_RELEASES_TOKEN` 仅具备下载 release 的最小权限
+- 只在干净的本地 `main` 分支上运行 `scripts/sync-template-upstream.sh`
 
 ## 预期结果
 

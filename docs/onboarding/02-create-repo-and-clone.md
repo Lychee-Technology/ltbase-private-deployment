@@ -30,6 +30,7 @@ Use this guide to create your customer-owned deployment repository from the temp
    - `scripts/bootstrap-deployment-repo.sh`
    - `scripts/bootstrap-all.sh`
    - `scripts/evaluate-and-continue.sh`
+   - `scripts/sync-template-upstream.sh`
    - `scripts/reconcile-managed-dsql-endpoint.sh`
 5. Confirm that the repository is private.
 6. Confirm that the `prod` environment will be available for later approval gating.

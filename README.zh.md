@@ -57,6 +57,7 @@
 - `scripts/bootstrap-deployment-repo.sh`
 - `scripts/bootstrap-all.sh`
 - `scripts/evaluate-and-continue.sh`
+- `scripts/sync-template-upstream.sh`
 
 推荐的可恢复 bootstrap 入口：
 
@@ -65,6 +66,10 @@
 - `./scripts/evaluate-and-continue.sh --env-file .env --scope bootstrap --force --release-id <release>`
 
 当前 bootstrap 流程还会自动管理客户专属的 `*-oidc-discovery` companion repo、对应的 Cloudflare Pages project 与自定义域名，以及 companion publish workflow 需要假设的每个 stack 的只读 discovery role。
+
+对于日常维护，从该模板生成出来的部署仓库可以通过以下命令同步后续模板变更：
+
+- `./scripts/sync-template-upstream.sh`
 
 ## 部署原则
 
