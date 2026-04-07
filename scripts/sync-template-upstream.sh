@@ -5,6 +5,18 @@ set -euo pipefail
 UPSTREAM_NAME="upstream"
 UPSTREAM_URL="https://github.com/Lychee-Technology/ltbase-private-deployment.git"
 BRANCH="main"
+ARCHIVE_PATH="sync-template-upstream.tar"
+
+required_source_paths=(
+  ".github/workflows"
+  "docs"
+  "scripts"
+  "test"
+  "infra"
+  "env.template"
+  ".gitignore"
+  "__ref__"
+)
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -53,6 +65,30 @@ else
 fi
 
 git fetch "${UPSTREAM_NAME}"
-git merge --no-edit "${UPSTREAM_NAME}/${BRANCH}"
+
+temp_root="$(mktemp -d)"
+trap 'rm -rf "${temp_root}" "${ARCHIVE_PATH}"' EXIT
+
+git archive --format=tar --output "${ARCHIVE_PATH}" "${UPSTREAM_NAME}/${BRANCH}"
+mkdir -p "${temp_root}"
+tar -xf "${ARCHIVE_PATH}" -C "${temp_root}"
+
+for path in "${required_source_paths[@]}"; do
+  if [[ ! -e "${temp_root}/${path}" ]]; then
+    echo "missing upstream path: ${path}" >&2
+    exit 1
+  fi
+done
+
+rsync -a --delete \
+  --exclude '.git/' \
+  --exclude 'dist/' \
+  --exclude '.DS_Store' \
+  --exclude '.env' \
+  --exclude '.env.*' \
+  --exclude 'infra/Pulumi.*.yaml' \
+  --exclude 'scripts/sync-template-upstream.sh' \
+  --exclude 'test/sync-template-upstream-test.sh' \
+  "${temp_root}/" "./"
 
 printf 'synced %s/%s into %s\n' "${UPSTREAM_NAME}" "${BRANCH}" "${BRANCH}"

@@ -12,8 +12,8 @@ Use this guide for normal follow-up operations after the first successful deploy
 
 ### Upgrade to a new LTBase release
 
-1. If you want to bring in newer template workflows or scripts first, run `./scripts/sync-template-upstream.sh` from your deployment repository on a clean local `main` branch.
-2. Resolve any merge conflicts and review the incoming template changes.
+1. If you want to bring in newer template-managed files first, run `./scripts/sync-template-upstream.sh` from your deployment repository on a clean local `main` branch.
+2. Review the synced template changes. The sync preserves local `.env` files, `infra/Pulumi.*.yaml`, and the sync helper's own script/test files.
 3. Update `LTBASE_RELEASE_ID` in GitHub variables, or pass a new `release_id` directly to the workflow.
 4. Run the preview workflow.
 5. Review the Pulumi preview output.
