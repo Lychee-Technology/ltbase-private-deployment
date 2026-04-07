@@ -124,6 +124,26 @@ AWS_PROFILE_STAGING=customer-staging aws sts get-caller-identity
 
 这里列的是 bootstrap 阶段的最小权限，不是后续系统运行时所需的全部权限。
 
+### AWS bootstrap 操作者配置步骤
+
+当平台管理员需要为一键 bootstrap 配置 AWS 权限时，建议按以下流程执行：
+
+1. 先准备好 `.env`，确保 account ID、role name、Pulumi bucket 名称和 KMS alias 都已定稿。
+2. 运行 `./scripts/render-bootstrap-policies.sh --env-file .env`。
+3. 对每个 stack 对应账户，把生成的 `dist/bootstrap-operator-<stack>-policy.json` 赋予 bootstrap 操作者。
+4. 对 `PROMOTION_PATH` 第一个 stack 对应的账户，再额外赋予 `dist/bootstrap-operator-first-stack-s3-policy.json`。
+5. 如果平台管理员希望在真正执行 bootstrap 前预审所有权限，同时检查同一个 `dist/` 目录下生成的 deploy role trust/access policy 文件。
+6. 在执行 bootstrap 前，用 `AWS_PROFILE_<STACK>` 配好并测试每个账户的本地凭据。
+
+生成出来的策略文件包括：
+
+- `dist/bootstrap-operator-<stack>-policy.json`
+  - 该 stack 账户中 bootstrap 操作者所需的通用最小 IAM 和 KMS 权限
+- `dist/bootstrap-operator-first-stack-s3-policy.json`
+  - 只在第一个 stack 账户中额外需要的 S3 权限，因为共享 Pulumi backend bucket 固定在这个账户里
+
+如果你的组织是通过中央运维角色去 assume 各个目标账户，请把这些策略附加到目标账户中的角色，再由中央身份单独处理 assume-role 链路。
+
 ### Cloudflare 最小权限
 
 bootstrap 使用的 `CLOUDFLARE_API_TOKEN` 至少需要能够：

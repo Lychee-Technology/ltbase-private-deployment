@@ -57,6 +57,7 @@ One-click path:
 
 - read [`onboarding/05-bootstrap-one-click.md`](onboarding/05-bootstrap-one-click.md)
 - optionally review generated IAM policies with `./scripts/render-bootstrap-policies.sh --env-file .env`
+- if a platform owner must grant AWS bootstrap access first, hand them `dist/bootstrap-operator-<stack>-policy.json` for each stack and `dist/bootstrap-operator-first-stack-s3-policy.json` for the first stack account
 - run `./scripts/evaluate-and-continue.sh --env-file .env --scope bootstrap --infra-dir infra` as a preflight check
 - run `./scripts/evaluate-and-continue.sh --env-file .env --scope bootstrap --force --infra-dir infra`
 

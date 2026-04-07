@@ -46,6 +46,13 @@
 
 如果你希望模板先生成可复制的策略文件供审阅，请在 `.env` 准备完成之后运行 `./scripts/render-bootstrap-policies.sh --env-file .env`。
 
+这个命令现在也会额外生成两类 AWS bootstrap 操作者策略模板：
+
+- 每个 stack 账户各一份 `dist/bootstrap-operator-<stack>-policy.json`
+- `PROMOTION_PATH` 第一个 stack 账户专用的 `dist/bootstrap-operator-first-stack-s3-policy.json`
+
+当云管理员需要一个可直接起步的 one-click bootstrap 最小权限模板时，就使用这些文件。
+
 对于一键 bootstrap 用户，这也是在允许脚本创建 IAM 资源前最适合先做的一步预审。
 
 ## 预期结果

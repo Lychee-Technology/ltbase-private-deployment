@@ -46,6 +46,13 @@ The shared Pulumi backend is anchored to the first stack in `PROMOTION_PATH`. In
 
 If you want the template to generate copy-paste policy files for review, do that after `.env` is ready by using `./scripts/render-bootstrap-policies.sh --env-file .env`.
 
+That command now generates two kinds of AWS bootstrap-operator policy templates as well:
+
+- `dist/bootstrap-operator-<stack>-policy.json` for each stack account
+- `dist/bootstrap-operator-first-stack-s3-policy.json` for the first stack account in `PROMOTION_PATH`
+
+Use those files when a cloud administrator needs a concrete starting point for the minimum permissions required by one-click bootstrap.
+
 For one-click users, this is the best preflight review step before you grant the script permission to create IAM resources.
 
 ## Expected Result

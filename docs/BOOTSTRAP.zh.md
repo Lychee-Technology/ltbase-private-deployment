@@ -57,6 +57,7 @@
 
 - 阅读 [`onboarding/05-bootstrap-one-click.zh.md`](onboarding/05-bootstrap-one-click.zh.md)
 - 可选先运行 `./scripts/render-bootstrap-policies.sh --env-file .env` 审阅生成的 IAM 策略
+- 如果平台管理员需要先授予 AWS bootstrap 权限，把每个 stack 对应的 `dist/bootstrap-operator-<stack>-policy.json` 和第一个 stack 账户专用的 `dist/bootstrap-operator-first-stack-s3-policy.json` 发给对方
 - 先运行 `./scripts/evaluate-and-continue.sh --env-file .env --scope bootstrap --infra-dir infra` 做 preflight 检查
 - 运行 `./scripts/evaluate-and-continue.sh --env-file .env --scope bootstrap --force --infra-dir infra`
 

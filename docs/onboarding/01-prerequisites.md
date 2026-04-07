@@ -124,6 +124,26 @@ For the OIDC discovery companion flow, the bootstrap operator also needs permiss
 
 These are the bootstrap-time minimums only. They are not the full runtime permissions used later by the deployed system.
 
+### AWS bootstrap operator setup steps
+
+Use this workflow when a platform owner needs to grant AWS access for one-click bootstrap:
+
+1. Prepare `.env` first so account IDs, role names, the Pulumi bucket name, and the KMS alias are final.
+2. Run `./scripts/render-bootstrap-policies.sh --env-file .env`.
+3. For each stack account, give the bootstrap operator the generated `dist/bootstrap-operator-<stack>-policy.json` policy.
+4. For the first stack account in `PROMOTION_PATH`, also give that operator `dist/bootstrap-operator-first-stack-s3-policy.json`.
+5. Review the generated deploy-role trust and access policies in the same `dist/` directory if your platform owner wants to pre-approve everything before bootstrap runs.
+6. Configure and test local credentials for each account with `AWS_PROFILE_<STACK>` before running bootstrap.
+
+Generated policy files:
+
+- `dist/bootstrap-operator-<stack>-policy.json`
+  - common minimum IAM and KMS permissions for the bootstrap operator in that stack account
+- `dist/bootstrap-operator-first-stack-s3-policy.json`
+  - extra S3 permissions needed only in the first stack account, because that account owns the shared Pulumi backend bucket
+
+If your organization uses a central admin role that assumes into customer accounts, attach these policies to the target account role, then let your central identity assume that role separately.
+
 ### Cloudflare minimum permissions
 
 The `CLOUDFLARE_API_TOKEN` used for bootstrap must be able to:
