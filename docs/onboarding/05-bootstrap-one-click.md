@@ -14,6 +14,10 @@ Use this guide when you want the repository creation, policy rendering, AWS foun
 - use a local clone of your real deployment repository if possible
 - have enough GitHub and AWS permissions to create and update all required resources
 
+Before using the one-click path, review the minimum bootstrap permission matrix in [`01-prerequisites.md`](01-prerequisites.md).
+
+If you do not have those minimum GitHub, AWS, or Cloudflare permissions, use [`06-bootstrap-manual.md`](06-bootstrap-manual.md) instead and have the missing resources created outside the script.
+
 ## Recommended Working Pattern
 
 The one-click flow is recovery-aware, but the recommended customer onboarding flow is still:

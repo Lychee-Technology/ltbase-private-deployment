@@ -14,6 +14,10 @@
 - 如果可能，请在真实部署仓库的本地 clone 中执行这套流程
 - 拥有足够的 GitHub 和 AWS 权限来创建和更新所需资源
 
+在使用一键路径前，请先阅读 [`01-prerequisites.zh.md`](01-prerequisites.zh.md) 中的 bootstrap 最小权限矩阵。
+
+如果你不具备这些最小 GitHub、AWS 或 Cloudflare 权限，请改用 [`06-bootstrap-manual.zh.md`](06-bootstrap-manual.zh.md) 的手动路径，并让外部管理员先创建缺失资源。
+
 ## 推荐工作方式
 
 一键流程具备恢复能力，但推荐的客户 onboarding 顺序仍然是：

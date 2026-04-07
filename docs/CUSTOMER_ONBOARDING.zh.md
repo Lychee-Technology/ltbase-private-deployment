@@ -88,6 +88,7 @@
   - 运行 `gh auth status`。
   - 确认当前认证账号可以在 `GITHUB_OWNER` 下创建私有仓库。
   - 确认同一个账号也能在目标部署仓库中写入 repository secrets、repository variables，以及 GitHub environments。
+  - 在选择一键路径前，先查看 [`docs/onboarding/01-prerequisites.zh.md`](onboarding/01-prerequisites.zh.md) 中的 bootstrap 最小权限说明。
 - AWS 账户映射已经最终确认。
   - 确认 `STACKS` 中每个 stack 都已经确定最终 AWS account ID、region 和 deploy role 名称。
   - 如果不同 stack 使用不同 AWS 账户，确认你已经知道本地如何切换凭据，通常是在 `.env` 中提供 `AWS_PROFILE_<STACK>`。
@@ -96,6 +97,7 @@
 - Cloudflare 输入值已经准备好。
   - 确认 `CLOUDFLARE_ACCOUNT_ID`、`CLOUDFLARE_ZONE_ID`、`CLOUDFLARE_API_TOKEN` 和 `OIDC_DISCOVERY_DOMAIN` 都已经定稿。
   - 确认该 token 可以管理 bootstrap 将创建的 OIDC discovery Cloudflare Pages 项目和自定义域名绑定。
+  - 如果操作者账号或 token 不满足最小权限矩阵，请改用手动路径，而不是直接执行一键 bootstrap。
 - Release 与应用相关输入已经准备好。
   - 确认 `LTBASE_RELEASES_REPO`、`LTBASE_RELEASE_ID`、`LTBASE_RELEASES_TOKEN` 和 `GEMINI_API_KEY` 在继续前都已经可用。
 - `.env` 内容是干净的。

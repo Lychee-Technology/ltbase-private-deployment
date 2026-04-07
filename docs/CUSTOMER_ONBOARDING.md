@@ -88,6 +88,7 @@ Before you run any bootstrap automation, confirm all of the following:
   - Run `gh auth status`.
   - Confirm the authenticated account can create private repositories under `GITHUB_OWNER`.
   - Confirm the same account can write repository secrets, repository variables, and GitHub environments in the target deployment repository.
+  - Review the minimum bootstrap permissions in [`docs/onboarding/01-prerequisites.md`](onboarding/01-prerequisites.md) before choosing the one-click path.
 - AWS account mapping is final.
   - Confirm every stack in `STACKS` has a final AWS account ID, region, and deploy role name.
   - If different stacks use different AWS accounts, confirm you already know how you will switch credentials locally, usually with `AWS_PROFILE_<STACK>` values in `.env`.
@@ -96,6 +97,7 @@ Before you run any bootstrap automation, confirm all of the following:
 - Cloudflare inputs are ready.
   - Confirm `CLOUDFLARE_ACCOUNT_ID`, `CLOUDFLARE_ZONE_ID`, `CLOUDFLARE_API_TOKEN`, and `OIDC_DISCOVERY_DOMAIN` are final.
   - Confirm the token can manage the Pages project and custom domain that bootstrap creates for OIDC discovery.
+  - If the operator account or token does not meet the minimum permission matrix, use the manual path instead of one-click bootstrap.
 - Release and application inputs are ready.
   - Confirm `LTBASE_RELEASES_REPO`, `LTBASE_RELEASE_ID`, `LTBASE_RELEASES_TOKEN`, and `GEMINI_API_KEY` are available before you continue.
 - `.env` is clean.

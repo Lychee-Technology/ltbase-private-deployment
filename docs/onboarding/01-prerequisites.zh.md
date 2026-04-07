@@ -72,6 +72,68 @@ AWS_PROFILE_STAGING=customer-staging aws sts get-caller-identity
    - 自定义域名绑定
    - 承载 LTBase 域名和 OIDC discovery 域名的 zone
 
+## Bootstrap 所需最小权限
+
+本节描述的是一键 bootstrap 路径所需的最小操作权限。
+
+如果你没有这些权限，不要靠反复重试来碰运气。请改走 [`06-bootstrap-manual.zh.md`](06-bootstrap-manual.zh.md) 的手动路径，并让平台管理员代为创建缺失资源。
+
+### GitHub 最小权限
+
+当前认证的 GitHub 账号至少需要能够：
+
+- 在 `GITHUB_OWNER` 下从模板创建部署仓库
+- 读取部署仓库和 OIDC discovery companion 仓库的元数据
+- 为 `PROMOTION_PATH` 中第一个之后的每个 stack 创建 GitHub environments
+- 在部署仓库中写入 repository variables
+- 在部署仓库中写入 repository secrets
+- 在 OIDC discovery companion 仓库不存在时，从模板创建该仓库
+- 在 OIDC discovery companion 仓库中写入 repository variables
+
+实际对应的 bootstrap 动作主要是：
+
+- 为部署仓库和 companion 仓库执行 `gh repo create`
+- 执行 `gh api .../environments/<stack> --method PUT`
+- 执行 `gh variable set ...`
+- 执行 `gh secret set ...`
+
+### AWS 最小权限
+
+对于 `STACKS` 使用到的每个 AWS 账户，bootstrap 操作者至少需要能够：
+
+- 读取或创建 `token.actions.githubusercontent.com` 对应的 GitHub OIDC provider
+- 读取或创建按 stack 划分的 deploy role
+- 更新 deploy role 的 trust policy
+- 挂载或替换 deploy role 的 inline policy
+- 在目标 region 中列出 KMS aliases
+- 在 Pulumi secrets alias 不存在时创建 KMS key 和 alias
+
+对于 `PROMOTION_PATH` 第一个 stack 对应的 AWS 账户，bootstrap 操作者还需要能够：
+
+- 检查共享 Pulumi backend bucket 是否已存在
+- 在缺失时创建共享 Pulumi backend bucket
+- 开启 bucket versioning
+- 开启默认 bucket encryption
+- 开启 public access block 设置
+
+如果使用 OIDC discovery companion 流程，bootstrap 操作者还需要在每个 stack 对应账户中能够：
+
+- 读取或创建 OIDC discovery IAM role
+- 更新该 role 的 trust policy
+- 挂载或替换该 role 的 inline policy
+
+这里列的是 bootstrap 阶段的最小权限，不是后续系统运行时所需的全部权限。
+
+### Cloudflare 最小权限
+
+bootstrap 使用的 `CLOUDFLARE_API_TOKEN` 至少需要能够：
+
+- 在 `CLOUDFLARE_ACCOUNT_ID` 下读取和创建 Cloudflare Pages 项目
+- 读取和创建 OIDC discovery Pages 项目的自定义域名绑定
+- 管理 `OIDC_DISCOVERY_DOMAIN` 所在的目标 zone
+
+这样 bootstrap 才能先检查 Pages project 和 domain binding 是否已存在，并在缺失时创建它们。
+
 ### 4. 确认本地工具
 
 运行以下命令，确认每个工具都已安装：

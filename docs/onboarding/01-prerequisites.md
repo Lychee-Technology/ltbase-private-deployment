@@ -72,6 +72,68 @@ AWS_PROFILE_STAGING=customer-staging aws sts get-caller-identity
    - custom domain bindings
    - the zone used by your LTBase domains and OIDC discovery domain
 
+## Minimum Permissions For Bootstrap
+
+This section describes the minimum operator permissions needed for the one-click bootstrap path.
+
+If you do not have these permissions, do not guess or keep retrying bootstrap. Use the manual path in [`06-bootstrap-manual.md`](06-bootstrap-manual.md) and ask the platform owner to create the missing resources for you.
+
+### GitHub minimum permissions
+
+The authenticated GitHub account must be able to:
+
+- create the deployment repository from template under `GITHUB_OWNER`
+- read repository metadata for the deployment repository and the OIDC discovery companion repository
+- create GitHub environments for every stack after the first promotion hop
+- write repository variables in the deployment repository
+- write repository secrets in the deployment repository
+- create the OIDC discovery companion repository from template when that repository does not already exist
+- write repository variables in the OIDC discovery companion repository
+
+In practice, this is enough for these bootstrap actions:
+
+- `gh repo create` for the deployment repository and companion repository
+- `gh api .../environments/<stack> --method PUT`
+- `gh variable set ...`
+- `gh secret set ...`
+
+### AWS minimum permissions
+
+For every stack account used by `STACKS`, the bootstrap operator needs permission to:
+
+- read or create the GitHub OIDC provider for `token.actions.githubusercontent.com`
+- read or create the per-stack deploy role
+- update the deploy role trust policy
+- attach or replace the deploy role inline policy
+- list KMS aliases in the target region
+- create a KMS key and alias when the Pulumi secrets alias does not already exist
+
+For the first stack account in `PROMOTION_PATH`, the bootstrap operator also needs permission to:
+
+- check whether the shared Pulumi backend bucket already exists
+- create the shared Pulumi backend bucket if missing
+- enable bucket versioning
+- enable default bucket encryption
+- enable public access block settings
+
+For the OIDC discovery companion flow, the bootstrap operator also needs permission in each stack account to:
+
+- read or create the OIDC discovery IAM role
+- update that role trust policy
+- attach or replace that role inline policy
+
+These are the bootstrap-time minimums only. They are not the full runtime permissions used later by the deployed system.
+
+### Cloudflare minimum permissions
+
+The `CLOUDFLARE_API_TOKEN` used for bootstrap must be able to:
+
+- read and create Cloudflare Pages projects in `CLOUDFLARE_ACCOUNT_ID`
+- read and create custom domain bindings for the OIDC discovery Pages project
+- manage the target zone used by `OIDC_DISCOVERY_DOMAIN`
+
+This is enough for bootstrap to check whether the Pages project and domain binding already exist, then create them if needed.
+
 ### 4. Confirm local tools
 
 Run these commands and make sure each tool is installed:
