@@ -9,6 +9,7 @@ import (
 )
 
 const githubThumbprint = "6938fd4d98bab03faadb97b34396831e3780aea1"
+const defaultReleaseAssetDir = "../../.ltbase/releases"
 
 type StackConfig struct {
 	Project                  string
@@ -48,7 +49,7 @@ func Load(ctx *pulumi.Context) (StackConfig, error) {
 		Project:                  ctx.Project(),
 		Stack:                    stack,
 		AWSRegion:                valueOrDefault(cfg.Get("awsRegion"), "ap-northeast-1"),
-		ReleaseAssetDir:          valueOrDefault(cfg.Get("releaseAssetDir"), "../.ltbase/releases"),
+		ReleaseAssetDir:          valueOrDefault(cfg.Get("releaseAssetDir"), defaultReleaseAssetDir),
 		RuntimeBucket:            cfg.Require("runtimeBucket"),
 		TableName:                cfg.Require("tableName"),
 		APIDomain:                cfg.Require("apiDomain"),

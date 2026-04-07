@@ -51,3 +51,9 @@ func TestValidateAllowsOptionalDSQLEndpoint(t *testing.T) {
 		t.Fatalf("Validate() unexpected error: %v", err)
 	}
 }
+
+func TestReleaseAssetDirDefaultTargetsRepoRoot(t *testing.T) {
+	if got := defaultReleaseAssetDir; got != "../../.ltbase/releases" {
+		t.Fatalf("default release asset dir = %q", got)
+	}
+}

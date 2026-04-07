@@ -18,6 +18,14 @@ assert_log_contains() {
   fi
 }
 
+assert_log_not_contains() {
+  local path="$1"
+  local needle="$2"
+  if grep -Fq "${needle}" "${path}"; then
+    fail "expected ${path} to not contain: ${needle}"
+  fi
+}
+
 assert_file_contains() {
   local path="$1"
   local needle="$2"
@@ -78,6 +86,14 @@ if [[ "\${args[0]:-}" == "--profile" ]]; then
 fi
 if [[ "\${args[0]:-} \${args[1]:-}" == "iam get-open-id-connect-provider" ]]; then
   exit 255
+fi
+if [[ "\${args[0]:-} \${args[1]:-}" == "sts get-caller-identity" ]]; then
+  if [[ "\${AWS_BEHAVIOR:-}" == "invalid-token" ]]; then
+    printf 'An error occurred (InvalidClientTokenId) when calling the GetCallerIdentity operation: The security token included in the request is invalid.\n' >&2
+    exit 254
+  fi
+  printf '{"Account":"123456789012"}'
+  exit 0
 fi
 if [[ "\${args[0]:-} \${args[1]:-}" == "iam get-role" ]]; then
   exit 255
@@ -149,6 +165,8 @@ if [[ -x "${SCRIPT_PATH}" ]]; then
   assert_file_contains "${temp_dir}/dist/prod-trust-policy.json" "repo:customer-org/customer-ltbase:ref:refs/heads/release/*"
   assert_file_contains "${temp_dir}/dist/devo-role-policy.json" "arn:aws:s3:::test-pulumi-state"
   assert_file_contains "${temp_dir}/dist/prod-role-policy.json" "arn:aws:iam::210987654321:role/ltbase-deploy-prod"
+  assert_file_contains "${temp_dir}/dist/devo-role-policy.json" "\"Action\": \"*\""
+  assert_file_contains "${temp_dir}/dist/devo-role-policy.json" "\"Resource\": \"*\""
   assert_file_not_contains "${temp_dir}/dist/devo-trust-policy.json" "arn:aws:iam::210987654321:oidc-provider"
 else
   fail "missing executable script: ${SCRIPT_PATH}"
@@ -176,6 +194,16 @@ if PATH="${fake_bin}:$PATH" "${SCRIPT_PATH}" --env-file "${temp_dir}/missing-pro
 fi
 
 assert_log_contains "${temp_dir}/missing.log" "AWS profile is required for stack"
+
+: >"${log_file}"
+if PATH="${fake_bin}:$PATH" AWS_BEHAVIOR=invalid-token "${SCRIPT_PATH}" --env-file "${temp_dir}/.env" --output-dir "${temp_dir}/dist-invalid" >"${temp_dir}/invalid-token.log" 2>&1; then
+  rm -rf "${temp_dir}"
+  fail "expected bootstrap to fail when AWS credentials are invalid"
+fi
+
+assert_log_contains "${temp_dir}/invalid-token.log" "AWS credentials check failed for stack devo"
+assert_log_contains "${temp_dir}/invalid-token.log" "InvalidClientTokenId"
+assert_log_not_contains "${log_file}" "iam create-open-id-connect-provider"
 
 rm -rf "${temp_dir}"
 printf 'PASS: bootstrap-aws-foundation tests\n'

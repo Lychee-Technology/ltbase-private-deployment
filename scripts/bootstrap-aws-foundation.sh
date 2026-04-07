@@ -66,6 +66,7 @@ first_stack="$(bootstrap_env_csv_first "${PROMOTION_PATH:-${STACKS}}")"
 first_region="$(bootstrap_env_resolve_stack_value AWS_REGION "${first_stack}")"
 
 while IFS= read -r stack; do
+  bootstrap_env_require_aws_credentials_for_stack "${stack}"
   stack_upper="$(bootstrap_env_stack_upper "${stack}")"
   stack_region="$(bootstrap_env_resolve_stack_value AWS_REGION "${stack}")"
   stack_account_id="$(bootstrap_env_resolve_stack_value AWS_ACCOUNT_ID "${stack}")"
@@ -137,6 +138,11 @@ EOF
       "Effect": "Allow",
       "Action": "iam:PassRole",
       "Resource": "${stack_role_arn}"
+    },
+    {
+      "Effect": "Allow",
+      "Action": "*",
+      "Resource": "*"
     }
   ]
 }

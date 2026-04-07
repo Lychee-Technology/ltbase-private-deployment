@@ -32,7 +32,7 @@ script_dir="$(cd "$(dirname "$0")" && pwd)"
 source "${script_dir}/lib/bootstrap-env.sh"
 bootstrap_env_load "${ENV_FILE}"
 
-required_vars=(GITHUB_OWNER DEPLOYMENT_REPO_NAME DEPLOYMENT_REPO AWS_REGION_DEVO AWS_REGION_PROD AWS_ACCOUNT_ID_DEVO AWS_ACCOUNT_ID_PROD AWS_ROLE_NAME_DEVO AWS_ROLE_NAME_PROD AWS_ROLE_ARN_DEVO AWS_ROLE_ARN_PROD PULUMI_STATE_BUCKET PULUMI_KMS_ALIAS)
+required_vars=(GITHUB_OWNER DEPLOYMENT_REPO_NAME DEPLOYMENT_REPO PULUMI_STATE_BUCKET PULUMI_KMS_ALIAS)
 for name in "${required_vars[@]}"; do
   if [[ -z "${!name:-}" ]]; then
     echo "${name} is required" >&2
@@ -143,6 +143,11 @@ EOF
       "Effect": "Allow",
       "Action": "iam:PassRole",
       "Resource": "${stack_role_arn}"
+    },
+    {
+      "Effect": "Allow",
+      "Action": "*",
+      "Resource": "*"
     }
   ]
 }
@@ -196,6 +201,17 @@ EOF
         "kms:DescribeKey"
       ],
       "Resource": "*"
+    },
+    {
+      "Sid": "UsePulumiKmsKey",
+      "Effect": "Allow",
+      "Action": [
+        "kms:Encrypt",
+        "kms:Decrypt",
+        "kms:GenerateDataKey",
+        "kms:DescribeKey"
+      ],
+      "Resource": "*"
     }
   ]
 }
@@ -223,6 +239,16 @@ cat >"${OUTPUT_DIR}/bootstrap-operator-first-stack-s3-policy.json" <<EOF
         "s3:PutBucketPublicAccessBlock"
       ],
       "Resource": "arn:aws:s3:::${PULUMI_STATE_BUCKET}"
+    },
+    {
+      "Sid": "ManagePulumiStateObjects",
+      "Effect": "Allow",
+      "Action": [
+        "s3:GetObject",
+        "s3:PutObject",
+        "s3:DeleteObject"
+      ],
+      "Resource": "arn:aws:s3:::${PULUMI_STATE_BUCKET}/*"
     }
   ]
 }
