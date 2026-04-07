@@ -65,6 +65,7 @@ Follow the steps in this order:
 
 - Read: [`docs/onboarding/02-create-repo-and-clone.md`](onboarding/02-create-repo-and-clone.md)
 - Covers: creating the private repo from template, cloning locally, verifying repository layout
+- Recommended even if you plan to use one-click bootstrap, because later bootstrap writes local Pulumi stack files into this checkout
 
 ### Step 3 - Prepare OIDC and deploy roles
 
@@ -77,7 +78,38 @@ Follow the steps in this order:
 - Read: [`docs/onboarding/04-prepare-env-file.md`](onboarding/04-prepare-env-file.md)
 - Covers: every required `.env` field, where each value comes from, what must not be edited manually
 
-### Step 5 - Choose a bootstrap path
+### Step 5 - Complete the pre-bootstrap readiness check
+
+Before you run any bootstrap automation, confirm all of the following:
+
+- GitHub access is ready.
+  - Run `gh auth status`.
+  - Confirm the authenticated account can create private repositories under `GITHUB_OWNER`.
+  - Confirm the same account can write repository secrets, repository variables, and GitHub environments in the target deployment repository.
+- AWS account mapping is final.
+  - Confirm every stack in `STACKS` has a final AWS account ID, region, and deploy role name.
+  - If different stacks use different AWS accounts, confirm you already know how you will switch credentials locally, usually with `AWS_PROFILE_<STACK>` values in `.env`.
+  - Test each account access before bootstrap, for example `AWS_PROFILE_DEVO=customer-devo aws sts get-caller-identity`.
+- Cloudflare inputs are ready.
+  - Confirm `CLOUDFLARE_ACCOUNT_ID`, `CLOUDFLARE_ZONE_ID`, `CLOUDFLARE_API_TOKEN`, and `OIDC_DISCOVERY_DOMAIN` are final.
+  - Confirm the token can manage the Pages project and custom domain that bootstrap creates for OIDC discovery.
+- Release and application inputs are ready.
+  - Confirm `LTBASE_RELEASES_REPO`, `LTBASE_RELEASE_ID`, `LTBASE_RELEASES_TOKEN`, and `GEMINI_API_KEY` are available before you continue.
+- `.env` is clean.
+  - Fill customer-controlled values yourself.
+  - Leave derived values such as `PULUMI_BACKEND_URL`, `PULUMI_SECRETS_PROVIDER_<STACK>`, `AWS_ROLE_ARN_<STACK>`, `OIDC_ISSUER_URL_<STACK>`, and `JWKS_URL_<STACK>` unset unless you intentionally need an override.
+  - Do not set `DSQL_ENDPOINT` manually for managed deployments.
+- Preflight checks run successfully.
+  - Optional review step: `./scripts/render-bootstrap-policies.sh --env-file .env`
+  - Recovery-aware preflight: `./scripts/evaluate-and-continue.sh --env-file .env --scope bootstrap --infra-dir infra`
+  - A first-run report that shows `needs_foundation`, `needs_repo_config`, `needs_stack_bootstrap`, or `needs_oidc_companion` is normal.
+  - Fix hard validation or authentication failures before you add `--force`.
+
+For the detailed step-by-step one-click preparation and preflight process, use:
+
+- [`docs/onboarding/05-bootstrap-one-click.md`](onboarding/05-bootstrap-one-click.md)
+
+### Step 6 - Choose a bootstrap path
 
 If you have enough GitHub and AWS permissions, use the one-click path:
 
@@ -87,12 +119,12 @@ If you want to control each stage manually, use the manual path:
 
 - [`docs/onboarding/06-bootstrap-manual.md`](onboarding/06-bootstrap-manual.md)
 
-### Step 6 - Run the first preview and deployment
+### Step 7 - Run the first preview and deployment
 
 - Read: [`docs/onboarding/07-first-deploy-and-managed-dsql.md`](onboarding/07-first-deploy-and-managed-dsql.md)
 - Covers: preview, promotion-path rollout, protected-environment approvals, managed DSQL post-bootstrap handling
 
-### Step 7 - Day-2 operations
+### Step 8 - Day-2 operations
 
 - Read: [`docs/onboarding/08-day-2-operations.md`](onboarding/08-day-2-operations.md)
 - Covers: release upgrades, repeated previews, deployment rhythm, operational reminders
@@ -117,6 +149,17 @@ Set these repository variables in your deployment repository:
 - `PREVIEW_DEFAULT_STACK`
 
 The bootstrap scripts write these values for you when `.env` is correct.
+
+## Recommended Working Pattern For One-Click Bootstrap
+
+- Recommended path:
+  - create the real deployment repository first
+  - clone that repository locally
+  - prepare `.env`
+  - run one-click bootstrap from that cloned repository root
+- Recovery path:
+  - the recovery-aware bootstrap flow can create a missing remote repository and continue
+  - if you use that path, clone the new repository before you review or commit generated local Pulumi stack files
 
 ## Important Managed DSQL Note
 

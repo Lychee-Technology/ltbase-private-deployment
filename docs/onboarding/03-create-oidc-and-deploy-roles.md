@@ -10,7 +10,19 @@ Use this guide to prepare the AWS-side trust and deployment roles that GitHub Ac
 
 ## Note for one-click bootstrap users
 
-If you plan to use the one-click bootstrap path (`evaluate-and-continue.sh`), the script runs `bootstrap-aws-foundation.sh` which creates OIDC providers and deploy roles automatically. In that case, use this page to **review and verify** what will be created, rather than creating resources manually. If your AWS permissions do not allow the script to create IAM resources, follow the manual steps below.
+If you plan to use the one-click bootstrap path (`evaluate-and-continue.sh`), the script runs `bootstrap-aws-foundation.sh` which creates OIDC providers, deploy roles, inline role policies, the Pulumi state bucket, and the Pulumi KMS alias automatically.
+
+In that case, use this page to **review and verify** what will be created, rather than creating resources manually.
+
+Before you choose one-click bootstrap, confirm that your AWS credentials can create or update all of the following:
+
+- GitHub OIDC providers in every AWS account used by `STACKS`
+- one deploy role per stack in `STACKS`
+- trust policies and inline role policies on those roles
+- the shared Pulumi state bucket
+- the Pulumi KMS alias in each deployment region
+
+If your AWS permissions do not allow the script to create or update those resources, follow the manual steps below instead.
 
 ## Before You Start
 
@@ -31,6 +43,8 @@ If you plan to use the one-click bootstrap path (`evaluate-and-continue.sh`), th
 ## Practical Tip
 
 If you want the template to generate copy-paste policy files for review, do that after `.env` is ready by using `./scripts/render-bootstrap-policies.sh --env-file .env`.
+
+For one-click users, this is the best preflight review step before you grant the script permission to create IAM resources.
 
 ## Expected Result
 

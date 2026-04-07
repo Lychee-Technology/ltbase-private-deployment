@@ -26,6 +26,14 @@ If you are onboarding a new customer deployment, start with:
 - full onboarding runbook: [`docs/CUSTOMER_ONBOARDING.md`](docs/CUSTOMER_ONBOARDING.md)
 - quick bootstrap checklist: [`docs/BOOTSTRAP.md`](docs/BOOTSTRAP.md)
 
+Recommended reading order for new deployments:
+
+- prerequisites and access checks: [`docs/onboarding/01-prerequisites.md`](docs/onboarding/01-prerequisites.md)
+- `.env` preparation and derived values: [`docs/onboarding/04-prepare-env-file.md`](docs/onboarding/04-prepare-env-file.md)
+- one-click bootstrap readiness and preflight: [`docs/onboarding/05-bootstrap-one-click.md`](docs/onboarding/05-bootstrap-one-click.md)
+- manual bootstrap stages and verification points: [`docs/onboarding/06-bootstrap-manual.md`](docs/onboarding/06-bootstrap-manual.md)
+- first deploy, approvals, and managed DSQL follow-up: [`docs/onboarding/07-first-deploy-and-managed-dsql.md`](docs/onboarding/07-first-deploy-and-managed-dsql.md)
+
 ## Documentation Map
 
 Main entrypoints:
@@ -43,6 +51,12 @@ Detailed onboarding guides:
 - manual bootstrap: [`docs/onboarding/06-bootstrap-manual.md`](docs/onboarding/06-bootstrap-manual.md)
 - first deploy and managed DSQL handling: [`docs/onboarding/07-first-deploy-and-managed-dsql.md`](docs/onboarding/07-first-deploy-and-managed-dsql.md)
 - day-2 operations: [`docs/onboarding/08-day-2-operations.md`](docs/onboarding/08-day-2-operations.md)
+
+If you are using the recovery-aware path, treat these as the key operator guides:
+
+- `docs/CUSTOMER_ONBOARDING.md`
+- `docs/onboarding/05-bootstrap-one-click.md`
+- `docs/onboarding/07-first-deploy-and-managed-dsql.md`
 
 ## Bootstrap Entrypoints
 

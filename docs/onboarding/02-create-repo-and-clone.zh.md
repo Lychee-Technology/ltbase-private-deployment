@@ -13,6 +13,14 @@
 - 已完成 [`01-prerequisites.zh.md`](01-prerequisites.zh.md)
 - 已确定目标 GitHub owner 和仓库名
 
+## 给一键 Bootstrap 用户的重要说明
+
+即使你后续计划使用一键 bootstrap，这一步仍然是推荐的起点。
+
+后续 bootstrap 阶段会把本地 `infra/Pulumi.<stack>.yaml` 文件写入你执行命令的 checkout，因此最好直接在你自己的真实客户部署仓库 clone 中完成这些操作。
+
+恢复感知脚本在必要时可以创建缺失的远端仓库，但更适合作为恢复路径，而不是默认 onboarding 流程。
+
 ## 操作步骤
 
 1. 从 `ltbase-private-deployment` 模板创建新的私有仓库。
@@ -34,6 +42,7 @@
    - `scripts/reconcile-managed-dsql-endpoint.sh`
 5. 确认仓库是私有的。
 6. 确认后续用于审批的 `prod` environment 可以创建。
+7. 如果你后续打算使用一键 bootstrap，请继续在这个 checkout 中完成 `.env` 准备和 bootstrap 命令。
 
 ## 预期结果
 
@@ -44,6 +53,7 @@
 - 手动创建空仓库而不是从模板生成
 - clone 错了仓库，拉到了模板仓库而不是自己的私有仓库
 - 没有确认 `.github/workflows/` 和 `infra/` 是否存在
+- 打算在临时 checkout 中运行 bootstrap，最后却找不到生成出来的 Pulumi stack 文件
 
 ## 下一步
 

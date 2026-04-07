@@ -10,7 +10,19 @@
 
 ## 一键 bootstrap 用户说明
 
-如果你打算使用一键 bootstrap 路径（`evaluate-and-continue.sh`），该脚本会自动运行 `bootstrap-aws-foundation.sh` 来创建 OIDC provider 和 deploy role。在这种情况下，本页面的作用是让你 **提前了解和确认** 将会创建哪些资源，而不是手动创建它们。如果你的 AWS 权限不允许脚本自动创建 IAM 资源，请按下面的手动步骤操作。
+如果你打算使用一键 bootstrap 路径（`evaluate-and-continue.sh`），该脚本会自动运行 `bootstrap-aws-foundation.sh`，创建 OIDC provider、deploy role、inline role policy、Pulumi state bucket 和 Pulumi KMS alias。
+
+在这种情况下，本页面的作用是让你 **提前了解和确认** 将会创建哪些资源，而不是手动创建它们。
+
+在你选择一键 bootstrap 前，请先确认你的 AWS 凭据可以创建或更新以下资源：
+
+- `STACKS` 涉及的每个 AWS 账户中的 GitHub OIDC provider
+- `STACKS` 中每个 stack 对应的 deploy role
+- 这些角色上的 trust policy 和 inline role policy
+- 共享的 Pulumi state bucket
+- 每个部署 region 中用于 Pulumi 的 KMS alias
+
+如果你的 AWS 权限不允许脚本创建或更新这些资源，请改走下面的手动步骤。
 
 ## 开始前确认
 
@@ -23,14 +35,16 @@
 1. 在每个用于部署的 AWS 账户中，确认 GitHub OIDC provider 是否已经存在。
 2. 如果不存在，使用 `https://token.actions.githubusercontent.com` 和 audience `sts.amazonaws.com` 创建它。
 3. 为 `STACKS` 中的每个环境各创建一个 deploy role。
-4. 为两个角色分别附加 trust policy，允许你的部署仓库中的 GitHub Actions assume 该角色。
-5. 为角色附加足以完成首次 bootstrap 与首次部署的 permissions policy。
+4. 为每个角色附加 trust policy，允许你的部署仓库中的 GitHub Actions assume 该角色。
+5. 为每个角色附加足以完成首次 bootstrap 与首次部署的 permissions policy。
 6. 记录每个角色最终的 ARN。
 7. 如果这些环境跨越多个 AWS 账户，确认你的工作站可以操作每个账户，通常通过不同 AWS profile 完成。
 
 ## 实操建议
 
 如果你希望模板先生成可复制的策略文件供审阅，请在 `.env` 准备完成之后运行 `./scripts/render-bootstrap-policies.sh --env-file .env`。
+
+对于一键 bootstrap 用户，这也是在允许脚本创建 IAM 资源前最适合先做的一步预审。
 
 ## 预期结果
 

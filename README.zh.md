@@ -26,6 +26,14 @@
 - 完整 onboarding 手册：[`docs/CUSTOMER_ONBOARDING.zh.md`](docs/CUSTOMER_ONBOARDING.zh.md)
 - 快速 bootstrap 清单：[`docs/BOOTSTRAP.zh.md`](docs/BOOTSTRAP.zh.md)
 
+对于新部署，推荐阅读顺序：
+
+- 前置条件与访问检查：[`docs/onboarding/01-prerequisites.zh.md`](docs/onboarding/01-prerequisites.zh.md)
+- `.env` 准备与派生值说明：[`docs/onboarding/04-prepare-env-file.zh.md`](docs/onboarding/04-prepare-env-file.zh.md)
+- 一键 bootstrap 的就绪检查与 preflight：[`docs/onboarding/05-bootstrap-one-click.zh.md`](docs/onboarding/05-bootstrap-one-click.zh.md)
+- 手动 bootstrap 的阶段拆解与检查点：[`docs/onboarding/06-bootstrap-manual.zh.md`](docs/onboarding/06-bootstrap-manual.zh.md)
+- 首次部署、审批节奏与 managed DSQL 后续处理：[`docs/onboarding/07-first-deploy-and-managed-dsql.zh.md`](docs/onboarding/07-first-deploy-and-managed-dsql.zh.md)
+
 ## 文档地图
 
 主入口文档：
@@ -43,6 +51,12 @@
 - 手动 bootstrap：[`docs/onboarding/06-bootstrap-manual.zh.md`](docs/onboarding/06-bootstrap-manual.zh.md)
 - 首次部署与 managed DSQL 处理：[`docs/onboarding/07-first-deploy-and-managed-dsql.zh.md`](docs/onboarding/07-first-deploy-and-managed-dsql.zh.md)
 - 日常运维操作：[`docs/onboarding/08-day-2-operations.zh.md`](docs/onboarding/08-day-2-operations.zh.md)
+
+如果你使用恢复感知的 bootstrap 路径，最关键的操作文档是：
+
+- `docs/CUSTOMER_ONBOARDING.zh.md`
+- `docs/onboarding/05-bootstrap-one-click.zh.md`
+- `docs/onboarding/07-first-deploy-and-managed-dsql.zh.md`
 
 ## Bootstrap 入口脚本
 

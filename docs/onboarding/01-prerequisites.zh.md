@@ -26,18 +26,75 @@
 - `pulumi`
 - `python3`
 
-## 操作步骤
+## 就绪检查清单
 
-1. 确认你可以通过命令行登录 GitHub。
-2. 确认你可以访问将承载 LTBase 的 AWS 账户。
-3. 确认你已经知道 `STACKS` 中每个环境分别对应哪个 AWS 账户。
-4. 确认你已经确定将要创建的 GitHub 仓库名。
-5. 确认你已经知道托管域名的 Cloudflare zone ID。
-6. 确认你已经准备好 `LTBASE_RELEASES_TOKEN` 和 `GEMINI_API_KEY`。
+### 1. 确认 GitHub 访问
+
+1. 通过 GitHub CLI 完成认证。
+
+```bash
+gh auth status
+```
+
+2. 确认当前认证账号可以在目标 `GITHUB_OWNER` 下创建私有仓库。
+3. 确认同一个账号后续还能管理部署仓库中的 repository secrets、repository variables 和受保护环境。
+4. 记录最终要使用的 GitHub owner 和仓库名。
+
+### 2. 确认 AWS 访问
+
+1. 记录 `STACKS` 中每个 stack 对应的 AWS account ID 和 AWS region。
+2. 确认你可以从本地工作站访问每个目标 AWS 账户。
+
+```bash
+aws sts get-caller-identity
+```
+
+3. 如果不同 stack 使用不同 AWS 账户，现在就确定你的切换方式。
+4. 如果你计划按 stack 使用不同 profile，请在 bootstrap 前逐个测试。
+
+```bash
+AWS_PROFILE_DEVO=customer-devo aws sts get-caller-identity
+AWS_PROFILE_PROD=customer-prod aws sts get-caller-identity
+```
+
+5. 确认你有权限创建或更新所有由 bootstrap 管理的 AWS 资源：
+   - GitHub OIDC provider
+   - deploy role 与 trust policy
+   - IAM inline role policy
+   - Pulumi state bucket
+   - 用于 Pulumi secrets 的 KMS alias
+
+### 3. 确认 Cloudflare 访问
+
+1. 记录你准备写入 `.env` 的 Cloudflare account ID 和 zone ID。
+2. 确认对应 zone 已经存在。
+3. 确认 API token 可以管理：
+   - Cloudflare Pages 项目
+   - 自定义域名绑定
+   - 承载 LTBase 域名和 OIDC discovery 域名的 zone
+
+### 4. 确认本地工具
+
+运行以下命令，确认每个工具都已安装：
+
+```bash
+git --version
+gh --version
+aws --version
+pulumi version
+python3 --version
+```
+
+### 5. 确认客户提供的 secrets 与 release 输入
+
+1. 确认你已经拿到客户专用 `LTBASE_RELEASES_TOKEN`。
+2. 确认你已经拿到 `GEMINI_API_KEY`。
+3. 确认你已经知道这次首次部署要使用的 `LTBASE_RELEASE_ID`。
+4. 确认你已经知道要写入 `.env` 的 Cloudflare API token。
 
 ## 预期结果
 
-你已经拥有所有必需凭据，不会在 bootstrap 过程中因为缺少访问权限而中断。
+你已经准备好所有必需凭据、账户映射和本地工具，不会在 bootstrap 过程中因为缺少访问权限而中断。
 
 ## 常见问题
 
@@ -45,6 +102,7 @@
 - 在没有 Cloudflare zone ID 的情况下开始
 - 在没有客户专用 releases token 的情况下开始
 - 错误地认为一个 AWS profile 可以直接管理两个不同 AWS 账户而无需切换凭据
+- 直到 bootstrap 命令失败后才去检查 `gh auth status` 或 `aws sts get-caller-identity`
 
 ## 下一步
 

@@ -38,6 +38,7 @@ Your deployment repository should contain:
 
 - read [`onboarding/02-create-repo-and-clone.md`](onboarding/02-create-repo-and-clone.md)
 - create the private repo from template and clone it locally
+- recommended even for one-click bootstrap, because later bootstrap writes local Pulumi stack files into this checkout
 
 ### 3. Create OIDC and deploy roles
 
@@ -48,13 +49,15 @@ Your deployment repository should contain:
 
 - read [`onboarding/04-prepare-env-file.md`](onboarding/04-prepare-env-file.md)
 - copy `env.template` to `.env`
-- fill real values and never commit `.env`
+- fill customer-controlled values, leave derived values alone unless you need overrides, and never commit `.env`
 
 ### 5. Choose a bootstrap path
 
 One-click path:
 
 - read [`onboarding/05-bootstrap-one-click.md`](onboarding/05-bootstrap-one-click.md)
+- optionally review generated IAM policies with `./scripts/render-bootstrap-policies.sh --env-file .env`
+- run `./scripts/evaluate-and-continue.sh --env-file .env --scope bootstrap --infra-dir infra` as a preflight check
 - run `./scripts/evaluate-and-continue.sh --env-file .env --scope bootstrap --force --infra-dir infra`
 
 Manual path:

@@ -13,6 +13,14 @@ Use this guide to create your customer-owned deployment repository from the temp
 - complete [`01-prerequisites.md`](01-prerequisites.md)
 - know the target GitHub owner and repository name
 
+## Important Note For One-Click Bootstrap Users
+
+This step is still the recommended starting point even if you plan to use the one-click bootstrap path later.
+
+The later bootstrap stages write local `infra/Pulumi.<stack>.yaml` files into the checkout where you run them, so it is best to work from a clone of your real customer deployment repository.
+
+The recovery-aware scripts can create a missing remote repository when needed, but that is best treated as a recovery path rather than the default onboarding flow.
+
 ## Steps
 
 1. Create a new private repository from the `ltbase-private-deployment` template.
@@ -34,6 +42,7 @@ Use this guide to create your customer-owned deployment repository from the temp
    - `scripts/reconcile-managed-dsql-endpoint.sh`
 5. Confirm that the repository is private.
 6. Confirm that the `prod` environment will be available for later approval gating.
+7. If you plan to use one-click bootstrap later, keep using this same checkout for `.env` preparation and bootstrap commands.
 
 ## Expected Result
 
@@ -44,6 +53,7 @@ You have a local working copy of your deployment repository and it matches the e
 - creating the repo manually without using the template
 - cloning the template repo instead of your own private repo
 - forgetting to verify that `.github/workflows/` and `infra/` exist
+- planning to run bootstrap from a temporary checkout and then wondering where the generated Pulumi stack files went
 
 ## Next Step
 

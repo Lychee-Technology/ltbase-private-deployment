@@ -38,6 +38,7 @@
 
 - 阅读 [`onboarding/02-create-repo-and-clone.zh.md`](onboarding/02-create-repo-and-clone.zh.md)
 - 从模板创建私有仓库并 clone 到本地
+- 即使使用一键 bootstrap，也推荐先完成这一步，因为后续 bootstrap 会把本地 Pulumi stack 文件写入当前 checkout
 
 ### 3. 创建 OIDC 和 deploy role
 
@@ -48,13 +49,15 @@
 
 - 阅读 [`onboarding/04-prepare-env-file.zh.md`](onboarding/04-prepare-env-file.zh.md)
 - 将 `env.template` 复制为 `.env`
-- 填写真实值，并且绝对不要提交 `.env`
+- 填写客户可控输入值；除非确实需要 override，否则派生值先不要手填；并且绝对不要提交 `.env`
 
 ### 5. 选择 bootstrap 路径
 
 一键路径：
 
 - 阅读 [`onboarding/05-bootstrap-one-click.zh.md`](onboarding/05-bootstrap-one-click.zh.md)
+- 可选先运行 `./scripts/render-bootstrap-policies.sh --env-file .env` 审阅生成的 IAM 策略
+- 先运行 `./scripts/evaluate-and-continue.sh --env-file .env --scope bootstrap --infra-dir infra` 做 preflight 检查
 - 运行 `./scripts/evaluate-and-continue.sh --env-file .env --scope bootstrap --force --infra-dir infra`
 
 手动路径：
@@ -76,15 +79,15 @@
 
 ## 必需的 GitHub Secrets
 
-- `AWS_ROLE_ARN_<STACK>` for every stack in `STACKS`
+- `AWS_ROLE_ARN_<STACK>`（`STACKS` 中每个环境各一个）
 - `LTBASE_RELEASES_TOKEN`
 - `CLOUDFLARE_API_TOKEN`
 
 ## 必需的 GitHub Variables
 
-- `AWS_REGION_<STACK>` for every stack in `STACKS`
+- `AWS_REGION_<STACK>`（`STACKS` 中每个环境各一个）
 - `PULUMI_BACKEND_URL`
-- `PULUMI_SECRETS_PROVIDER_<STACK>` for every stack in `STACKS`
+- `PULUMI_SECRETS_PROVIDER_<STACK>`（`STACKS` 中每个环境各一个）
 - `LTBASE_RELEASES_REPO`
 - `LTBASE_RELEASE_ID`
 - `STACKS`
