@@ -99,20 +99,7 @@ func authServiceKMSAliasName(cfg config.StackConfig) string {
 
 func NewLambdaServices(ctx *pulumi.Context, cfg config.StackConfig, runtime *RuntimeResources, providers Providers) (*ServiceSet, error) {
 	release := artifact.NewRelease(cfg.ReleaseID, cfg.ReleaseAssetDir)
-	commonEnv := pulumi.StringMap{
-		"AWS_REGION":          pulumi.String(cfg.AWSRegion),
-		"DYNAMODB_TABLE_NAME": runtime.Table.Name,
-		"LTBASE_TABLE_NAME":   runtime.Table.Name,
-		"DSQL_PORT":           pulumi.String(cfg.DSQLPort),
-		"DSQL_DB":             pulumi.String(cfg.DSQLDB),
-		"DSQL_USER":           pulumi.String(cfg.DSQLUser),
-		"FORMA_SCHEMA_DIR":    pulumi.String("/var/task/schemas"),
-		"S3_BUCKET_NAME":      runtime.RuntimeBucket.Bucket,
-	}
-	for key, value := range optionalDSQLEnv(cfg) {
-		commonEnv[key] = pulumi.String(value)
-	}
-	commonEnv["DSQL_PROJECT_SCHEMA"] = pulumi.String(cfg.DSQLProjectSchema)
+	commonEnv := commonLambdaEnv(cfg, runtime.Table.Name, runtime.RuntimeBucket.Bucket)
 	dataPlane, err := newLambdaService(ctx, cfg, providers, lambdaSpec{
 		Name:         "data-plane",
 		ArtifactPath: release.DataPlaneZip,
@@ -381,6 +368,23 @@ func mergeEnv(parts ...pulumi.StringMap) pulumi.StringMap {
 		for key, value := range part {
 			out[key] = value
 		}
+	}
+	return out
+}
+
+func commonLambdaEnv(cfg config.StackConfig, tableName pulumi.StringInput, bucketName pulumi.StringInput) pulumi.StringMap {
+	out := pulumi.StringMap{
+		"DYNAMODB_TABLE_NAME": tableName,
+		"LTBASE_TABLE_NAME":   tableName,
+		"DSQL_PORT":           pulumi.String(cfg.DSQLPort),
+		"DSQL_DB":             pulumi.String(cfg.DSQLDB),
+		"DSQL_USER":           pulumi.String(cfg.DSQLUser),
+		"DSQL_PROJECT_SCHEMA": pulumi.String(cfg.DSQLProjectSchema),
+		"FORMA_SCHEMA_DIR":    pulumi.String("/var/task/schemas"),
+		"S3_BUCKET_NAME":      bucketName,
+	}
+	for key, value := range optionalDSQLEnv(cfg) {
+		out[key] = pulumi.String(value)
 	}
 	return out
 }

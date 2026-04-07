@@ -39,7 +39,8 @@ rollout_hop_workflow="${ROOT_DIR}/.github/workflows/rollout-hop.yml"
 
 assert_file_contains "${preview_workflow}" "target_stack:"
 assert_file_contains "${preview_workflow}" "manual preview only supports the first promotion stack"
-assert_file_contains "${preview_workflow}" "Lychee-Technology/ltbase-deploy-workflows/.github/workflows/preview-stack.yml@codex/minimal-manual-deploy"
+assert_file_contains "${preview_workflow}" "Lychee-Technology/ltbase-deploy-workflows/.github/workflows/preview-stack.yml@b386c8015603dd0b9d08d6a7202ac2ee3afc3706"
+assert_file_contains "${rollout_hop_workflow}" "Lychee-Technology/ltbase-deploy-workflows/.github/workflows/rollout-hop.yml@b386c8015603dd0b9d08d6a7202ac2ee3afc3706"
 
 assert_file_contains "${deploy_workflow}" "uses: ./.github/workflows/rollout-hop.yml"
 assert_file_contains "${deploy_workflow}" "continue_chain: false"

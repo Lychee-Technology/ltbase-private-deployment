@@ -76,6 +76,8 @@ gh secret set LTBASE_RELEASES_TOKEN --repo "${DEPLOYMENT_REPO}" --body "${LTBASE
 gh secret set CLOUDFLARE_API_TOKEN --repo "${DEPLOYMENT_REPO}" --body "${CLOUDFLARE_API_TOKEN}"
 
 selected_region="$(bootstrap_env_resolve_stack_value AWS_REGION "${STACK}")"
+backend_stack="$(bootstrap_env_csv_first "${PROMOTION_PATH:-${STACKS}}")"
+backend_region="$(bootstrap_env_resolve_stack_value AWS_REGION "${backend_stack}")"
 selected_secrets_provider="$(bootstrap_env_resolve_stack_value PULUMI_SECRETS_PROVIDER "${STACK}")"
 selected_runtime_bucket="$(bootstrap_env_resolve_stack_value RUNTIME_BUCKET "${STACK}")"
 selected_table_name="$(bootstrap_env_resolve_stack_value TABLE_NAME "${STACK}")"
@@ -84,28 +86,41 @@ selected_control_domain="$(bootstrap_env_resolve_stack_value CONTROL_DOMAIN "${S
 selected_auth_domain="$(bootstrap_env_resolve_stack_value AUTH_DOMAIN "${STACK}")"
 selected_oidc_issuer_url="$(bootstrap_env_resolve_stack_value OIDC_ISSUER_URL "${STACK}")"
 selected_jwks_url="$(bootstrap_env_resolve_stack_value JWKS_URL "${STACK}")"
+selected_account_id="$(bootstrap_env_resolve_stack_value AWS_ACCOUNT_ID "${STACK}")"
+selected_github_oidc_provider_arn="arn:aws:iam::${selected_account_id}:oidc-provider/token.actions.githubusercontent.com"
+
+backend_env=(env)
+while IFS= read -r token; do
+  backend_env+=("${token}")
+done < <(bootstrap_env_stack_runtime_env "${backend_stack}")
+
+stack_env=(env)
+while IFS= read -r token; do
+  stack_env+=("${token}")
+done < <(bootstrap_env_stack_runtime_env "${STACK}")
 
 pushd "${INFRA_DIR}" >/dev/null
-pulumi login "${PULUMI_BACKEND_URL}"
-if ! pulumi stack select "${STACK}" >/dev/null 2>&1; then
-  pulumi stack init "${STACK}" --secrets-provider "${selected_secrets_provider}"
+"${backend_env[@]}" pulumi login "${PULUMI_BACKEND_URL}"
+if ! "${stack_env[@]}" pulumi stack select "${STACK}" >/dev/null 2>&1; then
+  "${stack_env[@]}" pulumi stack init "${STACK}" --secrets-provider "${selected_secrets_provider}"
 fi
-pulumi config set awsRegion "${selected_region}" --stack "${STACK}"
-pulumi config set runtimeBucket "${selected_runtime_bucket}" --stack "${STACK}"
-pulumi config set tableName "${selected_table_name}" --stack "${STACK}"
-pulumi config set apiDomain "${selected_api_domain}" --stack "${STACK}"
-pulumi config set controlPlaneDomain "${selected_control_domain}" --stack "${STACK}"
-pulumi config set authDomain "${selected_auth_domain}" --stack "${STACK}"
-pulumi config set cloudflareZoneId "${CLOUDFLARE_ZONE_ID}" --stack "${STACK}"
-pulumi config set oidcIssuerUrl "${selected_oidc_issuer_url}" --stack "${STACK}"
-pulumi config set jwksUrl "${selected_jwks_url}" --stack "${STACK}"
-pulumi config set githubOrg "${GITHUB_ORG}" --stack "${STACK}"
-pulumi config set githubRepo "${GITHUB_REPO}" --stack "${STACK}"
-pulumi config set releaseId "${LTBASE_RELEASE_ID}" --stack "${STACK}"
-pulumi config set dsqlPort "${DSQL_PORT}" --stack "${STACK}"
-pulumi config set dsqlDB "${DSQL_DB}" --stack "${STACK}"
-pulumi config set dsqlUser "${DSQL_USER}" --stack "${STACK}"
-pulumi config set dsqlProjectSchema "${DSQL_PROJECT_SCHEMA}" --stack "${STACK}"
-pulumi config set geminiModel "${GEMINI_MODEL}" --stack "${STACK}"
-pulumi config set --secret geminiApiKey "${GEMINI_API_KEY}" --stack "${STACK}"
+"${stack_env[@]}" pulumi config set awsRegion "${selected_region}" --stack "${STACK}"
+"${stack_env[@]}" pulumi config set runtimeBucket "${selected_runtime_bucket}" --stack "${STACK}"
+"${stack_env[@]}" pulumi config set tableName "${selected_table_name}" --stack "${STACK}"
+"${stack_env[@]}" pulumi config set apiDomain "${selected_api_domain}" --stack "${STACK}"
+"${stack_env[@]}" pulumi config set controlPlaneDomain "${selected_control_domain}" --stack "${STACK}"
+"${stack_env[@]}" pulumi config set authDomain "${selected_auth_domain}" --stack "${STACK}"
+"${stack_env[@]}" pulumi config set cloudflareZoneId "${CLOUDFLARE_ZONE_ID}" --stack "${STACK}"
+"${stack_env[@]}" pulumi config set oidcIssuerUrl "${selected_oidc_issuer_url}" --stack "${STACK}"
+"${stack_env[@]}" pulumi config set jwksUrl "${selected_jwks_url}" --stack "${STACK}"
+"${stack_env[@]}" pulumi config set githubOidcProviderArn "${selected_github_oidc_provider_arn}" --stack "${STACK}"
+"${stack_env[@]}" pulumi config set githubOrg "${GITHUB_ORG}" --stack "${STACK}"
+"${stack_env[@]}" pulumi config set githubRepo "${GITHUB_REPO}" --stack "${STACK}"
+"${stack_env[@]}" pulumi config set releaseId "${LTBASE_RELEASE_ID}" --stack "${STACK}"
+"${stack_env[@]}" pulumi config set dsqlPort "${DSQL_PORT}" --stack "${STACK}"
+"${stack_env[@]}" pulumi config set dsqlDB "${DSQL_DB}" --stack "${STACK}"
+"${stack_env[@]}" pulumi config set dsqlUser "${DSQL_USER}" --stack "${STACK}"
+"${stack_env[@]}" pulumi config set dsqlProjectSchema "${DSQL_PROJECT_SCHEMA}" --stack "${STACK}"
+"${stack_env[@]}" pulumi config set geminiModel "${GEMINI_MODEL}" --stack "${STACK}"
+"${stack_env[@]}" pulumi config set --secret geminiApiKey "${GEMINI_API_KEY}" --stack "${STACK}"
 popd >/dev/null

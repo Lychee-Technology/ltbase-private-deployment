@@ -3,6 +3,8 @@ package services
 import (
 	"testing"
 
+	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
+
 	"lychee.technology/ltbase/infra/internal/config"
 	"lychee.technology/ltbase/infra/internal/naming"
 )
@@ -26,5 +28,25 @@ func TestOptionalDSQLEnvIncludesExplicitEndpoint(t *testing.T) {
 	env := optionalDSQLEnv(config.StackConfig{DSQLEndpoint: "db.example.internal"})
 	if got := env["DSQL_ENDPOINT"]; got != "db.example.internal" {
 		t.Fatalf("optionalDSQLEnv() DSQL_ENDPOINT = %q", got)
+	}
+}
+
+func TestCommonLambdaEnvOmitsReservedAWSRegion(t *testing.T) {
+	env := commonLambdaEnv(config.StackConfig{
+		AWSRegion:         "us-east-2",
+		DSQLPort:          "5432",
+		DSQLDB:            "postgres",
+		DSQLUser:          "admin",
+		DSQLProjectSchema: "ltbase",
+	}, pulumi.String("table-name"), pulumi.String("bucket-name"))
+
+	if _, ok := env["AWS_REGION"]; ok {
+		t.Fatal("commonLambdaEnv() unexpectedly sets reserved AWS_REGION")
+	}
+
+	for _, key := range []string{"DSQL_PORT", "DSQL_DB", "DSQL_USER", "DSQL_PROJECT_SCHEMA", "FORMA_SCHEMA_DIR"} {
+		if _, ok := env[key]; !ok {
+			t.Fatalf("commonLambdaEnv() missing %s", key)
+		}
 	}
 }
