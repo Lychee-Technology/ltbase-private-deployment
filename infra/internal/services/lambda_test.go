@@ -4,7 +4,16 @@ import (
 	"testing"
 
 	"lychee.technology/ltbase/infra/internal/config"
+	"lychee.technology/ltbase/infra/internal/naming"
 )
+
+func TestAuthServiceKMSAliasNameUsesFixedOIDCDiscoveryProject(t *testing.T) {
+	got := authServiceKMSAliasName(config.StackConfig{Project: "ltbase-infra", Stack: "devo"})
+	want := "alias/" + naming.ResourceName("ltbase-oidc-discovery", "devo", "authservice")
+	if got != want {
+		t.Fatalf("authServiceKMSAliasName() = %q, want %q", got, want)
+	}
+}
 
 func TestOptionalDSQLEnvOmitsEndpointWhenUnset(t *testing.T) {
 	env := optionalDSQLEnv(config.StackConfig{})

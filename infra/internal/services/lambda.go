@@ -41,6 +41,8 @@ type ServiceSet struct {
 	FormaCdc     *LambdaService
 }
 
+const authServiceKMSAliasProject = "ltbase-oidc-discovery"
+
 func NewRuntimeResources(ctx *pulumi.Context, cfg config.StackConfig, providers Providers) (*RuntimeResources, error) {
 	dsqlResources, err := NewDSQLResources(ctx, cfg, providers)
 	if err != nil {
@@ -77,7 +79,7 @@ func NewRuntimeResources(ctx *pulumi.Context, cfg config.StackConfig, providers 
 		return nil, err
 	}
 	_, err = kms.NewAlias(ctx, naming.ResourceName(cfg.Project, cfg.Stack, "auth-kms-alias"), &kms.AliasArgs{
-		Name:        pulumi.String("alias/" + naming.ResourceName(cfg.Project, cfg.Stack, "authservice")),
+		Name:        pulumi.String(authServiceKMSAliasName(cfg)),
 		TargetKeyId: authKey.KeyId,
 	}, pulumi.Provider(providers.AWS))
 	if err != nil {
@@ -89,6 +91,10 @@ func NewRuntimeResources(ctx *pulumi.Context, cfg config.StackConfig, providers 
 		DSQL:          dsqlResources,
 		AuthKey:       authKey,
 	}, nil
+}
+
+func authServiceKMSAliasName(cfg config.StackConfig) string {
+	return "alias/" + naming.ResourceName(authServiceKMSAliasProject, cfg.Stack, "authservice")
 }
 
 func NewLambdaServices(ctx *pulumi.Context, cfg config.StackConfig, runtime *RuntimeResources, providers Providers) (*ServiceSet, error) {

@@ -40,7 +40,6 @@ Use this guide to create the local `.env` file that drives the bootstrap scripts
 6. Fill in Pulumi backend values:
    - `PULUMI_STATE_BUCKET`
    - `PULUMI_KMS_ALIAS`
-   - `PULUMI_PROJECT`
    - leave `PULUMI_BACKEND_URL` and every `PULUMI_SECRETS_PROVIDER_<STACK>` empty if you plan to let bootstrap generate them
    - Source: the names you want bootstrap to use for shared Pulumi backend resources
    - Important: the shared backend bucket named by `PULUMI_STATE_BUCKET` is created in the AWS account for the first stack in `PROMOTION_PATH`
@@ -73,7 +72,7 @@ These values are customer-controlled inputs and should usually be set explicitly
 - `OIDC_DISCOVERY_DOMAIN`, `CLOUDFLARE_ACCOUNT_ID`
 - `AWS_REGION_<STACK>`, `AWS_ACCOUNT_ID_<STACK>`, `AWS_ROLE_NAME_<STACK>`
 - `AWS_PROFILE_<STACK>` when multiple stacks use different AWS credentials locally
-- `PULUMI_STATE_BUCKET`, `PULUMI_KMS_ALIAS`, `PULUMI_PROJECT`
+- `PULUMI_STATE_BUCKET`, `PULUMI_KMS_ALIAS`
 - `LTBASE_RELEASES_REPO`, `LTBASE_RELEASE_ID`
 - `API_DOMAIN_<STACK>`, `CONTROL_DOMAIN_<STACK>`, `AUTH_DOMAIN_<STACK>`, `CLOUDFLARE_ZONE_ID`
 - `GEMINI_MODEL`, `DSQL_PORT`, `DSQL_DB`, `DSQL_USER`, `DSQL_PROJECT_SCHEMA`

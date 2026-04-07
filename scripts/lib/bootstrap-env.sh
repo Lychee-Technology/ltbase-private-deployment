@@ -120,11 +120,6 @@ bootstrap_env_apply_derivations() {
   local role_arn_var provider_var runtime_bucket_var table_name_var
   local discovery_role_name_var discovery_role_arn_var issuer_var jwks_var
 
-  if [[ -z "${PULUMI_PROJECT:-}" ]]; then
-    PULUMI_PROJECT="ltbase-infra"
-    export PULUMI_PROJECT
-  fi
-
   if [[ -z "${DEPLOYMENT_REPO:-}" && -n "${GITHUB_OWNER:-}" && -n "${DEPLOYMENT_REPO_NAME:-}" ]]; then
     DEPLOYMENT_REPO="${GITHUB_OWNER}/${DEPLOYMENT_REPO_NAME}"
     export DEPLOYMENT_REPO
@@ -248,7 +243,7 @@ bootstrap_env_oidc_discovery_stack_config_json() {
       "${stack}" \
       "$(bootstrap_env_resolve_stack_value AWS_REGION "${stack}")" \
       "$(bootstrap_env_resolve_stack_value OIDC_DISCOVERY_AWS_ROLE_ARN "${stack}")" \
-      "alias/${PULUMI_PROJECT:-ltbase-infra}-${stack}-authservice"
+      "alias/ltbase-oidc-discovery-${stack}-authservice"
   done < <(bootstrap_env_each_stack) | python3 -c '
 import json
 import sys
