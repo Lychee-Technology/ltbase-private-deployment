@@ -41,7 +41,7 @@ The recovery-aware scripts can create a missing remote repository when needed, b
    - `scripts/sync-template-upstream.sh`
    - `scripts/reconcile-managed-dsql-endpoint.sh`
 5. Confirm that the repository is private.
-6. Confirm that the `prod` environment will be available for later approval gating.
+6. Confirm that GitHub environments can be created for every stack after the first promotion hop, because those later stacks are where approval gates live.
 7. If you plan to use one-click bootstrap later, keep using this same checkout for `.env` preparation and bootstrap commands.
 
 ## Expected Result

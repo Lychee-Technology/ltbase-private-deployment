@@ -53,15 +53,14 @@ aws sts get-caller-identity
 4. 如果你计划按 stack 使用不同 profile，请在 bootstrap 前逐个测试。
 
 ```bash
-AWS_PROFILE_DEVO=customer-devo aws sts get-caller-identity
-AWS_PROFILE_PROD=customer-prod aws sts get-caller-identity
+AWS_PROFILE_STAGING=customer-staging aws sts get-caller-identity
 ```
 
 5. 确认你有权限创建或更新所有由 bootstrap 管理的 AWS 资源：
    - GitHub OIDC provider
    - deploy role 与 trust policy
    - IAM inline role policy
-   - Pulumi state bucket
+   - 位于 `PROMOTION_PATH` 第一个 stack 对应 AWS 账户中的共享 Pulumi state bucket
    - 用于 Pulumi secrets 的 KMS alias
 
 ### 3. 确认 Cloudflare 访问

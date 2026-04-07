@@ -64,7 +64,7 @@ This step creates or updates:
 - deploy roles
 - trust policies
 - inline role policies
-- Pulumi state bucket
+- the shared Pulumi state bucket in the AWS account for the first stack in `PROMOTION_PATH`
 - Pulumi KMS alias
 
 It also generates `dist/foundation.env` and review artifacts.
@@ -73,7 +73,8 @@ After this step, confirm:
 
 - `dist/foundation.env` exists
 - `dist/` contains the generated trust policy and role policy artifacts you expect to review
-- the target AWS accounts now contain the OIDC provider, deploy roles, S3 bucket, and KMS alias
+- the first stack account now contains the shared Pulumi backend bucket
+- the target AWS accounts now contain the OIDC provider, deploy roles, and KMS alias entries you expect
 
 ### 3. Optionally merge generated foundation values
 
@@ -117,7 +118,7 @@ Run:
 ./scripts/bootstrap-deployment-repo.sh --env-file .env --stack <stack> --infra-dir infra
 ```
 
-Repeat the command once for each stack listed in `STACKS`, in the same order as `PROMOTION_PATH`.
+Repeat the command once for each stack listed in `STACKS`. Using the same order as `PROMOTION_PATH` is the simplest default.
 
 Example order:
 
@@ -150,7 +151,7 @@ This step creates or updates the OIDC discovery companion repository, Cloudflare
 After this step, confirm:
 
 - the OIDC discovery companion repository now exists
-- that repository contains `OIDC_DISCOVERY_DOMAIN` and `OIDC_DISCOVERY_STACK_CONFIG`
+- that repository has GitHub repository variables `OIDC_DISCOVERY_DOMAIN` and `OIDC_DISCOVERY_STACK_CONFIG`
 - the Cloudflare Pages project and custom domain binding were created
 - the per-stack OIDC discovery IAM roles now exist
 

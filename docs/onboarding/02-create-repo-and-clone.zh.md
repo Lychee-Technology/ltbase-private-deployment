@@ -41,7 +41,7 @@
    - `scripts/sync-template-upstream.sh`
    - `scripts/reconcile-managed-dsql-endpoint.sh`
 5. 确认仓库是私有的。
-6. 确认后续用于审批的 `prod` environment 可以创建。
+6. 确认可以为 `PROMOTION_PATH` 中第一个之后的每个 stack 创建 GitHub environment，因为后续审批 gate 会挂在这些环境上。
 7. 如果你后续打算使用一键 bootstrap，请继续在这个 checkout 中完成 `.env` 准备和 bootstrap 命令。
 
 ## 预期结果

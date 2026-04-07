@@ -24,6 +24,8 @@
 
 你的部署仓库不会自行构建 LTBase 应用源码。它会下载官方 LTBase release，并将其部署到你的 AWS 账户中。
 
+这套 onboarding 文档支持通用多 stack 部署。文中出现 `devo`、`prod` 等名称时，只是示例，不是硬编码要求。
+
 ## 最终完成状态
 
 完成 onboarding 后，你应该具备以下结果：
@@ -31,7 +33,7 @@
 - 一个基于本模板创建的私有部署仓库
 - 每个用于部署的 AWS 账户中各自存在 GitHub OIDC 信任关系
 - `STACKS` 中每个环境各自对应一个 deploy role
-- 一个 Pulumi state bucket
+- 一个共享的 Pulumi state bucket，并且它位于 `PROMOTION_PATH` 第一个 stack 对应的 AWS 账户中
 - 一个用于 Pulumi secrets 加密的 KMS alias
 - 已配置好的 GitHub 仓库 secrets 和 variables
 - 一个可用于 preview 与部署的起点 stack
@@ -89,7 +91,8 @@
 - AWS 账户映射已经最终确认。
   - 确认 `STACKS` 中每个 stack 都已经确定最终 AWS account ID、region 和 deploy role 名称。
   - 如果不同 stack 使用不同 AWS 账户，确认你已经知道本地如何切换凭据，通常是在 `.env` 中提供 `AWS_PROFILE_<STACK>`。
-  - 在 bootstrap 前测试每个账户访问，例如 `AWS_PROFILE_DEVO=customer-devo aws sts get-caller-identity`。
+  - 在 bootstrap 前测试每个账户访问，例如 `AWS_PROFILE_STAGING=customer-staging aws sts get-caller-identity`。
+  - 记住共享的 Pulumi backend bucket 会创建在 `PROMOTION_PATH` 第一个 stack 对应的 AWS 账户里，因此该 stack 的凭据必须能够创建和管理这个 bucket。
 - Cloudflare 输入值已经准备好。
   - 确认 `CLOUDFLARE_ACCOUNT_ID`、`CLOUDFLARE_ZONE_ID`、`CLOUDFLARE_API_TOKEN` 和 `OIDC_DISCOVERY_DOMAIN` 都已经定稿。
   - 确认该 token 可以管理 bootstrap 将创建的 OIDC discovery Cloudflare Pages 项目和自定义域名绑定。

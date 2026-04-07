@@ -85,12 +85,11 @@ selected_auth_domain="$(bootstrap_env_resolve_stack_value AUTH_DOMAIN "${STACK}"
 selected_oidc_issuer_url="$(bootstrap_env_resolve_stack_value OIDC_ISSUER_URL "${STACK}")"
 selected_jwks_url="$(bootstrap_env_resolve_stack_value JWKS_URL "${STACK}")"
 
+pushd "${INFRA_DIR}" >/dev/null
 pulumi login "${PULUMI_BACKEND_URL}"
 if ! pulumi stack select "${STACK}" >/dev/null 2>&1; then
   pulumi stack init "${STACK}" --secrets-provider "${selected_secrets_provider}"
 fi
-
-pushd "${INFRA_DIR}" >/dev/null
 pulumi config set awsRegion "${selected_region}" --stack "${STACK}"
 pulumi config set runtimeBucket "${selected_runtime_bucket}" --stack "${STACK}"
 pulumi config set tableName "${selected_table_name}" --stack "${STACK}"

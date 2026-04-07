@@ -51,12 +51,12 @@ gh auth status
 4. If stacks use different AWS accounts, `AWS_PROFILE_<STACK>` values are already configured and tested.
 
 ```bash
-AWS_PROFILE_DEVO=customer-devo aws sts get-caller-identity
-AWS_PROFILE_PROD=customer-prod aws sts get-caller-identity
+AWS_PROFILE_STAGING=customer-staging aws sts get-caller-identity
 ```
 
 5. You are intentionally leaving derived values blank unless you need overrides.
 6. You are not manually setting `DSQL_ENDPOINT` for managed deployments.
+7. The credentials for the first stack in `PROMOTION_PATH` can create and manage the shared Pulumi backend bucket, because bootstrap anchors that bucket to the first stack account.
 
 ## Recommended Preflight
 
@@ -114,6 +114,8 @@ The one-click script runs these stages in order:
 - `bootstrap-oidc-discovery-companion.sh`
 - `bootstrap-deployment-repo.sh --stack <each stack in STACKS>`
 - optional `gh workflow run rollout.yml ...` when `--release-id` is set
+
+`bootstrap-aws-foundation.sh` creates the shared Pulumi backend bucket once in the AWS account for the first stack in `PROMOTION_PATH`, then prepares per-stack role and secrets-provider inputs for every stack in `STACKS`.
 
 ## Expected Result
 

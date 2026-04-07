@@ -34,6 +34,8 @@ Recommended reading order for new deployments:
 - manual bootstrap stages and verification points: [`docs/onboarding/06-bootstrap-manual.md`](docs/onboarding/06-bootstrap-manual.md)
 - first deploy, approvals, and managed DSQL follow-up: [`docs/onboarding/07-first-deploy-and-managed-dsql.md`](docs/onboarding/07-first-deploy-and-managed-dsql.md)
 
+The onboarding docs support generic multi-stack topologies. When they show names like `devo` or `prod`, treat them as examples only.
+
 ## Documentation Map
 
 Main entrypoints:
@@ -90,6 +92,7 @@ For day-2 maintenance, the generated deployment repository can sync later templa
 - the deployment repository downloads official LTBase releases instead of building the application source code
 - customers own the GitHub repository, AWS account resources, and deployment approvals
 - bootstrap scripts prepare repository state and deployment configuration
+- the shared Pulumi backend bucket is created once and lives in the AWS account for the first stack in `PROMOTION_PATH`
 - manual preview only targets the first stack in `PROMOTION_PATH`
 - automated rollout continues one hop at a time across `PROMOTION_PATH`, with customer-controlled approvals on protected target environments
 

@@ -34,6 +34,8 @@
 - 手动 bootstrap 的阶段拆解与检查点：[`docs/onboarding/06-bootstrap-manual.zh.md`](docs/onboarding/06-bootstrap-manual.zh.md)
 - 首次部署、审批节奏与 managed DSQL 后续处理：[`docs/onboarding/07-first-deploy-and-managed-dsql.zh.md`](docs/onboarding/07-first-deploy-and-managed-dsql.zh.md)
 
+onboarding 文档支持通用多 stack 拓扑。文中出现 `devo`、`prod` 等名称时，只应视为示例。
+
 ## 文档地图
 
 主入口文档：
@@ -90,6 +92,7 @@
 - 部署仓库负责下载官方 LTBase release，而不是自行构建应用源码
 - 客户自行持有 GitHub 仓库、AWS 资源和部署审批权
 - bootstrap 脚本负责准备仓库状态和部署配置
+- 共享的 Pulumi backend bucket 只创建一次，并固定放在 `PROMOTION_PATH` 第一个 stack 对应的 AWS 账户中
 - 手动 preview 只针对 `PROMOTION_PATH` 的第一个环境
 - 自动 rollout 会按 `PROMOTION_PATH` 逐跳推进，受保护目标环境仍由客户自己审批
 

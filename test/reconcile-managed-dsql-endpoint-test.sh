@@ -29,9 +29,13 @@ assert_log_not_contains() {
 write_env_file() {
   local path="$1"
   cat >"${path}" <<'EOF'
+STACKS=devo,staging,prod
+PROMOTION_PATH=devo,staging,prod
 PULUMI_BACKEND_URL=s3://test-pulumi-state
 AWS_REGION_DEVO=ap-northeast-1
+AWS_REGION_STAGING=eu-central-1
 AWS_REGION_PROD=us-west-2
+AWS_PROFILE_STAGING=staging-profile
 EOF
 }
 
@@ -74,7 +78,7 @@ write_fake_aws_success() {
 #!/usr/bin/env bash
 set -euo pipefail
 printf 'aws %s\n' "\$*" >>"${log_file}"
-if [[ "\$1 \$2" == "dsql get-cluster" ]]; then
+if [[ "\$1 \$2" == "dsql get-cluster" || ( "\$1" == "--profile" && "\$3 \$4" == "dsql get-cluster" ) ]]; then
   printf 'managed.cluster.endpoint.example.com\n'
   exit 0
 fi
@@ -90,7 +94,7 @@ write_fake_aws_failure() {
 #!/usr/bin/env bash
 set -euo pipefail
 printf 'aws %s\n' "\$*" >>"${log_file}"
-if [[ "\$1 \$2" == "dsql get-cluster" ]]; then
+if [[ "\$1 \$2" == "dsql get-cluster" || ( "\$1" == "--profile" && "\$3 \$4" == "dsql get-cluster" ) ]]; then
   printf 'lookup failed\n' >&2
   exit 1
 fi
@@ -121,6 +125,31 @@ run_success_case() {
   assert_log_contains "${log_file}" "pulumi stack output dsqlClusterIdentifier --stack devo"
   assert_log_contains "${log_file}" "aws dsql get-cluster --identifier abcdefghijklmnopqrstuvwx12 --region ap-northeast-1 --query endpoint --output text"
   assert_log_contains "${log_file}" "pulumi config set dsqlEndpoint managed.cluster.endpoint.example.com --stack devo"
+
+  rm -rf "${temp_dir}"
+}
+
+run_staging_stack_case() {
+  local temp_dir fake_bin log_file output
+  temp_dir="$(mktemp -d)"
+  fake_bin="${temp_dir}/bin"
+  log_file="${temp_dir}/commands.log"
+  mkdir -p "${fake_bin}" "${temp_dir}/infra"
+  touch "${log_file}"
+
+  write_env_file "${temp_dir}/.env"
+  write_fake_pulumi_success "${fake_bin}/pulumi" "${log_file}"
+  write_fake_aws_success "${fake_bin}/aws" "${log_file}"
+
+  if ! output="$(PATH="${fake_bin}:$PATH" "${SCRIPT_PATH}" --env-file "${temp_dir}/.env" --stack staging --infra-dir "${temp_dir}/infra" 2>&1)"; then
+    rm -rf "${temp_dir}"
+    fail "expected reconcile script to succeed for staging, got: ${output}"
+  fi
+
+  assert_log_contains "${log_file}" "pulumi stack select staging"
+  assert_log_contains "${log_file}" "pulumi stack output dsqlClusterIdentifier --stack staging"
+  assert_log_contains "${log_file}" "aws --profile staging-profile dsql get-cluster --identifier abcdefghijklmnopqrstuvwx12 --region eu-central-1 --query endpoint --output text"
+  assert_log_contains "${log_file}" "pulumi config set dsqlEndpoint managed.cluster.endpoint.example.com --stack staging"
 
   rm -rf "${temp_dir}"
 }
@@ -175,6 +204,7 @@ run_lookup_failure_case() {
 
 if [[ -x "${SCRIPT_PATH}" ]]; then
   run_success_case
+  run_staging_stack_case
   run_missing_identifier_case
   run_lookup_failure_case
 else

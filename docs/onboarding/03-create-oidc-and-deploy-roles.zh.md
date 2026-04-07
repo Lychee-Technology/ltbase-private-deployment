@@ -10,7 +10,7 @@
 
 ## 一键 bootstrap 用户说明
 
-如果你打算使用一键 bootstrap 路径（`evaluate-and-continue.sh`），该脚本会自动运行 `bootstrap-aws-foundation.sh`，创建 OIDC provider、deploy role、inline role policy、Pulumi state bucket 和 Pulumi KMS alias。
+如果你打算使用一键 bootstrap 路径（`evaluate-and-continue.sh`），该脚本会自动运行 `bootstrap-aws-foundation.sh`，创建 OIDC provider、deploy role、inline role policy、共享的 Pulumi state bucket 和 Pulumi KMS alias。
 
 在这种情况下，本页面的作用是让你 **提前了解和确认** 将会创建哪些资源，而不是手动创建它们。
 
@@ -19,7 +19,7 @@
 - `STACKS` 涉及的每个 AWS 账户中的 GitHub OIDC provider
 - `STACKS` 中每个 stack 对应的 deploy role
 - 这些角色上的 trust policy 和 inline role policy
-- 共享的 Pulumi state bucket
+- 位于 `PROMOTION_PATH` 第一个 stack 对应 AWS 账户中的共享 Pulumi state bucket
 - 每个部署 region 中用于 Pulumi 的 KMS alias
 
 如果你的 AWS 权限不允许脚本创建或更新这些资源，请改走下面的手动步骤。
@@ -39,6 +39,8 @@
 5. 为每个角色附加足以完成首次 bootstrap 与首次部署的 permissions policy。
 6. 记录每个角色最终的 ARN。
 7. 如果这些环境跨越多个 AWS 账户，确认你的工作站可以操作每个账户，通常通过不同 AWS profile 完成。
+
+共享的 Pulumi backend 固定锚定在 `PROMOTION_PATH` 的第一个 stack 上。在多账户场景下，这意味着第一个 stack 对应的 AWS 账户拥有共享 backend bucket，而每个 stack 仍然有自己独立的 deploy role 和 secrets provider 配置。
 
 ## 实操建议
 

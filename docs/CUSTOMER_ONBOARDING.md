@@ -24,6 +24,8 @@ Your LTBase deployment uses three repositories:
 
 Your deployment repository does not build LTBase application source code. It downloads an official LTBase release and deploys it into your AWS account.
 
+This onboarding set supports generic multi-stack deployments. Names such as `devo` and `prod` are examples, not hard-coded requirements.
+
 ## End State
 
 When onboarding is complete, you should have:
@@ -31,7 +33,7 @@ When onboarding is complete, you should have:
 - one private deployment repository based on this template
 - one GitHub OIDC trust relationship in each AWS account used for deployment
 - one deploy role per configured stack in `STACKS`
-- one Pulumi state bucket
+- one shared Pulumi state bucket in the AWS account for the first stack in `PROMOTION_PATH`
 - one KMS alias for Pulumi secrets encryption
 - GitHub repository secrets and variables configured
 - a first promotion stack ready for preview and deployment
@@ -89,7 +91,8 @@ Before you run any bootstrap automation, confirm all of the following:
 - AWS account mapping is final.
   - Confirm every stack in `STACKS` has a final AWS account ID, region, and deploy role name.
   - If different stacks use different AWS accounts, confirm you already know how you will switch credentials locally, usually with `AWS_PROFILE_<STACK>` values in `.env`.
-  - Test each account access before bootstrap, for example `AWS_PROFILE_DEVO=customer-devo aws sts get-caller-identity`.
+  - Test each account access before bootstrap, for example `AWS_PROFILE_STAGING=customer-staging aws sts get-caller-identity`.
+  - Remember that the shared Pulumi backend bucket is created in the AWS account for the first stack in `PROMOTION_PATH`, so the credentials for that stack must be able to create and manage the bucket.
 - Cloudflare inputs are ready.
   - Confirm `CLOUDFLARE_ACCOUNT_ID`, `CLOUDFLARE_ZONE_ID`, `CLOUDFLARE_API_TOKEN`, and `OIDC_DISCOVERY_DOMAIN` are final.
   - Confirm the token can manage the Pages project and custom domain that bootstrap creates for OIDC discovery.

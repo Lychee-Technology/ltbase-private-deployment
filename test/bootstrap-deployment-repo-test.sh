@@ -86,7 +86,7 @@ chmod +x "${fake_bin}/gh"
 cat >"${fake_bin}/pulumi" <<EOF
 #!/usr/bin/env bash
 set -euo pipefail
-printf 'pulumi %s\n' "\$*" >>"${log_file}"
+printf 'PWD=%s pulumi %s\n' "\$PWD" "\$*" >>"${log_file}"
 if [[ "\$1 \$2" == "stack select" ]]; then
   exit 1
 fi
@@ -109,7 +109,7 @@ if [[ -x "${SCRIPT_PATH}" ]]; then
   assert_log_contains "${log_file}" "gh secret set AWS_ROLE_ARN_DEVO --repo Lychee-Technology/ltbase-private-deployment --body arn:aws:iam::123456789012:role/test-deploy-role"
   assert_log_contains "${log_file}" "gh secret set AWS_ROLE_ARN_STAGING --repo Lychee-Technology/ltbase-private-deployment --body arn:aws:iam::123456789012:role/test-staging-role"
   assert_log_contains "${log_file}" "gh secret set AWS_ROLE_ARN_PROD --repo Lychee-Technology/ltbase-private-deployment --body arn:aws:iam::123456789012:role/test-prod-role"
-  assert_log_contains "${log_file}" "pulumi stack init prod --secrets-provider awskms://alias/test-pulumi-secrets?region=us-west-2"
+  assert_log_contains "${log_file}" "PWD=${temp_dir}/infra pulumi stack init prod --secrets-provider awskms://alias/test-pulumi-secrets?region=us-west-2"
   assert_log_contains "${log_file}" "pulumi config set runtimeBucket ltbase-private-deployment-runtime-prod --stack prod"
   assert_log_contains "${log_file}" "pulumi config set apiDomain api.example.com --stack prod"
   assert_log_contains "${log_file}" "pulumi config set oidcIssuerUrl https://issuer.example.com/prod --stack prod"

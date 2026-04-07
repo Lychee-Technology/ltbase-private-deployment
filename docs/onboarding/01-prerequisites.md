@@ -53,15 +53,14 @@ aws sts get-caller-identity
 4. If you plan to use per-stack profiles, test each one before bootstrap.
 
 ```bash
-AWS_PROFILE_DEVO=customer-devo aws sts get-caller-identity
-AWS_PROFILE_PROD=customer-prod aws sts get-caller-identity
+AWS_PROFILE_STAGING=customer-staging aws sts get-caller-identity
 ```
 
 5. Confirm you have permission to create or update all bootstrap-managed AWS resources:
    - GitHub OIDC providers
    - deploy roles and trust policies
    - inline IAM role policies
-   - Pulumi state bucket
+   - the shared Pulumi state bucket in the AWS account for the first stack in `PROMOTION_PATH`
    - KMS alias for Pulumi secrets
 
 ### 3. Confirm Cloudflare access

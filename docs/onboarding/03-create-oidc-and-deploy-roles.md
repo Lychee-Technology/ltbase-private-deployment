@@ -10,7 +10,7 @@ Use this guide to prepare the AWS-side trust and deployment roles that GitHub Ac
 
 ## Note for one-click bootstrap users
 
-If you plan to use the one-click bootstrap path (`evaluate-and-continue.sh`), the script runs `bootstrap-aws-foundation.sh` which creates OIDC providers, deploy roles, inline role policies, the Pulumi state bucket, and the Pulumi KMS alias automatically.
+If you plan to use the one-click bootstrap path (`evaluate-and-continue.sh`), the script runs `bootstrap-aws-foundation.sh` which creates OIDC providers, deploy roles, inline role policies, the shared Pulumi state bucket, and the Pulumi KMS alias automatically.
 
 In that case, use this page to **review and verify** what will be created, rather than creating resources manually.
 
@@ -19,7 +19,7 @@ Before you choose one-click bootstrap, confirm that your AWS credentials can cre
 - GitHub OIDC providers in every AWS account used by `STACKS`
 - one deploy role per stack in `STACKS`
 - trust policies and inline role policies on those roles
-- the shared Pulumi state bucket
+- the shared Pulumi state bucket in the AWS account for the first stack in `PROMOTION_PATH`
 - the Pulumi KMS alias in each deployment region
 
 If your AWS permissions do not allow the script to create or update those resources, follow the manual steps below instead.
@@ -39,6 +39,8 @@ If your AWS permissions do not allow the script to create or update those resour
 5. Attach a permissions policy broad enough for first bootstrap and first deployment.
 6. Make a note of every resulting role ARN.
 7. If your stacks span multiple AWS accounts, confirm you can operate each account from your workstation, usually through separate AWS profiles.
+
+The shared Pulumi backend is anchored to the first stack in `PROMOTION_PATH`. In split-account setups, that means the first stack account owns the shared backend bucket, while every stack still gets its own deploy role and secrets provider configuration.
 
 ## Practical Tip
 

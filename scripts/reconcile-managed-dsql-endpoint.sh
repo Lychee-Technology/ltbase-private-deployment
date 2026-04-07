@@ -32,21 +32,17 @@ if [[ -z "${ENV_FILE}" ]]; then
   exit 1
 fi
 
-# shellcheck disable=SC1090
-source "${ENV_FILE}"
+script_dir="$(cd "$(dirname "$0")" && pwd)"
+# shellcheck disable=SC1091
+source "${script_dir}/lib/bootstrap-env.sh"
+bootstrap_env_load "${ENV_FILE}"
 
-required_vars=(PULUMI_BACKEND_URL AWS_REGION_DEVO AWS_REGION_PROD)
-for name in "${required_vars[@]}"; do
-  if [[ -z "${!name:-}" ]]; then
-    echo "${name} is required" >&2
-    exit 1
-  fi
-done
-
-selected_region="${AWS_REGION_DEVO}"
-if [[ "${STACK}" == "prod" ]]; then
-  selected_region="${AWS_REGION_PROD}"
+bootstrap_env_require_vars PULUMI_BACKEND_URL
+if ! bootstrap_env_require_stack_values "${STACK}" AWS_REGION; then
+  exit 1
 fi
+
+selected_region="$(bootstrap_env_resolve_stack_value AWS_REGION "${STACK}")"
 
 resolve_dsql_cluster_identifier() {
   pulumi stack output dsqlClusterIdentifier --stack "${STACK}" 2>/dev/null
@@ -68,7 +64,7 @@ if [[ -z "${dsql_cluster_identifier}" ]]; then
   exit 1
 fi
 
-if ! dsql_endpoint="$(aws dsql get-cluster --identifier "${dsql_cluster_identifier}" --region "${selected_region}" --query endpoint --output text)"; then
+if ! dsql_endpoint="$(bootstrap_env_aws_command_for_stack "${STACK}" dsql get-cluster --identifier "${dsql_cluster_identifier}" --region "${selected_region}" --query endpoint --output text)"; then
   clear_managed_dsql_endpoint
   echo "failed to resolve managed DSQL endpoint for stack ${STACK}" >&2
   popd >/dev/null

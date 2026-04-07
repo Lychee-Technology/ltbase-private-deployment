@@ -32,25 +32,26 @@
    - `CLOUDFLARE_ACCOUNT_ID`
    - 来源：你的 Cloudflare account，以及你计划给 OIDC discovery 使用的自定义域名
 5. 填写 AWS 环境信息（每个 stack 一组）：
-   - `AWS_REGION_DEVO`、`AWS_REGION_PROD`
-   - `AWS_ACCOUNT_ID_DEVO`、`AWS_ACCOUNT_ID_PROD`
-   - `AWS_ROLE_NAME_DEVO`、`AWS_ROLE_NAME_PROD`
+   - `AWS_REGION_<STACK>`
+   - `AWS_ACCOUNT_ID_<STACK>`
+   - `AWS_ROLE_NAME_<STACK>`
    - 如果不同 stack 使用不同 AWS 账户，本地还可以补充 `AWS_PROFILE_<STACK>`
    - 来源：每个 stack 对应的 AWS 账户规划
 6. 填写 Pulumi backend 信息：
    - `PULUMI_STATE_BUCKET`
    - `PULUMI_KMS_ALIAS`
    - `PULUMI_PROJECT`
-   - 如果你希望由 bootstrap 自动生成 `PULUMI_BACKEND_URL`、`PULUMI_SECRETS_PROVIDER_DEVO`、`PULUMI_SECRETS_PROVIDER_PROD`，可先留空
+   - 如果你希望由 bootstrap 自动生成 `PULUMI_BACKEND_URL` 和每个 `PULUMI_SECRETS_PROVIDER_<STACK>`，可先留空
    - 来源：你希望 bootstrap 创建或使用的共享 Pulumi backend 资源命名
+   - 重要：`PULUMI_STATE_BUCKET` 指向的共享 backend bucket 会创建在 `PROMOTION_PATH` 第一个 stack 对应的 AWS 账户中
 7. 填写 release 信息：
    - `LTBASE_RELEASES_REPO`
    - `LTBASE_RELEASE_ID`
    - 来源：要部署的 LTBase release 仓库和 release ID
 8. 填写按 stack 划分的域名信息：
-   - `API_DOMAIN_DEVO`、`API_DOMAIN_PROD`
-   - `CONTROL_DOMAIN_DEVO`、`CONTROL_DOMAIN_PROD`
-   - `AUTH_DOMAIN_DEVO`、`AUTH_DOMAIN_PROD`
+   - `API_DOMAIN_<STACK>`
+   - `CONTROL_DOMAIN_<STACK>`
+   - `AUTH_DOMAIN_<STACK>`
    - `CLOUDFLARE_ZONE_ID`
    - 来源：你在目标 Cloudflare zone 中规划好的最终域名
 9. 填写应用默认值：

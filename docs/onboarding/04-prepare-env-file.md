@@ -32,25 +32,26 @@ Use this guide to create the local `.env` file that drives the bootstrap scripts
    - `CLOUDFLARE_ACCOUNT_ID`
    - Source: your Cloudflare account and the custom domain you want to use for OIDC discovery
 5. Fill in AWS environment values (one pair per stack):
-   - `AWS_REGION_DEVO`, `AWS_REGION_PROD`
-   - `AWS_ACCOUNT_ID_DEVO`, `AWS_ACCOUNT_ID_PROD`
-   - `AWS_ROLE_NAME_DEVO`, `AWS_ROLE_NAME_PROD`
+   - `AWS_REGION_<STACK>`
+   - `AWS_ACCOUNT_ID_<STACK>`
+   - `AWS_ROLE_NAME_<STACK>`
    - Optional when stacks use different AWS accounts: `AWS_PROFILE_<STACK>`
    - Source: your AWS account plan for each stack
 6. Fill in Pulumi backend values:
    - `PULUMI_STATE_BUCKET`
    - `PULUMI_KMS_ALIAS`
    - `PULUMI_PROJECT`
-   - leave `PULUMI_BACKEND_URL`, `PULUMI_SECRETS_PROVIDER_DEVO`, and `PULUMI_SECRETS_PROVIDER_PROD` empty if you plan to let bootstrap generate them
+   - leave `PULUMI_BACKEND_URL` and every `PULUMI_SECRETS_PROVIDER_<STACK>` empty if you plan to let bootstrap generate them
    - Source: the names you want bootstrap to use for shared Pulumi backend resources
+   - Important: the shared backend bucket named by `PULUMI_STATE_BUCKET` is created in the AWS account for the first stack in `PROMOTION_PATH`
 7. Fill in release values:
    - `LTBASE_RELEASES_REPO`
    - `LTBASE_RELEASE_ID`
    - Source: the LTBase release repository and release ID you plan to deploy
 8. Fill in per-stack domain values:
-   - `API_DOMAIN_DEVO`, `API_DOMAIN_PROD`
-   - `CONTROL_DOMAIN_DEVO`, `CONTROL_DOMAIN_PROD`
-   - `AUTH_DOMAIN_DEVO`, `AUTH_DOMAIN_PROD`
+   - `API_DOMAIN_<STACK>`
+   - `CONTROL_DOMAIN_<STACK>`
+   - `AUTH_DOMAIN_<STACK>`
    - `CLOUDFLARE_ZONE_ID`
    - Source: your final DNS plan in the target Cloudflare zone
 9. Fill in application defaults:

@@ -40,21 +40,34 @@ for name in "${required_vars[@]}"; do
   fi
 done
 
+while IFS= read -r stack; do
+  bootstrap_env_require_stack_values "${stack}" AWS_REGION AWS_ACCOUNT_ID AWS_ROLE_NAME AWS_ROLE_ARN
+done < <(bootstrap_env_each_stack)
+
 mkdir -p "${OUTPUT_DIR}"
+summary_path="${OUTPUT_DIR}/bootstrap-summary.env"
+cat >"${summary_path}" <<EOF
+DEPLOYMENT_REPO=${DEPLOYMENT_REPO}
+PULUMI_BACKEND_URL=s3://${PULUMI_STATE_BUCKET}
+EOF
 
-devo_provider_arn="arn:aws:iam::${AWS_ACCOUNT_ID_DEVO}:oidc-provider/token.actions.githubusercontent.com"
-prod_provider_arn="arn:aws:iam::${AWS_ACCOUNT_ID_PROD}:oidc-provider/token.actions.githubusercontent.com"
-devo_provider_url="awskms://${PULUMI_KMS_ALIAS}?region=${AWS_REGION_DEVO}"
-prod_provider_url="awskms://${PULUMI_KMS_ALIAS}?region=${AWS_REGION_PROD}"
+role_arns_json="$({ while IFS= read -r stack; do printf '%s\n' "$(bootstrap_env_resolve_stack_value AWS_ROLE_ARN "${stack}")"; done < <(bootstrap_env_each_stack); } | python3 -c 'import json, sys; print(json.dumps([line.strip() for line in sys.stdin if line.strip()]))')"
 
-cat >"${OUTPUT_DIR}/devo-trust-policy.json" <<EOF
+while IFS= read -r stack; do
+  stack_upper="$(bootstrap_env_stack_upper "${stack}")"
+  stack_region="$(bootstrap_env_resolve_stack_value AWS_REGION "${stack}")"
+  stack_account_id="$(bootstrap_env_resolve_stack_value AWS_ACCOUNT_ID "${stack}")"
+  stack_role_arn="$(bootstrap_env_resolve_stack_value AWS_ROLE_ARN "${stack}")"
+  provider_arn="arn:aws:iam::${stack_account_id}:oidc-provider/token.actions.githubusercontent.com"
+
+  cat >"${OUTPUT_DIR}/${stack}-trust-policy.json" <<EOF
 {
   "Version": "2012-10-17",
   "Statement": [
     {
       "Effect": "Allow",
       "Principal": {
-        "Federated": "${devo_provider_arn}"
+        "Federated": "${provider_arn}"
       },
       "Action": "sts:AssumeRoleWithWebIdentity",
       "Condition": {
@@ -65,6 +78,7 @@ cat >"${OUTPUT_DIR}/devo-trust-policy.json" <<EOF
           "token.actions.githubusercontent.com:sub": [
             "repo:${DEPLOYMENT_REPO}:ref:refs/heads/main",
             "repo:${DEPLOYMENT_REPO}:ref:refs/heads/feature/*",
+            "repo:${DEPLOYMENT_REPO}:ref:refs/heads/release/*",
             "repo:${DEPLOYMENT_REPO}:pull_request"
           ]
         }
@@ -74,39 +88,7 @@ cat >"${OUTPUT_DIR}/devo-trust-policy.json" <<EOF
 }
 EOF
 
-cat >"${OUTPUT_DIR}/prod-trust-policy.json" <<EOF
-{
-  "Version": "2012-10-17",
-  "Statement": [
-    {
-      "Effect": "Allow",
-      "Principal": {
-        "Federated": "${prod_provider_arn}"
-      },
-      "Action": "sts:AssumeRoleWithWebIdentity",
-      "Condition": {
-        "StringEquals": {
-          "token.actions.githubusercontent.com:aud": "sts.amazonaws.com"
-        },
-        "StringLike": {
-          "token.actions.githubusercontent.com:sub": [
-            "repo:${DEPLOYMENT_REPO}:ref:refs/heads/main",
-            "repo:${DEPLOYMENT_REPO}:ref:refs/heads/release/*"
-          ]
-        }
-      }
-    }
-  ]
-}
-EOF
-
-for target in devo prod; do
-  if [[ "${target}" == "devo" ]]; then
-    role_arn="${AWS_ROLE_ARN_DEVO}"
-  else
-    role_arn="${AWS_ROLE_ARN_PROD}"
-  fi
-  cat >"${OUTPUT_DIR}/${target}-role-policy.json" <<EOF
+  cat >"${OUTPUT_DIR}/${stack}-role-policy.json" <<EOF
 {
   "Version": "2012-10-17",
   "Statement": [
@@ -144,12 +126,15 @@ for target in devo prod; do
     {
       "Effect": "Allow",
       "Action": "iam:PassRole",
-      "Resource": "${role_arn}"
+      "Resource": "${stack_role_arn}"
     }
   ]
 }
 EOF
-done
+
+  printf 'PULUMI_SECRETS_PROVIDER_%s=awskms://%s?region=%s\n' "${stack_upper}" "${PULUMI_KMS_ALIAS}" "${stack_region}" >>"${summary_path}"
+  printf 'AWS_ROLE_ARN_%s=%s\n' "${stack_upper}" "${stack_role_arn}" >>"${summary_path}"
+done < <(bootstrap_env_each_stack)
 
 cat >"${OUTPUT_DIR}/pulumi-kms-policy.json" <<EOF
 {
@@ -159,10 +144,7 @@ cat >"${OUTPUT_DIR}/pulumi-kms-policy.json" <<EOF
       "Sid": "AllowDeployRolesUseOfPulumiSecretsKey",
       "Effect": "Allow",
       "Principal": {
-        "AWS": [
-          "${AWS_ROLE_ARN_DEVO}",
-          "${AWS_ROLE_ARN_PROD}"
-        ]
+        "AWS": ${role_arns_json}
       },
       "Action": [
         "kms:Encrypt",
@@ -174,13 +156,4 @@ cat >"${OUTPUT_DIR}/pulumi-kms-policy.json" <<EOF
     }
   ]
 }
-EOF
-
-cat >"${OUTPUT_DIR}/bootstrap-summary.env" <<EOF
-DEPLOYMENT_REPO=${DEPLOYMENT_REPO}
-PULUMI_BACKEND_URL=s3://${PULUMI_STATE_BUCKET}
-PULUMI_SECRETS_PROVIDER_DEVO=${devo_provider_url}
-PULUMI_SECRETS_PROVIDER_PROD=${prod_provider_url}
-AWS_ROLE_ARN_DEVO=${AWS_ROLE_ARN_DEVO}
-AWS_ROLE_ARN_PROD=${AWS_ROLE_ARN_PROD}
 EOF

@@ -64,7 +64,7 @@
 - deploy roles
 - trust policies
 - inline role policies
-- Pulumi state bucket
+- 位于 `PROMOTION_PATH` 第一个 stack 对应 AWS 账户中的共享 Pulumi state bucket
 - Pulumi KMS alias
 
 它还会生成 `dist/foundation.env` 和审阅用文件。
@@ -73,7 +73,8 @@
 
 - `dist/foundation.env` 已生成
 - `dist/` 中存在可审阅的 trust policy 和 role policy 文件
-- AWS 中已经出现对应的 OIDC provider、deploy role、S3 bucket 和 KMS alias
+- 第一个 stack 对应的 AWS 账户中已经出现共享 Pulumi backend bucket
+- 各目标 AWS 账户中已经出现预期的 OIDC provider、deploy role 和 KMS alias
 
 ### 3. 可选：合并自动生成的 foundation 值
 
@@ -117,7 +118,7 @@ source dist/foundation.env
 ./scripts/bootstrap-deployment-repo.sh --env-file .env --stack <stack> --infra-dir infra
 ```
 
-对 `STACKS` 中列出的每个 stack 都执行一次，顺序与 `PROMOTION_PATH` 保持一致。
+对 `STACKS` 中列出的每个 stack 都执行一次。最简单的做法是按 `PROMOTION_PATH` 的顺序执行。
 
 推荐顺序示例：
 
@@ -150,7 +151,7 @@ source dist/foundation.env
 执行后检查：
 
 - OIDC discovery companion 仓库已存在
-- companion 仓库中已经写入 `OIDC_DISCOVERY_DOMAIN` 和 `OIDC_DISCOVERY_STACK_CONFIG`
+- companion 仓库中已经配置 GitHub repository variables `OIDC_DISCOVERY_DOMAIN` 和 `OIDC_DISCOVERY_STACK_CONFIG`
 - Cloudflare Pages 项目与自定义域名绑定已经创建
 - 每个 stack 对应的 OIDC discovery IAM role 已存在
 

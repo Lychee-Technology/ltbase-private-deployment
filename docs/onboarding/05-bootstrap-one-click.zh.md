@@ -51,12 +51,12 @@ gh auth status
 4. 如果不同 stack 使用不同 AWS 账户，`AWS_PROFILE_<STACK>` 已经配置并测试通过。
 
 ```bash
-AWS_PROFILE_DEVO=customer-devo aws sts get-caller-identity
-AWS_PROFILE_PROD=customer-prod aws sts get-caller-identity
+AWS_PROFILE_STAGING=customer-staging aws sts get-caller-identity
 ```
 
 5. 除非你明确需要 override，否则你刻意把派生值保持为空。
 6. 对于 managed 部署，你没有手动设置 `DSQL_ENDPOINT`。
+7. `PROMOTION_PATH` 第一个 stack 对应的凭据能够创建和管理共享的 Pulumi backend bucket，因为 bootstrap 会把这个 bucket 固定放在第一个 stack 账户里。
 
 ## 推荐 Preflight
 
@@ -114,6 +114,8 @@ AWS_PROFILE_PROD=customer-prod aws sts get-caller-identity
 - `bootstrap-oidc-discovery-companion.sh`
 - `bootstrap-deployment-repo.sh --stack <STACKS 中的每个 stack>`
 - 当设置了 `--release-id` 时，可选执行 `gh workflow run rollout.yml ...`
+
+`bootstrap-aws-foundation.sh` 会先在 `PROMOTION_PATH` 第一个 stack 对应的 AWS 账户中创建一次共享 Pulumi backend bucket，然后为 `STACKS` 中每个 stack 准备各自的 role 和 secrets provider 输入。
 
 ## 预期结果
 
