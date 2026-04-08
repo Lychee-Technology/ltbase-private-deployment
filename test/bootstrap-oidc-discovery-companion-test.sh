@@ -221,7 +221,7 @@ assert_log_contains "${log_file}" "gh repo create customer-org/customer-ltbase-o
 assert_log_contains "${log_file}" "https://api.cloudflare.com/client/v4/accounts/cf-account-123/pages/projects"
 assert_log_contains "${log_file}" "https://api.cloudflare.com/client/v4/accounts/cf-account-123/pages/projects/customer-ltbase-oidc-discovery/domains"
 assert_log_contains "${log_file}" "gh variable set OIDC_DISCOVERY_DOMAIN --repo customer-org/customer-ltbase-oidc-discovery --body oidc.customer.example.com"
-assert_log_contains "${log_file}" "gh variable set OIDC_DISCOVERY_STACK_CONFIG --repo customer-org/customer-ltbase-oidc-discovery --body {\"devo\":{\"aws_region\":\"ap-northeast-1\",\"aws_role_arn\":\"arn:aws:iam::123456789012:role/customer-ltbase-oidc-discovery-devo\",\"kms_auth_key_alias\":\"alias/ltbase-infra-devo-authservice\"},\"prod\":{\"aws_region\":\"us-west-2\",\"aws_role_arn\":\"arn:aws:iam::210987654321:role/customer-ltbase-oidc-discovery-prod\",\"kms_auth_key_alias\":\"alias/ltbase-infra-prod-authservice\"}}"
+assert_log_contains "${log_file}" "gh variable set OIDC_DISCOVERY_STACK_CONFIG --repo customer-org/customer-ltbase-oidc-discovery --body {\"devo\":{\"aws_region\":\"ap-northeast-1\",\"aws_role_arn\":\"arn:aws:iam::123456789012:role/customer-ltbase-oidc-discovery-devo\",\"kms_auth_key_alias\":\"alias/ltbase-oidc-discovery-devo-authservice\"},\"prod\":{\"aws_region\":\"us-west-2\",\"aws_role_arn\":\"arn:aws:iam::210987654321:role/customer-ltbase-oidc-discovery-prod\",\"kms_auth_key_alias\":\"alias/ltbase-oidc-discovery-prod-authservice\"}}"
 assert_log_contains "${log_file}" "gh variable set CLOUDFLARE_ACCOUNT_ID --repo customer-org/customer-ltbase-oidc-discovery --body cf-account-123"
 assert_log_contains "${log_file}" "gh variable set OIDC_DISCOVERY_PAGES_PROJECT --repo customer-org/customer-ltbase-oidc-discovery --body customer-ltbase-oidc-discovery"
 assert_log_contains "${log_file}" "gh secret set CLOUDFLARE_API_TOKEN --repo customer-org/customer-ltbase-oidc-discovery --body test-cloudflare-token"
@@ -234,34 +234,6 @@ assert_file_contains "${temp_dir}/dist/oidc-discovery-companion.env" "OIDC_DISCO
 assert_file_contains "${temp_dir}/dist/oidc-discovery-companion.env" "OIDC_DISCOVERY_PAGES_PROJECT=customer-ltbase-oidc-discovery"
 assert_file_contains "${temp_dir}/dist/oidc-discovery-companion.env" "OIDC_ISSUER_URL_DEVO=https://oidc.customer.example.com/devo"
 assert_file_contains "${temp_dir}/dist/oidc-discovery-companion.env" "JWKS_URL_PROD=https://oidc.customer.example.com/prod/.well-known/jwks.json"
-
-cat >"${temp_dir}/custom-project.env" <<'EOF'
-STACKS=devo,prod
-PROMOTION_PATH=devo,prod
-TEMPLATE_REPO=Lychee-Technology/ltbase-private-deployment
-GITHUB_OWNER=customer-org
-DEPLOYMENT_REPO_NAME=customer-ltbase
-DEPLOYMENT_REPO_VISIBILITY=private
-DEPLOYMENT_REPO_DESCRIPTION="Customer LTBase deployment repo"
-OIDC_DISCOVERY_DOMAIN=oidc.customer.example.com
-CLOUDFLARE_ACCOUNT_ID=cf-account-123
-AWS_REGION_DEVO=ap-northeast-1
-AWS_REGION_PROD=us-west-2
-AWS_ACCOUNT_ID_DEVO=123456789012
-AWS_ACCOUNT_ID_PROD=210987654321
-AWS_PROFILE_DEVO=devo-profile
-AWS_PROFILE_PROD=prod-profile
-PULUMI_PROJECT=custom-infra
-PULUMI_KMS_ALIAS=alias/ltbase-pulumi-secrets
-CLOUDFLARE_API_TOKEN=test-cloudflare-token
-EOF
-
-: >"${log_file}"
-if ! output="$(PATH="${fake_bin}:$PATH" COMMAND_LOG="${log_file}" "${SCRIPT_PATH}" --env-file "${temp_dir}/custom-project.env" --output-dir "${temp_dir}/dist-custom-project" 2>&1)"; then
-  fail "expected custom PULUMI_PROJECT run to succeed, got: ${output}"
-fi
-
-assert_log_contains "${log_file}" "gh variable set OIDC_DISCOVERY_STACK_CONFIG --repo customer-org/customer-ltbase-oidc-discovery --body {\"devo\":{\"aws_region\":\"ap-northeast-1\",\"aws_role_arn\":\"arn:aws:iam::123456789012:role/customer-ltbase-oidc-discovery-devo\",\"kms_auth_key_alias\":\"alias/custom-infra-devo-authservice\"},\"prod\":{\"aws_region\":\"us-west-2\",\"aws_role_arn\":\"arn:aws:iam::210987654321:role/customer-ltbase-oidc-discovery-prod\",\"kms_auth_key_alias\":\"alias/custom-infra-prod-authservice\"}}"
 
 cat >"${temp_dir}/invalid-domain.env" <<'EOF'
 STACKS=devo,prod

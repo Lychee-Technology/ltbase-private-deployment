@@ -178,10 +178,6 @@ bootstrap_env_apply_derivations() {
     PULUMI_BACKEND_URL="s3://${PULUMI_STATE_BUCKET}"
     export PULUMI_BACKEND_URL
   fi
-  if [[ -z "${PULUMI_PROJECT:-}" ]]; then
-    PULUMI_PROJECT="ltbase-infra"
-    export PULUMI_PROJECT
-  fi
   if [[ -z "${OIDC_DISCOVERY_TEMPLATE_REPO:-}" ]]; then
     OIDC_DISCOVERY_TEMPLATE_REPO="Lychee-Technology/ltbase-oidc-discovery-template"
     export OIDC_DISCOVERY_TEMPLATE_REPO
@@ -285,11 +281,11 @@ bootstrap_env_load() {
 
 bootstrap_env_oidc_discovery_stack_config_json() {
   while IFS= read -r stack; do
-      printf '%s\t%s\t%s\t%s\n' \
+    printf '%s\t%s\t%s\t%s\n' \
       "${stack}" \
       "$(bootstrap_env_resolve_stack_value AWS_REGION "${stack}")" \
       "$(bootstrap_env_resolve_stack_value OIDC_DISCOVERY_AWS_ROLE_ARN "${stack}")" \
-      "alias/${PULUMI_PROJECT:-ltbase-infra}-${stack}-authservice"
+      "alias/ltbase-oidc-discovery-${stack}-authservice"
   done < <(bootstrap_env_each_stack) | python3 -c '
 import json
 import sys
