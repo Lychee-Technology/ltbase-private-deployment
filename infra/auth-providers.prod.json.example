@@ -1,13 +1,6 @@
 {
   "providers": [
     {
-      "name": "firebase",
-      "issuer": "https://securetoken.google.com/arched-symbol-326108",
-      "audiences": ["arched-symbol-326108"],
-      "enable_login": true,
-      "enable_id_binding": true
-    },
-    {
       "name": "supabase",
       "issuer": "https://example.supabase.co/auth/v1",
       "audiences": ["authenticated"],
