@@ -59,20 +59,117 @@ cloudflare_headers=(
   -H "Content-Type: application/json"
 )
 
+cloudflare_require_success() {
+  local action="$1"
+  local response="$2"
+
+  if ! python3 -c '
+import json
+import sys
+
+try:
+    payload = json.load(sys.stdin)
+except json.JSONDecodeError:
+    sys.exit(1)
+
+sys.exit(0 if payload.get("success") is True else 1)
+' <<<"${response}"
+  then
+    printf 'Cloudflare API request failed: %s\n' "${action}" >&2
+    printf '%s\n' "${response}" >&2
+    exit 1
+  fi
+}
+
+cloudflare_get_exists() {
+  local action="$1"
+  local url="$2"
+  local response_file status response
+
+  response_file="$(mktemp)"
+  status="$(curl -sS -o "${response_file}" -w '%{http_code}' "${cloudflare_headers[@]}" "${url}")" || status="$?"
+  response="$(<"${response_file}")"
+  rm -f "${response_file}"
+
+  if [[ "${status}" =~ ^2 ]]; then
+    cloudflare_require_success "${action}" "${response}"
+    return 0
+  fi
+
+  if [[ "${status}" == "404" ]]; then
+    return 1
+  fi
+
+  printf 'Cloudflare API request failed: %s (HTTP %s)\n' "${action}" "${status}" >&2
+  if [[ -n "${response}" ]]; then
+    printf '%s\n' "${response}" >&2
+  fi
+  exit 1
+}
+
+github_repo_missing() {
+  local output="$1"
+
+  python3 -c '
+import sys
+
+output = sys.stdin.read().lower()
+if "could not resolve to a repository" in output:
+    sys.exit(0)
+
+if "http 404" in output and "repo" in output:
+    sys.exit(0)
+
+if "repository was not found" in output:
+    sys.exit(0)
+
+sys.exit(1)
+' <<<"${output}"
+}
+
+cloudflare_post() {
+  local action="$1"
+  local url="$2"
+  local payload="$3"
+  local response_file status response
+
+  response_file="$(mktemp)"
+  status="$(curl -sS -o "${response_file}" -w '%{http_code}' -X POST "${cloudflare_headers[@]}" "${url}" --data "${payload}")" || status="$?"
+  response="$(<"${response_file}")"
+  rm -f "${response_file}"
+
+  if [[ ! "${status}" =~ ^2 ]]; then
+    printf 'Cloudflare API request failed: %s (HTTP %s)\n' "${action}" "${status}" >&2
+    if [[ -n "${response}" ]]; then
+      printf '%s\n' "${response}" >&2
+    fi
+    exit 1
+  fi
+
+  cloudflare_require_success "${action}" "${response}"
+}
+
 pages_project_url="https://api.cloudflare.com/client/v4/accounts/${CLOUDFLARE_ACCOUNT_ID}/pages/projects/${OIDC_DISCOVERY_PAGES_PROJECT}"
 pages_projects_url="https://api.cloudflare.com/client/v4/accounts/${CLOUDFLARE_ACCOUNT_ID}/pages/projects"
 pages_domain_url="https://api.cloudflare.com/client/v4/accounts/${CLOUDFLARE_ACCOUNT_ID}/pages/projects/${OIDC_DISCOVERY_PAGES_PROJECT}/domains/${OIDC_DISCOVERY_DOMAIN}"
 pages_domains_url="https://api.cloudflare.com/client/v4/accounts/${CLOUDFLARE_ACCOUNT_ID}/pages/projects/${OIDC_DISCOVERY_PAGES_PROJECT}/domains"
 
-if ! gh repo view "${OIDC_DISCOVERY_REPO}" >/dev/null 2>&1; then
-  gh repo create "${OIDC_DISCOVERY_REPO}" --template "${OIDC_DISCOVERY_TEMPLATE_REPO}" ${visibility_flag} --description "LTBase OIDC discovery companion for ${DEPLOYMENT_REPO_NAME}" --clone=false
+repo_view_output=""
+if ! repo_view_output="$(gh repo view "${OIDC_DISCOVERY_REPO}" 2>&1)"; then
+  if github_repo_missing "${repo_view_output}"; then
+    gh repo create "${OIDC_DISCOVERY_REPO}" --template "${OIDC_DISCOVERY_TEMPLATE_REPO}" ${visibility_flag} --description "LTBase OIDC discovery companion for ${DEPLOYMENT_REPO_NAME}" --clone=false
+  else
+    printf 'GitHub repo lookup failed: %s\n' "${OIDC_DISCOVERY_REPO}" >&2
+    printf '%s\n' "${repo_view_output}" >&2
+    exit 1
+  fi
 fi
 
 repo_metadata="$(gh api "repos/${OIDC_DISCOVERY_REPO}")"
 default_branch="$(python3 -c 'import json, sys; data = json.load(sys.stdin); print(data.get("default_branch", "main"))' <<<"${repo_metadata}"
 )"
 
-if ! curl -fsS "${cloudflare_headers[@]}" "${pages_project_url}" >/dev/null 2>&1; then
+if ! cloudflare_get_exists "get Pages project" "${pages_project_url}"; then
   project_payload="$(python3 - "${OIDC_DISCOVERY_PAGES_PROJECT}" "${GITHUB_OWNER}" "${OIDC_DISCOVERY_REPO_NAME}" "${default_branch}" <<'PY'
 import json
 import sys
@@ -93,10 +190,10 @@ print(json.dumps({
 }, separators=(",", ":")))
 PY
 )"
-  curl -fsS -X POST "${cloudflare_headers[@]}" "${pages_projects_url}" --data "${project_payload}" >/dev/null
+  cloudflare_post "create Pages project" "${pages_projects_url}" "${project_payload}"
 fi
 
-if ! curl -fsS "${cloudflare_headers[@]}" "${pages_domain_url}" >/dev/null 2>&1; then
+if ! cloudflare_get_exists "get Pages custom domain" "${pages_domain_url}"; then
   domain_payload="$(python3 - "${OIDC_DISCOVERY_DOMAIN}" <<'PY'
 import json
 import sys
@@ -104,11 +201,14 @@ import sys
 print(json.dumps({"name": sys.argv[1]}, separators=(",", ":")))
 PY
 )"
-  curl -fsS -X POST "${cloudflare_headers[@]}" "${pages_domains_url}" --data "${domain_payload}" >/dev/null
+  cloudflare_post "create Pages custom domain" "${pages_domains_url}" "${domain_payload}"
 fi
 
 gh variable set OIDC_DISCOVERY_DOMAIN --repo "${OIDC_DISCOVERY_REPO}" --body "${OIDC_DISCOVERY_DOMAIN}"
 gh variable set OIDC_DISCOVERY_STACK_CONFIG --repo "${OIDC_DISCOVERY_REPO}" --body "${oidc_stack_config}"
+gh variable set CLOUDFLARE_ACCOUNT_ID --repo "${OIDC_DISCOVERY_REPO}" --body "${CLOUDFLARE_ACCOUNT_ID}"
+gh variable set OIDC_DISCOVERY_PAGES_PROJECT --repo "${OIDC_DISCOVERY_REPO}" --body "${OIDC_DISCOVERY_PAGES_PROJECT}"
+gh secret set CLOUDFLARE_API_TOKEN --repo "${OIDC_DISCOVERY_REPO}" --body "${CLOUDFLARE_API_TOKEN}"
 
 create_or_update_discovery_role() {
   local stack="$1"
