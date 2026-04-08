@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"path/filepath"
 	"sort"
 	"strings"
 )
@@ -20,8 +21,8 @@ type AuthProvider struct {
 	EnableIDBinding bool     `json:"enable_id_binding"`
 }
 
-func loadAuthProviderConfig(path string) (AuthProviderConfig, error) {
-	raw, err := os.ReadFile(path)
+func loadAuthProviderConfig(rootDir, path string) (AuthProviderConfig, error) {
+	raw, err := os.ReadFile(resolveAuthProviderConfigPath(rootDir, path))
 	if err != nil {
 		return AuthProviderConfig{}, fmt.Errorf("read auth provider config: %w", err)
 	}
@@ -55,6 +56,17 @@ func loadAuthProviderConfig(path string) (AuthProviderConfig, error) {
 		seen[provider.Name] = struct{}{}
 	}
 	return cfg, nil
+}
+
+func resolveAuthProviderConfigPath(rootDir, path string) string {
+	cleaned := filepath.Clean(path)
+	if filepath.IsAbs(cleaned) || rootDir == "" {
+		return cleaned
+	}
+	if strings.HasPrefix(cleaned, "infra/") {
+		return filepath.Join(rootDir, strings.TrimPrefix(cleaned, "infra/"))
+	}
+	return filepath.Join(rootDir, cleaned)
 }
 
 func authProviderNames(cfg AuthProviderConfig) []string {

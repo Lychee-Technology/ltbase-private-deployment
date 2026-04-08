@@ -36,7 +36,7 @@ type authorizerSpec struct {
 var routeResourceNameCleaner = regexp.MustCompile(`[^a-z0-9]+`)
 
 func NewAPIs(ctx *pulumi.Context, cfg config.StackConfig, providers Providers, lambdas *ServiceSet) (*APISet, error) {
-	providerCfg, err := loadAuthProviderConfig(cfg.AuthProviderConfigFile)
+	providerCfg, err := loadAuthProviderConfig(ctx.RootDirectory(), cfg.AuthProviderConfigFile)
 	if err != nil {
 		return nil, err
 	}

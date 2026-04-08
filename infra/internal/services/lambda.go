@@ -101,7 +101,7 @@ func authServiceKMSAliasName(cfg config.StackConfig) string {
 func NewLambdaServices(ctx *pulumi.Context, cfg config.StackConfig, runtime *RuntimeResources, providers Providers) (*ServiceSet, error) {
 	release := artifact.NewRelease(cfg.ReleaseID, cfg.ReleaseAssetDir)
 	commonEnv := commonLambdaEnv(cfg, runtime.Table.Name, runtime.RuntimeBucket.Bucket)
-	providerCfg, err := loadAuthProviderConfig(cfg.AuthProviderConfigFile)
+	providerCfg, err := loadAuthProviderConfig(ctx.RootDirectory(), cfg.AuthProviderConfigFile)
 	if err != nil {
 		return nil, err
 	}
