@@ -77,3 +77,28 @@ func TestRouteResourceNameIsStableFromRouteKey(t *testing.T) {
 		t.Fatalf("routeResourceNameSuffix() = %q", got)
 	}
 }
+
+func TestControlRouteAliases(t *testing.T) {
+	cfg := config.StackConfig{Project: "ltbase-infra", Stack: "devo"}
+	tests := []struct {
+		name     string
+		suffix   string
+		routeKey string
+		want     string
+	}{
+		{name: "control root", suffix: "control", routeKey: "ANY /", want: "ltbase-infra-devo-control-root"},
+		{name: "control proxy", suffix: "control", routeKey: "ANY /{proxy+}", want: "ltbase-infra-devo-control-route"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := legacyRouteAliasName(cfg, tt.suffix, routeSpec{RouteKey: tt.routeKey}); got != tt.want {
+				t.Fatalf("legacyRouteAliasName() = %q, want %q", got, tt.want)
+			}
+		})
+	}
+
+	if got := legacyRouteAliasName(cfg, "api", routeSpec{RouteKey: "ANY /"}); got != "" {
+		t.Fatalf("non-control alias = %q, want empty", got)
+	}
+}

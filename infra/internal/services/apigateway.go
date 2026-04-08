@@ -98,6 +98,30 @@ func buildControlPlaneRouteSpecs() []routeSpec {
 	}
 }
 
+func legacyRouteAliasName(cfg config.StackConfig, suffix string, spec routeSpec) string {
+	if suffix != "control" {
+		return ""
+	}
+
+	switch spec.RouteKey {
+	case "ANY /":
+		return naming.ResourceName(cfg.Project, cfg.Stack, "control-root")
+	case "ANY /{proxy+}":
+		return naming.ResourceName(cfg.Project, cfg.Stack, "control-route")
+	default:
+		return ""
+	}
+}
+
+func routeAliases(cfg config.StackConfig, suffix string, spec routeSpec) []pulumi.Alias {
+	legacyName := legacyRouteAliasName(cfg, suffix, spec)
+	if legacyName == "" {
+		return nil
+	}
+
+	return []pulumi.Alias{{Name: pulumi.String(legacyName)}}
+}
+
 func buildAuthAuthorizerSpecs(cfg config.StackConfig, providerCfg AuthProviderConfig) []authorizerSpec {
 	specs := []authorizerSpec{ltbaseAuthorizerSpec(cfg)}
 	for _, provider := range providerCfg.Providers {
@@ -175,7 +199,11 @@ func newHTTPAPI(ctx *pulumi.Context, cfg config.StackConfig, providers Providers
 			args.AuthorizationType = pulumi.StringPtr("JWT")
 			args.AuthorizerId = authorizerIDs[spec.AuthorizerName].ToStringPtrOutput()
 		}
-		_, err = apigatewayv2.NewRoute(ctx, naming.ResourceName(cfg.Project, cfg.Stack, suffix+"-route-"+routeResourceNameSuffix(spec.RouteKey)), args, pulumi.Provider(providers.AWS))
+		options := []pulumi.ResourceOption{pulumi.Provider(providers.AWS)}
+		if aliases := routeAliases(cfg, suffix, spec); len(aliases) > 0 {
+			options = append(options, pulumi.Aliases(aliases))
+		}
+		_, err = apigatewayv2.NewRoute(ctx, naming.ResourceName(cfg.Project, cfg.Stack, suffix+"-route-"+routeResourceNameSuffix(spec.RouteKey)), args, options...)
 		if err != nil {
 			return nil, err
 		}
