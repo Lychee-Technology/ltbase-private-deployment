@@ -21,6 +21,8 @@ type StackConfig struct {
 	APIDomain                string
 	ControlPlaneDomain       string
 	AuthDomain               string
+	ProjectID                string
+	AuthProviderConfigFile   string
 	CloudflareZoneID         string
 	CloudflareZoneName       string
 	OIDCIssuerURL            string
@@ -55,6 +57,8 @@ func Load(ctx *pulumi.Context) (StackConfig, error) {
 		APIDomain:                cfg.Require("apiDomain"),
 		ControlPlaneDomain:       cfg.Require("controlPlaneDomain"),
 		AuthDomain:               cfg.Require("authDomain"),
+		ProjectID:                cfg.Require("projectId"),
+		AuthProviderConfigFile:   cfg.Require("authProviderConfigFile"),
 		CloudflareZoneID:         cfg.Require("cloudflareZoneId"),
 		CloudflareZoneName:       strings.TrimSpace(cfg.Get("cloudflareZoneName")),
 		OIDCIssuerURL:            cfg.Require("oidcIssuerUrl"),

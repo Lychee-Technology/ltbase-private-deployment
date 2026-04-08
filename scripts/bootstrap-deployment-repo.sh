@@ -50,7 +50,7 @@ for name in "${required_vars[@]}"; do
   fi
 done
 
-if ! bootstrap_env_require_stack_values "${STACK}" AWS_REGION AWS_ROLE_ARN PULUMI_SECRETS_PROVIDER API_DOMAIN CONTROL_DOMAIN AUTH_DOMAIN OIDC_ISSUER_URL JWKS_URL RUNTIME_BUCKET TABLE_NAME; then
+if ! bootstrap_env_require_stack_values "${STACK}" AWS_REGION AWS_ROLE_ARN PULUMI_SECRETS_PROVIDER API_DOMAIN CONTROL_DOMAIN AUTH_DOMAIN PROJECT_ID AUTH_PROVIDER_CONFIG_FILE OIDC_ISSUER_URL JWKS_URL RUNTIME_BUCKET TABLE_NAME; then
   exit 1
 fi
 
@@ -84,6 +84,8 @@ selected_table_name="$(bootstrap_env_resolve_stack_value TABLE_NAME "${STACK}")"
 selected_api_domain="$(bootstrap_env_resolve_stack_value API_DOMAIN "${STACK}")"
 selected_control_domain="$(bootstrap_env_resolve_stack_value CONTROL_DOMAIN "${STACK}")"
 selected_auth_domain="$(bootstrap_env_resolve_stack_value AUTH_DOMAIN "${STACK}")"
+selected_project_id="$(bootstrap_env_resolve_stack_value PROJECT_ID "${STACK}")"
+selected_auth_provider_config_file="$(bootstrap_env_resolve_stack_value AUTH_PROVIDER_CONFIG_FILE "${STACK}")"
 selected_oidc_issuer_url="$(bootstrap_env_resolve_stack_value OIDC_ISSUER_URL "${STACK}")"
 selected_jwks_url="$(bootstrap_env_resolve_stack_value JWKS_URL "${STACK}")"
 selected_account_id="$(bootstrap_env_resolve_stack_value AWS_ACCOUNT_ID "${STACK}")"
@@ -110,6 +112,8 @@ fi
 "${stack_env[@]}" pulumi config set apiDomain "${selected_api_domain}" --stack "${STACK}"
 "${stack_env[@]}" pulumi config set controlPlaneDomain "${selected_control_domain}" --stack "${STACK}"
 "${stack_env[@]}" pulumi config set authDomain "${selected_auth_domain}" --stack "${STACK}"
+"${stack_env[@]}" pulumi config set projectId "${selected_project_id}" --stack "${STACK}"
+"${stack_env[@]}" pulumi config set authProviderConfigFile "${selected_auth_provider_config_file}" --stack "${STACK}"
 "${stack_env[@]}" pulumi config set cloudflareZoneId "${CLOUDFLARE_ZONE_ID}" --stack "${STACK}"
 "${stack_env[@]}" pulumi config set oidcIssuerUrl "${selected_oidc_issuer_url}" --stack "${STACK}"
 "${stack_env[@]}" pulumi config set jwksUrl "${selected_jwks_url}" --stack "${STACK}"

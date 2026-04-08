@@ -2,6 +2,7 @@ package services
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/pulumi/pulumi-aws/sdk/v7/go/aws/cloudwatch"
 	"github.com/pulumi/pulumi-aws/sdk/v7/go/aws/dsql"
@@ -100,6 +101,11 @@ func authServiceKMSAliasName(cfg config.StackConfig) string {
 func NewLambdaServices(ctx *pulumi.Context, cfg config.StackConfig, runtime *RuntimeResources, providers Providers) (*ServiceSet, error) {
 	release := artifact.NewRelease(cfg.ReleaseID, cfg.ReleaseAssetDir)
 	commonEnv := commonLambdaEnv(cfg, runtime.Table.Name, runtime.RuntimeBucket.Bucket)
+	providerCfg, err := loadAuthProviderConfig(cfg.AuthProviderConfigFile)
+	if err != nil {
+		return nil, err
+	}
+	providerNames := authProviderNames(providerCfg)
 	dataPlane, err := newLambdaService(ctx, cfg, providers, lambdaSpec{
 		Name:         "data-plane",
 		ArtifactPath: release.DataPlaneZip,
@@ -128,13 +134,7 @@ func NewLambdaServices(ctx *pulumi.Context, cfg config.StackConfig, runtime *Run
 	if err != nil {
 		return nil, err
 	}
-	authEnv := mergeEnv(commonEnv, pulumi.StringMap{
-		"AUTH_SIGNER_MODE":          pulumi.String("kms"),
-		"AUTH_KMS_KEY_ID":           runtime.AuthKey.KeyId,
-		"AUTH_STAGE":                pulumi.String(cfg.AuthStage),
-		"AUTH_JWKS_FILE_PATH":       pulumi.String("/var/task/jwt/jwks.json"),
-		"AUTH_DEFAULT_API_BASE_URL": pulumi.String("https://" + cfg.APIDomain),
-	})
+	authEnv := authLambdaEnv(cfg, providerNames, runtime.AuthKey.KeyId, runtime.Table.Name, runtime.RuntimeBucket.Bucket)
 	authService, err := newLambdaService(ctx, cfg, providers, lambdaSpec{
 		Name:         "authservice",
 		ArtifactPath: release.AuthServiceZip,
@@ -163,6 +163,17 @@ func NewLambdaServices(ctx *pulumi.Context, cfg config.StackConfig, runtime *Run
 		return nil, err
 	}
 	return &ServiceSet{DataPlane: dataPlane, ControlPlane: controlPlane, AuthService: authService, FormaCdc: formaCdc}, nil
+}
+
+func authLambdaEnv(cfg config.StackConfig, providerNames []string, authKeyID pulumi.StringInput, tableName pulumi.StringInput, bucketName pulumi.StringInput) pulumi.StringMap {
+	return mergeEnv(commonLambdaEnv(cfg, tableName, bucketName), pulumi.StringMap{
+		"AUTH_SIGNER_MODE":          pulumi.String("kms"),
+		"AUTH_KMS_KEY_ID":           authKeyID,
+		"AUTH_STAGE":                pulumi.String(cfg.AuthStage),
+		"AUTH_JWKS_FILE_PATH":       pulumi.String("/var/task/jwt/jwks.json"),
+		"AUTH_DEFAULT_API_BASE_URL": pulumi.String("https://" + cfg.APIDomain),
+		"AUTH_PROVIDERS":            pulumi.String(strings.Join(providerNames, ",")),
+	})
 }
 
 type lambdaSpec struct {

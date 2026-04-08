@@ -5,6 +5,8 @@ config:
   ltbase-infra:apiDomain: api.customer.example.com
   ltbase-infra:controlPlaneDomain: control.customer.example.com
   ltbase-infra:authDomain: auth.customer.example.com
+  ltbase-infra:projectId: 22222222-2222-4222-8222-222222222222
+  ltbase-infra:authProviderConfigFile: infra/auth-providers.prod.json
   ltbase-infra:cloudflareZoneId: replace-with-zone-id
   ltbase-infra:oidcIssuerUrl: https://oidc.ltbase.dev/customer-prod
   ltbase-infra:jwksUrl: https://oidc.ltbase.dev/customer-prod/.well-known/jwks.json

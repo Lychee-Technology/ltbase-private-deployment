@@ -65,6 +65,12 @@ CONTROL_DOMAIN_PROD=control.example.com
 AUTH_DOMAIN_DEVO=auth.devo.example.com
 AUTH_DOMAIN_STAGING=auth.staging.example.com
 AUTH_DOMAIN_PROD=auth.example.com
+PROJECT_ID_DEVO=11111111-1111-4111-8111-111111111111
+PROJECT_ID_STAGING=22222222-2222-4222-8222-222222222222
+PROJECT_ID_PROD=33333333-3333-4333-8333-333333333333
+AUTH_PROVIDER_CONFIG_FILE_DEVO=infra/auth-providers.devo.json
+AUTH_PROVIDER_CONFIG_FILE_STAGING=infra/auth-providers.staging.json
+AUTH_PROVIDER_CONFIG_FILE_PROD=infra/auth-providers.prod.json
 CLOUDFLARE_ZONE_ID=zone-123
 OIDC_ISSUER_URL_DEVO=https://issuer.example.com/devo
 OIDC_ISSUER_URL_STAGING=https://issuer.example.com/staging
@@ -116,6 +122,8 @@ if [[ -x "${SCRIPT_PATH}" ]]; then
   assert_log_contains "${log_file}" "PWD=${temp_dir}/infra AWS_REGION=us-west-2 AWS_DEFAULT_REGION=us-west-2 AWS_PROFILE=prod-profile pulumi stack init prod --secrets-provider awskms://alias/test-pulumi-secrets?region=us-west-2"
   assert_log_contains "${log_file}" "pulumi config set runtimeBucket ltbase-private-deployment-runtime-prod --stack prod"
   assert_log_contains "${log_file}" "pulumi config set apiDomain api.example.com --stack prod"
+  assert_log_contains "${log_file}" "pulumi config set projectId 33333333-3333-4333-8333-333333333333 --stack prod"
+  assert_log_contains "${log_file}" "pulumi config set authProviderConfigFile infra/auth-providers.prod.json --stack prod"
   assert_log_contains "${log_file}" "pulumi config set oidcIssuerUrl https://issuer.example.com/prod --stack prod"
   assert_log_contains "${log_file}" "pulumi config set githubOidcProviderArn arn:aws:iam::123456789012:oidc-provider/token.actions.githubusercontent.com --stack prod"
   assert_log_contains "${log_file}" "pulumi config set tableName ltbase-private-deployment-prod --stack prod"
