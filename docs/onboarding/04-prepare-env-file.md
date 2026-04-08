@@ -48,11 +48,14 @@ Use this guide to create the local `.env` file that drives the bootstrap scripts
    - `LTBASE_RELEASE_ID`
    - Source: the LTBase release repository and release ID you plan to deploy
 8. Fill in per-stack domain values:
-   - `API_DOMAIN_<STACK>`
-   - `CONTROL_DOMAIN_<STACK>`
-   - `AUTH_DOMAIN_<STACK>`
-   - `CLOUDFLARE_ZONE_ID`
-   - Source: your final DNS plan in the target Cloudflare zone
+    - `API_DOMAIN_<STACK>`
+    - `CONTROL_DOMAIN_<STACK>`
+    - `AUTH_DOMAIN_<STACK>`
+    - `PROJECT_ID_<STACK>`
+    - `AUTH_PROVIDER_CONFIG_FILE_<STACK>`
+    - `CLOUDFLARE_ZONE_ID`
+    - Source: your final DNS plan in the target Cloudflare zone
+    - For `AUTH_PROVIDER_CONFIG_FILE_<STACK>`, point to a checked-in JSON file that lists the external JWT providers enabled for that stack.
 9. Fill in application defaults:
    - `GEMINI_MODEL`
    - `DSQL_PORT`, `DSQL_DB`, `DSQL_USER`, `DSQL_PROJECT_SCHEMA`
@@ -74,7 +77,7 @@ These values are customer-controlled inputs and should usually be set explicitly
 - `AWS_PROFILE_<STACK>` when multiple stacks use different AWS credentials locally
 - `PULUMI_STATE_BUCKET`, `PULUMI_KMS_ALIAS`
 - `LTBASE_RELEASES_REPO`, `LTBASE_RELEASE_ID`
-- `API_DOMAIN_<STACK>`, `CONTROL_DOMAIN_<STACK>`, `AUTH_DOMAIN_<STACK>`, `CLOUDFLARE_ZONE_ID`
+- `API_DOMAIN_<STACK>`, `CONTROL_DOMAIN_<STACK>`, `AUTH_DOMAIN_<STACK>`, `PROJECT_ID_<STACK>`, `AUTH_PROVIDER_CONFIG_FILE_<STACK>`, `CLOUDFLARE_ZONE_ID`
 - `GEMINI_MODEL`, `DSQL_PORT`, `DSQL_DB`, `DSQL_USER`, `DSQL_PROJECT_SCHEMA`
 - `GEMINI_API_KEY`, `CLOUDFLARE_API_TOKEN`, `LTBASE_RELEASES_TOKEN`
 

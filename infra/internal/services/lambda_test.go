@@ -50,3 +50,21 @@ func TestCommonLambdaEnvOmitsReservedAWSRegion(t *testing.T) {
 		}
 	}
 }
+
+func TestAuthLambdaEnvIncludesProviderNames(t *testing.T) {
+	env := authLambdaEnv(config.StackConfig{
+		Stack:             "devo",
+		APIDomain:         "api.devo.example.com",
+		AWSRegion:         "ap-northeast-1",
+		DSQLPort:          "5432",
+		DSQLDB:            "postgres",
+		DSQLUser:          "admin",
+		DSQLProjectSchema: "ltbase",
+	}, []string{"firebase", "supabase"}, pulumi.String("kms-key-id"), pulumi.String("table-name"), pulumi.String("bucket-name"))
+
+	for _, key := range []string{"AUTH_PROVIDERS", "AUTH_SIGNER_MODE", "AUTH_KMS_KEY_ID"} {
+		if _, ok := env[key]; !ok {
+			t.Fatalf("authLambdaEnv() missing %s", key)
+		}
+	}
+}

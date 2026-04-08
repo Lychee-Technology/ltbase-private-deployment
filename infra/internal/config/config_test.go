@@ -57,3 +57,20 @@ func TestReleaseAssetDirDefaultTargetsRepoRoot(t *testing.T) {
 		t.Fatalf("default release asset dir = %q", got)
 	}
 }
+
+func TestValidateAllowsProjectIDAndAuthProviderConfigFile(t *testing.T) {
+	cfg := StackConfig{
+		ManageGitHubOIDCProvider: true,
+		ProjectID:                "11111111-1111-4111-8111-111111111111",
+		AuthProviderConfigFile:   "infra/auth-providers.devo.json",
+	}
+	if err := cfg.Validate(); err != nil {
+		t.Fatalf("Validate() unexpected error: %v", err)
+	}
+	if cfg.ProjectID == "" {
+		t.Fatal("ProjectID should be preserved")
+	}
+	if cfg.AuthProviderConfigFile == "" {
+		t.Fatal("AuthProviderConfigFile should be preserved")
+	}
+}
