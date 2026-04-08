@@ -131,6 +131,7 @@ fi
 exit 0
 EOF
 chmod +x "${fake_bin}/aws"
+cp "${fake_bin}/aws" "${fake_bin}/aws-base"
 
 if [[ -x "${SCRIPT_PATH}" ]]; then
   if ! output="$(PATH="${fake_bin}:$PATH" "${SCRIPT_PATH}" --env-file "${temp_dir}/.env" --output-dir "${temp_dir}/dist" 2>&1)"; then
@@ -148,6 +149,9 @@ if [[ -x "${SCRIPT_PATH}" ]]; then
   assert_log_contains "${log_file}" "aws --profile staging-profile iam put-role-policy --role-name ltbase-deploy-staging --policy-name LTBaseDeploymentAccess"
   assert_log_contains "${log_file}" "aws --profile prod-profile iam put-role-policy --role-name ltbase-deploy-prod --policy-name LTBaseDeploymentAccess"
   assert_log_contains "${log_file}" "aws --profile devo-profile s3api create-bucket --bucket test-pulumi-state --region ap-northeast-1 --create-bucket-configuration LocationConstraint=ap-northeast-1"
+  assert_log_contains "${log_file}" "aws --profile devo-profile s3api put-bucket-versioning --bucket test-pulumi-state --versioning-configuration Status=Enabled"
+  assert_log_contains "${log_file}" "aws --profile devo-profile s3api put-bucket-encryption --bucket test-pulumi-state --server-side-encryption-configuration"
+  assert_log_contains "${log_file}" "aws --profile devo-profile s3api put-public-access-block --bucket test-pulumi-state --public-access-block-configuration"
   assert_log_contains "${log_file}" "aws --profile devo-profile kms create-key --region ap-northeast-1"
   assert_log_contains "${log_file}" "aws --profile staging-profile kms create-key --region eu-central-1"
   assert_log_contains "${log_file}" "aws --profile prod-profile kms create-key --region us-west-2"
@@ -195,6 +199,61 @@ fi
 
 assert_log_contains "${temp_dir}/missing.log" "AWS profile is required for stack"
 
+cat >"${temp_dir}/reuse.env" <<'EOF'
+GITHUB_OWNER=customer-org
+DEPLOYMENT_REPO_NAME=customer-ltbase
+DEPLOYMENT_REPO=customer-org/customer-ltbase
+AWS_REGION_DEVO=ap-northeast-1
+AWS_REGION_PROD=us-west-2
+AWS_ACCOUNT_ID_DEVO=123456789012
+AWS_ACCOUNT_ID_PROD=210987654321
+AWS_PROFILE_DEVO=devo-profile
+AWS_PROFILE_PROD=prod-profile
+AWS_ROLE_NAME_DEVO=ltbase-deploy-devo
+AWS_ROLE_NAME_PROD=ltbase-deploy-prod
+PULUMI_STATE_BUCKET=test-pulumi-state
+PULUMI_KMS_ALIAS=alias/test-pulumi-secrets
+EOF
+
+cat >"${fake_bin}/aws-reuse" <<EOF
+#!/usr/bin/env bash
+set -euo pipefail
+printf 'aws %s\n' "\$*" >>"${log_file}"
+args=("\$@")
+if [[ "\${args[0]:-}" == "--profile" ]]; then
+  args=("\${args[@]:2}")
+fi
+if [[ "\${args[0]:-} \${args[1]:-}" == "sts get-caller-identity" ]]; then
+  printf '{"Account":"123456789012"}'
+  exit 0
+fi
+if [[ "\${args[0]:-} \${args[1]:-}" == "kms list-aliases" ]]; then
+  printf '{"Aliases":[{"AliasName":"alias/test-pulumi-secrets","TargetKeyId":"key-existing"}]}'
+  exit 0
+fi
+exit 0
+EOF
+chmod +x "${fake_bin}/aws-reuse"
+
+mv "${fake_bin}/aws-reuse" "${fake_bin}/aws"
+: >"${log_file}"
+if ! output="$(PATH="${fake_bin}:$PATH" "${SCRIPT_PATH}" --env-file "${temp_dir}/reuse.env" --output-dir "${temp_dir}/dist-reuse" 2>&1)"; then
+  rm -rf "${temp_dir}"
+  fail "expected reuse path to succeed, got: ${output}"
+fi
+
+assert_log_contains "${log_file}" "aws --profile devo-profile iam get-open-id-connect-provider --open-id-connect-provider-arn arn:aws:iam::123456789012:oidc-provider/token.actions.githubusercontent.com"
+assert_log_contains "${log_file}" "aws --profile prod-profile iam get-open-id-connect-provider --open-id-connect-provider-arn arn:aws:iam::210987654321:oidc-provider/token.actions.githubusercontent.com"
+assert_log_contains "${log_file}" "aws --profile devo-profile iam get-role --role-name ltbase-deploy-devo"
+assert_log_contains "${log_file}" "aws --profile prod-profile iam get-role --role-name ltbase-deploy-prod"
+assert_log_contains "${log_file}" "aws --profile devo-profile s3api head-bucket --bucket test-pulumi-state"
+assert_file_not_contains "${log_file}" "iam create-open-id-connect-provider"
+assert_file_not_contains "${log_file}" "iam create-role"
+assert_file_not_contains "${log_file}" "kms create-key"
+assert_file_not_contains "${log_file}" "kms create-alias"
+assert_file_not_contains "${log_file}" "s3api create-bucket"
+
+cp "${fake_bin}/aws-base" "${fake_bin}/aws"
 : >"${log_file}"
 if PATH="${fake_bin}:$PATH" AWS_BEHAVIOR=invalid-token "${SCRIPT_PATH}" --env-file "${temp_dir}/.env" --output-dir "${temp_dir}/dist-invalid" >"${temp_dir}/invalid-token.log" 2>&1; then
   rm -rf "${temp_dir}"
