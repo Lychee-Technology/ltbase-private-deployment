@@ -1,6 +1,9 @@
 package services
 
 import (
+	"regexp"
+	"strings"
+
 	"github.com/pulumi/pulumi-aws/sdk/v7/go/aws/acm"
 	"github.com/pulumi/pulumi-aws/sdk/v7/go/aws/apigatewayv2"
 	"github.com/pulumi/pulumi-aws/sdk/v7/go/aws/cloudwatch"
@@ -29,6 +32,8 @@ type authorizerSpec struct {
 	Issuer    string
 	Audiences []string
 }
+
+var routeResourceNameCleaner = regexp.MustCompile(`[^a-z0-9]+`)
 
 func NewAPIs(ctx *pulumi.Context, cfg config.StackConfig, providers Providers, lambdas *ServiceSet) (*APISet, error) {
 	providerCfg, err := loadAuthProviderConfig(cfg.AuthProviderConfigFile)
@@ -160,6 +165,7 @@ func newHTTPAPI(ctx *pulumi.Context, cfg config.StackConfig, providers Providers
 		authorizerIDs[spec.Name] = authorizer.ID().ToStringOutput()
 	}
 	for i, spec := range routes {
+		_ = i
 		args := &apigatewayv2.RouteArgs{
 			ApiId:    api.ID(),
 			RouteKey: pulumi.String(spec.RouteKey),
@@ -169,7 +175,7 @@ func newHTTPAPI(ctx *pulumi.Context, cfg config.StackConfig, providers Providers
 			args.AuthorizationType = pulumi.StringPtr("JWT")
 			args.AuthorizerId = authorizerIDs[spec.AuthorizerName].ToStringPtrOutput()
 		}
-		_, err = apigatewayv2.NewRoute(ctx, naming.ResourceName(cfg.Project, cfg.Stack, suffix+"-route-"+string(rune('a'+i))), args, pulumi.Provider(providers.AWS))
+		_, err = apigatewayv2.NewRoute(ctx, naming.ResourceName(cfg.Project, cfg.Stack, suffix+"-route-"+routeResourceNameSuffix(spec.RouteKey)), args, pulumi.Provider(providers.AWS))
 		if err != nil {
 			return nil, err
 		}
@@ -232,6 +238,12 @@ func newHTTPAPI(ctx *pulumi.Context, cfg config.StackConfig, providers Providers
 		return nil, err
 	}
 	return api, nil
+}
+
+func routeResourceNameSuffix(routeKey string) string {
+	normalized := strings.ToLower(strings.TrimSpace(routeKey))
+	normalized = routeResourceNameCleaner.ReplaceAllString(normalized, "-")
+	return strings.Trim(normalized, "-")
 }
 
 func newValidatedCertificate(ctx *pulumi.Context, cfg config.StackConfig, providers Providers, suffix, domain string) (*acm.CertificateValidation, error) {
