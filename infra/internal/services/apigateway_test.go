@@ -70,3 +70,10 @@ func TestBuildAuthRouteSpecs(t *testing.T) {
 		t.Fatalf("unexpected final route: %#v", routes[4])
 	}
 }
+
+func TestRouteResourceNameIsStableFromRouteKey(t *testing.T) {
+	got := routeResourceNameSuffix("POST /api/v1/id_bindings/firebase")
+	if got != "post-api-v1-id-bindings-firebase" {
+		t.Fatalf("routeResourceNameSuffix() = %q", got)
+	}
+}
