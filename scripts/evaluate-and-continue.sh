@@ -285,24 +285,34 @@ EOF
 
 stack_bootstrap_present() {
   local stack="$1"
+  local stack_env=(env)
   if [[ ! -f "${INFRA_DIR}/Pulumi.${stack}.yaml" ]]; then
     return 1
   fi
 
+  while IFS= read -r token; do
+    stack_env+=("${token}")
+  done < <(bootstrap_env_stack_runtime_env "${stack}")
+
   (
     cd "${INFRA_DIR}"
-    pulumi stack select "${stack}" >/dev/null 2>&1
+    "${stack_env[@]}" pulumi stack select "${stack}" >/dev/null 2>&1
   )
 }
 
 stack_rollout_status() {
   local stack="$1"
   local dsql_cluster_identifier dsql_endpoint
+  local stack_env=(env)
+
+  while IFS= read -r token; do
+    stack_env+=("${token}")
+  done < <(bootstrap_env_stack_runtime_env "${stack}")
 
   dsql_cluster_identifier="$(
     (
       cd "${INFRA_DIR}"
-      pulumi stack output dsqlClusterIdentifier --stack "${stack}" 2>/dev/null
+      "${stack_env[@]}" pulumi stack output dsqlClusterIdentifier --stack "${stack}" 2>/dev/null
     ) || true
   )"
   if [[ -z "${dsql_cluster_identifier}" ]]; then
@@ -313,7 +323,7 @@ stack_rollout_status() {
   dsql_endpoint="$(
     (
       cd "${INFRA_DIR}"
-      pulumi config get dsqlEndpoint --stack "${stack}" 2>/dev/null
+      "${stack_env[@]}" pulumi config get dsqlEndpoint --stack "${stack}" 2>/dev/null
     ) || true
   )"
   if [[ -z "${dsql_endpoint}" ]]; then
@@ -326,6 +336,7 @@ stack_rollout_status() {
 
 scan_state() {
   local repo_present repo_config_ok shared_foundation_ok stack foundation_ok status rollout_status
+  local backend_stack backend_env=(env)
 
   if repo_exists; then
     repo_present="true"
@@ -346,7 +357,11 @@ scan_state() {
   fi
 
   if [[ "${SCOPE}" != "foundation" ]]; then
-    pulumi login "${PULUMI_BACKEND_URL}" >/dev/null 2>&1 || true
+    backend_stack="$(bootstrap_env_csv_first "${PROMOTION_PATH:-${STACKS}}")"
+    while IFS= read -r token; do
+      backend_env+=("${token}")
+    done < <(bootstrap_env_stack_runtime_env "${backend_stack}")
+    "${backend_env[@]}" pulumi login "${PULUMI_BACKEND_URL}" >/dev/null 2>&1 || true
   fi
 
   while IFS= read -r stack; do

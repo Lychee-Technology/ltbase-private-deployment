@@ -10,6 +10,14 @@ fail() {
   exit 1
 }
 
+assert_log_not_contains() {
+  local path="$1"
+  local needle="$2"
+  if grep -Fq "${needle}" "${path}"; then
+    fail "expected ${path} to not contain: ${needle}"
+  fi
+}
+
 assert_log_contains() {
   local path="$1"
   local needle="$2"
@@ -66,7 +74,7 @@ if [[ "${cmd} ${sub}" == "repo view" ]]; then
   exit 1
 fi
 if [[ "${cmd} ${sub}" == "api repos/customer-org/customer-ltbase-oidc-discovery" ]]; then
-  printf '{"default_branch":"main"}'
+  printf '{"default_branch":"main","private":false}'
   exit 0
 fi
 exit 0
@@ -145,5 +153,33 @@ assert_file_contains "${temp_dir}/dist/oidc-discovery-companion.env" "OIDC_DISCO
 assert_file_contains "${temp_dir}/dist/oidc-discovery-companion.env" "OIDC_DISCOVERY_PAGES_PROJECT=customer-ltbase-oidc-discovery"
 assert_file_contains "${temp_dir}/dist/oidc-discovery-companion.env" "OIDC_ISSUER_URL_DEVO=https://oidc.customer.example.com/devo"
 assert_file_contains "${temp_dir}/dist/oidc-discovery-companion.env" "JWKS_URL_PROD=https://oidc.customer.example.com/prod/.well-known/jwks.json"
+
+cat >"${temp_dir}/invalid-domain.env" <<'EOF'
+STACKS=devo,prod
+PROMOTION_PATH=devo,prod
+TEMPLATE_REPO=Lychee-Technology/ltbase-private-deployment
+GITHUB_OWNER=customer-org
+DEPLOYMENT_REPO_NAME=customer-ltbase
+DEPLOYMENT_REPO_VISIBILITY=private
+DEPLOYMENT_REPO_DESCRIPTION="Customer LTBase deployment repo"
+OIDC_DISCOVERY_DOMAIN=oidc_customer.example.com
+CLOUDFLARE_ACCOUNT_ID=cf-account-123
+AWS_REGION_DEVO=ap-northeast-1
+AWS_REGION_PROD=us-west-2
+AWS_ACCOUNT_ID_DEVO=123456789012
+AWS_ACCOUNT_ID_PROD=210987654321
+AWS_PROFILE_DEVO=devo-profile
+AWS_PROFILE_PROD=prod-profile
+PULUMI_KMS_ALIAS=alias/ltbase-pulumi-secrets
+CLOUDFLARE_API_TOKEN=test-cloudflare-token
+EOF
+
+: >"${log_file}"
+if PATH="${fake_bin}:$PATH" COMMAND_LOG="${log_file}" "${SCRIPT_PATH}" --env-file "${temp_dir}/invalid-domain.env" --output-dir "${temp_dir}/dist-invalid" >"${temp_dir}/invalid-domain.log" 2>&1; then
+  fail "expected invalid OIDC discovery domain to fail"
+fi
+
+assert_log_contains "${temp_dir}/invalid-domain.log" "OIDC_DISCOVERY_DOMAIN is invalid"
+assert_log_not_contains "${log_file}" "https://api.cloudflare.com/client/v4/accounts/cf-account-123/pages/projects"
 
 printf 'PASS: bootstrap-oidc-discovery-companion tests\n'

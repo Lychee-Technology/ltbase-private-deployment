@@ -135,6 +135,10 @@ if [[ "${cmd}" == "api" ]]; then
     fi
     exit 0
   fi
+  if [[ "${url}" == "repos/customer-org/customer-ltbase-oidc-discovery" ]]; then
+    printf '{"default_branch":"main","private":false}\n'
+    exit 0
+  fi
   exit 0
 fi
 if [[ "${cmd} ${sub}" == "variable list" ]]; then
@@ -263,7 +267,7 @@ EOF
   cat >"${fake_bin}/pulumi" <<'EOF'
 #!/usr/bin/env bash
 set -euo pipefail
-printf 'pulumi %s\n' "$*" >>"${COMMAND_LOG}"
+printf 'AWS_REGION=%s AWS_DEFAULT_REGION=%s AWS_PROFILE=%s pulumi %s\n' "${AWS_REGION:-}" "${AWS_DEFAULT_REGION:-}" "${AWS_PROFILE:-}" "$*" >>"${COMMAND_LOG}"
 
 stack_name() {
   local previous=""
@@ -408,6 +412,10 @@ assert_file_contains "${temp_dir}/report-rollout/report.json" '"stack": "staging
 assert_file_contains "${temp_dir}/report-rollout/report.json" '"status": "needs_dsql_reconcile"'
 assert_file_contains "${temp_dir}/report-rollout/report.json" '"stack": "prod"'
 assert_file_contains "${temp_dir}/report-rollout/report.json" '"status": "complete"'
+assert_log_contains "${temp_dir}/commands.log" "AWS_REGION=ap-northeast-1 AWS_DEFAULT_REGION=ap-northeast-1 AWS_PROFILE=devo-profile pulumi login s3://test-pulumi-state"
+assert_log_contains "${temp_dir}/commands.log" "AWS_REGION=ap-northeast-1 AWS_DEFAULT_REGION=ap-northeast-1 AWS_PROFILE=devo-profile pulumi stack select devo"
+assert_log_contains "${temp_dir}/commands.log" "AWS_REGION=us-east-1 AWS_DEFAULT_REGION=us-east-1 AWS_PROFILE=staging-profile pulumi stack select staging"
+assert_log_contains "${temp_dir}/commands.log" "AWS_REGION=us-west-2 AWS_DEFAULT_REGION=us-west-2 AWS_PROFILE=prod-profile pulumi stack select prod"
 
 run_expect_exit_code 2 env \
   PATH="${temp_dir}/bin:$PATH" \

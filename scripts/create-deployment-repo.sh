@@ -40,7 +40,20 @@ if [[ "${DEPLOYMENT_REPO_VISIBILITY}" == "public" ]]; then
   visibility_flag="--public"
 fi
 
-gh repo create "${DEPLOYMENT_REPO}" --template "${TEMPLATE_REPO}" ${visibility_flag} --description "${DEPLOYMENT_REPO_DESCRIPTION}" --clone=false
+expected_private="true"
+if [[ "${DEPLOYMENT_REPO_VISIBILITY}" == "public" ]]; then
+  expected_private="false"
+fi
+
+if gh repo view "${DEPLOYMENT_REPO}" >/dev/null 2>&1; then
+  actual_private="$(gh api "repos/${DEPLOYMENT_REPO}" --jq '.private')"
+  if [[ "${actual_private}" != "${expected_private}" ]]; then
+    echo "existing repository visibility mismatch for ${DEPLOYMENT_REPO}: expected ${DEPLOYMENT_REPO_VISIBILITY}" >&2
+    exit 1
+  fi
+else
+  gh repo create "${DEPLOYMENT_REPO}" --template "${TEMPLATE_REPO}" ${visibility_flag} --description "${DEPLOYMENT_REPO_DESCRIPTION}" --clone=false
+fi
 
 promotion_index=0
 while IFS= read -r stack; do

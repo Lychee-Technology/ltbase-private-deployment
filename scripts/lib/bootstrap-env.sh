@@ -79,6 +79,48 @@ bootstrap_env_stack_profile_args() {
   fi
 }
 
+bootstrap_env_stack_runtime_env() {
+  local stack="$1"
+  local upper_name profile_var_name region
+
+  upper_name="$(bootstrap_env_stack_upper "${stack}")"
+  profile_var_name="AWS_PROFILE_${upper_name}"
+  region="$(bootstrap_env_resolve_stack_value AWS_REGION "${stack}")"
+
+  printf '%s\n' "AWS_REGION=${region}"
+  printf '%s\n' "AWS_DEFAULT_REGION=${region}"
+  if [[ -n "${!profile_var_name:-}" ]]; then
+    printf '%s\n' "AWS_PROFILE=${!profile_var_name}"
+  fi
+}
+
+bootstrap_env_require_aws_credentials_for_stack() {
+  local stack="$1"
+  local upper_name profile_var_name profile_name output status
+  local command=(aws)
+
+  while IFS= read -r token; do
+    command+=("${token}")
+  done < <(bootstrap_env_stack_profile_args "${stack}")
+
+  if output="$("${command[@]}" sts get-caller-identity --output json 2>&1 >/dev/null)"; then
+    return 0
+  else
+    status=$?
+  fi
+
+  upper_name="$(bootstrap_env_stack_upper "${stack}")"
+  profile_var_name="AWS_PROFILE_${upper_name}"
+  profile_name="${!profile_var_name:-default credentials}"
+
+  printf 'AWS credentials check failed for stack %s (profile: %s). Refresh the AWS session or fix the configured credentials before rerunning.\n' "${stack}" "${profile_name}" >&2
+  if [[ -n "${output}" ]]; then
+    printf '%s\n' "${output}" >&2
+  fi
+
+  return "${status}"
+}
+
 bootstrap_env_aws_command_for_stack() {
   local stack="$1"
   shift

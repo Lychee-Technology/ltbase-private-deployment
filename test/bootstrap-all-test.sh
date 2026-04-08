@@ -27,10 +27,22 @@ assert_log_not_contains() {
 }
 
 temp_dir="$(mktemp -d)"
-fake_bin="${temp_dir}/bin"
+repo_copy="${temp_dir}/repo"
 log_file="${temp_dir}/commands.log"
-mkdir -p "${fake_bin}" "${temp_dir}/infra"
+mkdir -p "${repo_copy}" "${temp_dir}/infra"
 touch "${log_file}"
+
+cp -R "${ROOT_DIR}/." "${repo_copy}"
+
+create_stub() {
+  local name="$1"
+  cat >"${repo_copy}/scripts/${name}" <<EOF
+#!/usr/bin/env bash
+set -euo pipefail
+printf '%s %s\n' '${name}' "\$*" >>"${log_file}"
+EOF
+  chmod +x "${repo_copy}/scripts/${name}"
+}
 
 cat >"${temp_dir}/.env" <<'EOF'
 STACKS=devo,staging,prod
@@ -82,16 +94,11 @@ LTBASE_RELEASES_TOKEN=test-release-token
 EOF
 
 for name in render-bootstrap-policies.sh create-deployment-repo.sh bootstrap-aws-foundation.sh bootstrap-oidc-discovery-companion.sh bootstrap-deployment-repo.sh reconcile-managed-dsql-endpoint.sh; do
-  cat >"${fake_bin}/${name}" <<EOF
-#!/usr/bin/env bash
-set -euo pipefail
-printf '%s %s\n' '${name}' "\$*" >>"${log_file}"
-EOF
-  chmod +x "${fake_bin}/${name}"
+  create_stub "${name}"
 done
 
 if [[ -x "${SCRIPT_PATH}" ]]; then
-  if ! output="$(PATH="${fake_bin}:$PATH" "${SCRIPT_PATH}" --env-file "${temp_dir}/.env" --mode apply --infra-dir "${temp_dir}/infra" 2>&1)"; then
+  if ! output="$("${repo_copy}/scripts/bootstrap-all.sh" --env-file "${temp_dir}/.env" --mode apply --infra-dir "${temp_dir}/infra" 2>&1)"; then
     rm -rf "${temp_dir}"
     fail "expected orchestrator to succeed when implemented, got: ${output}"
   fi

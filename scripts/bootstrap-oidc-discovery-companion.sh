@@ -34,6 +34,13 @@ bootstrap_env_load "${ENV_FILE}"
 
 required_vars=(GITHUB_OWNER DEPLOYMENT_REPO_NAME DEPLOYMENT_REPO_VISIBILITY OIDC_DISCOVERY_DOMAIN CLOUDFLARE_ACCOUNT_ID CLOUDFLARE_API_TOKEN OIDC_DISCOVERY_TEMPLATE_REPO OIDC_DISCOVERY_REPO_NAME OIDC_DISCOVERY_REPO OIDC_DISCOVERY_PAGES_PROJECT)
 bootstrap_env_require_vars "${required_vars[@]}"
+
+if ! python3 -c 'import re, sys; domain = sys.argv[1]; label = r"(?!-)[a-z0-9-]{1,63}(?<!-)"; pattern = rf"^{label}(\.{label})+$"; sys.exit(0 if re.fullmatch(pattern, domain.lower()) else 1)' "${OIDC_DISCOVERY_DOMAIN}"; then
+  printf 'OIDC_DISCOVERY_DOMAIN is invalid: %s\n' "${OIDC_DISCOVERY_DOMAIN}" >&2
+  printf 'Use a valid DNS hostname with letters, digits, and hyphens only. Underscores are not allowed.\n' >&2
+  exit 1
+fi
+
 while IFS= read -r stack; do
   bootstrap_env_require_stack_values "${stack}" AWS_REGION AWS_ACCOUNT_ID OIDC_DISCOVERY_AWS_ROLE_NAME OIDC_DISCOVERY_AWS_ROLE_ARN OIDC_ISSUER_URL JWKS_URL
 done < <(bootstrap_env_each_stack)
@@ -62,13 +69,7 @@ if ! gh repo view "${OIDC_DISCOVERY_REPO}" >/dev/null 2>&1; then
 fi
 
 repo_metadata="$(gh api "repos/${OIDC_DISCOVERY_REPO}")"
-default_branch="$(python3 - <<'PY' <<<"${repo_metadata}"
-import json
-import sys
-
-data = json.load(sys.stdin)
-print(data.get("default_branch", "main"))
-PY
+default_branch="$(python3 -c 'import json, sys; data = json.load(sys.stdin); print(data.get("default_branch", "main"))' <<<"${repo_metadata}"
 )"
 
 if ! curl -fsS "${cloudflare_headers[@]}" "${pages_project_url}" >/dev/null 2>&1; then
@@ -113,6 +114,8 @@ create_or_update_discovery_role() {
   local stack="$1"
   local upper_name account_id region role_name role_arn provider_arn
   local trust_policy_path role_policy_path
+
+  bootstrap_env_require_aws_credentials_for_stack "${stack}"
 
   upper_name="$(bootstrap_env_stack_upper "${stack}")"
   account_id="$(bootstrap_env_resolve_stack_value AWS_ACCOUNT_ID "${stack}")"
