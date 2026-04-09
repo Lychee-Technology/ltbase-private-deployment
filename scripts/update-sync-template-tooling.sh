@@ -7,17 +7,6 @@ UPSTREAM_URL="https://github.com/Lychee-Technology/ltbase-private-deployment.git
 BRANCH="main"
 ARCHIVE_PATH="sync-template-upstream.tar"
 
-required_source_paths=(
-  ".github/workflows"
-  "docs"
-  "scripts"
-  "test"
-  "infra"
-  "env.template"
-  ".gitignore"
-  "__ref__"
-)
-
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --upstream-name)
@@ -45,7 +34,7 @@ if ! git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
 fi
 
 if [[ -n "$(git status --porcelain)" ]]; then
-  echo "working tree is not clean; commit or stash your changes before syncing" >&2
+  echo "working tree is not clean; commit or stash your changes before updating sync tooling" >&2
   exit 1
 fi
 
@@ -73,23 +62,17 @@ git archive --format=tar --output "${ARCHIVE_PATH}" "${UPSTREAM_NAME}/${BRANCH}"
 mkdir -p "${temp_root}"
 tar -xf "${ARCHIVE_PATH}" -C "${temp_root}"
 
-for path in "${required_source_paths[@]}"; do
+for path in scripts/sync-template-upstream.sh test/sync-template-upstream-test.sh; do
   if [[ ! -e "${temp_root}/${path}" ]]; then
     echo "missing upstream path: ${path}" >&2
     exit 1
   fi
 done
 
-rsync -a --delete \
-  --exclude '.git/' \
-  --exclude 'dist/' \
-  --exclude '.DS_Store' \
-  --exclude '.env' \
-  --exclude '.env.*' \
-  --exclude 'infra/Pulumi.*.yaml' \
-  --exclude 'infra/auth-providers.*.json' \
-  --exclude 'scripts/sync-template-upstream.sh' \
-  --exclude 'test/sync-template-upstream-test.sh' \
-  "${temp_root}/" "./"
+script_dir="$(cd "$(dirname "$0")" && pwd)"
+repo_root="$(cd "${script_dir}/.." && pwd)"
 
-printf 'synced %s/%s into %s\n' "${UPSTREAM_NAME}" "${BRANCH}" "${BRANCH}"
+cp "${temp_root}/scripts/sync-template-upstream.sh" "${repo_root}/scripts/sync-template-upstream.sh"
+cp "${temp_root}/test/sync-template-upstream-test.sh" "${repo_root}/test/sync-template-upstream-test.sh"
+
+printf 'updated sync tooling from %s/%s\n' "${UPSTREAM_NAME}" "${BRANCH}"
