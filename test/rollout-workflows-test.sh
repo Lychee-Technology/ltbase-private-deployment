@@ -36,6 +36,8 @@ deploy_workflow="${ROOT_DIR}/.github/workflows/deploy-devo.yml"
 promote_workflow="${ROOT_DIR}/.github/workflows/promote-prod.yml"
 rollout_workflow="${ROOT_DIR}/.github/workflows/rollout.yml"
 rollout_hop_workflow="${ROOT_DIR}/.github/workflows/rollout-hop.yml"
+auth_provider_devo="${ROOT_DIR}/infra/auth-providers.devo.json"
+auth_provider_prod="${ROOT_DIR}/infra/auth-providers.prod.json"
 
 assert_file_contains "${preview_workflow}" "target_stack:"
 assert_file_contains "${preview_workflow}" "manual preview only supports the first promotion stack"
@@ -66,5 +68,8 @@ assert_file_contains "${rollout_hop_workflow}" 'environment: ${{ needs.prepare.o
 assert_file_contains "${rollout_hop_workflow}" 'gh api repos/${{ github.repository }}/actions/workflows/rollout-hop.yml/dispatches'
 assert_file_not_contains "${rollout_hop_workflow}" "pulumi_stack: devo"
 assert_file_not_contains "${rollout_hop_workflow}" "pulumi_stack: prod"
+
+assert_file_contains "${auth_provider_devo}" '"providers"'
+assert_file_contains "${auth_provider_prod}" '"providers"'
 
 printf 'PASS: rollout workflow tests\n'
