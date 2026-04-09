@@ -39,10 +39,12 @@ rollout_hop_workflow="${ROOT_DIR}/.github/workflows/rollout-hop.yml"
 
 assert_file_contains "${preview_workflow}" "target_stack:"
 assert_file_contains "${preview_workflow}" "manual preview only supports the first promotion stack"
+assert_file_contains "${preview_workflow}" "runs-on: ubuntu-24.04-arm"
 assert_file_contains "${preview_workflow}" "Lychee-Technology/ltbase-deploy-workflows/.github/workflows/preview-stack.yml@main"
 assert_file_contains "${rollout_hop_workflow}" "Lychee-Technology/ltbase-deploy-workflows/.github/workflows/rollout-hop.yml@main"
 
 assert_file_contains "${deploy_workflow}" "uses: ./.github/workflows/rollout-hop.yml"
+assert_file_contains "${deploy_workflow}" "runs-on: ubuntu-24.04-arm"
 assert_file_contains "${deploy_workflow}" "continue_chain: false"
 assert_file_contains "${deploy_workflow}" 'target_stack: ${{ needs.prepare.outputs.start_stack }}'
 
@@ -52,11 +54,13 @@ assert_file_contains "${promote_workflow}" "uses: ./.github/workflows/rollout-ho
 assert_file_contains "${promote_workflow}" "continue_chain: false"
 
 assert_file_contains "${rollout_workflow}" "uses: ./.github/workflows/rollout-hop.yml"
+assert_file_contains "${rollout_workflow}" "runs-on: ubuntu-24.04-arm"
 assert_file_contains "${rollout_workflow}" "continue_chain: true"
 assert_file_contains "${rollout_workflow}" "start_stack"
 
 assert_file_contains "${rollout_hop_workflow}" "workflow_call:"
 assert_file_contains "${rollout_hop_workflow}" "workflow_dispatch:"
+assert_file_contains "${rollout_hop_workflow}" "runs-on: ubuntu-24.04-arm"
 assert_file_contains "${rollout_hop_workflow}" "invalid promotion hop"
 assert_file_contains "${rollout_hop_workflow}" 'environment: ${{ needs.prepare.outputs.target_stack }}'
 assert_file_contains "${rollout_hop_workflow}" 'gh api repos/${{ github.repository }}/actions/workflows/rollout-hop.yml/dispatches'

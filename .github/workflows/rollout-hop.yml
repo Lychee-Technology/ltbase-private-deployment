@@ -57,7 +57,7 @@ permissions:
 
 jobs:
   prepare:
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-24.04-arm
     outputs:
       release_id: ${{ steps.plan.outputs.release_id }}
       start_stack: ${{ steps.plan.outputs.start_stack }}
@@ -161,7 +161,7 @@ jobs:
   approve:
     needs: prepare
     if: ${{ needs.prepare.outputs.approval_required == 'true' }}
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-24.04-arm
     environment: ${{ needs.prepare.outputs.target_stack }}
     steps:
       - run: echo "approval granted for ${{ needs.prepare.outputs.target_stack }}"
@@ -192,7 +192,7 @@ jobs:
       - prepare
       - rollout
     if: ${{ needs.rollout.result == 'success' && needs.prepare.outputs.continue_chain == 'true' && needs.prepare.outputs.next_stack != '' }}
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-24.04-arm
     steps:
       - name: Continue rollout chain
         env:

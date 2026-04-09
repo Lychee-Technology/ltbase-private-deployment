@@ -18,7 +18,7 @@ permissions:
 
 jobs:
   prepare:
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-24.04-arm
     outputs:
       target_stack: ${{ steps.plan.outputs.target_stack }}
       target_stack_upper: ${{ steps.plan.outputs.target_stack_upper }}
