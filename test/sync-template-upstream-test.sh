@@ -143,7 +143,7 @@ run_success_case() {
   assert_log_contains "${log_file}" "git fetch upstream"
   assert_log_contains "${log_file}" "git archive --format=tar --output sync-template-upstream.tar upstream/main"
   assert_log_contains "${log_file}" "tar -xf sync-template-upstream.tar"
-  assert_log_contains "${log_file}" "rsync -a --delete --exclude .git/ --exclude dist/ --exclude .DS_Store --exclude .env --exclude .env.* --exclude infra/Pulumi.*.yaml --exclude scripts/sync-template-upstream.sh --exclude test/sync-template-upstream-test.sh ${temp_dir}/upstream-checkout/ ./"
+  assert_log_contains "${log_file}" "rsync -a --delete --exclude .git/ --exclude dist/ --exclude .DS_Store --exclude .env --exclude .env.* --exclude infra/Pulumi.*.yaml --exclude infra/auth-providers.*.json --exclude scripts/sync-template-upstream.sh --exclude test/sync-template-upstream-test.sh ${temp_dir}/upstream-checkout/ ./"
   assert_log_not_contains "${log_file}" "git merge --no-edit upstream/main"
 }
 
