@@ -24,6 +24,9 @@ type AuthProvider struct {
 func loadAuthProviderConfig(rootDir, path string) (AuthProviderConfig, error) {
 	raw, err := os.ReadFile(resolveAuthProviderConfigPath(rootDir, path))
 	if err != nil {
+		if os.IsNotExist(err) {
+			return AuthProviderConfig{}, nil
+		}
 		return AuthProviderConfig{}, fmt.Errorf("read auth provider config: %w", err)
 	}
 	var cfg AuthProviderConfig
