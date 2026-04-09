@@ -50,7 +50,7 @@ jobs:
 
   preview:
     needs: prepare
-    uses: Lychee-Technology/ltbase-deploy-workflows/.github/workflows/preview-stack.yml@b386c8015603dd0b9d08d6a7202ac2ee3afc3706
+    uses: Lychee-Technology/ltbase-deploy-workflows/.github/workflows/preview-stack.yml@main
     with:
       pulumi_stack: ${{ needs.prepare.outputs.target_stack }}
       aws_region: ${{ vars[format('AWS_REGION_{0}', needs.prepare.outputs.target_stack_upper)] }}
