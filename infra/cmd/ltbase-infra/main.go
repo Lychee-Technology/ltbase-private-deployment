@@ -14,38 +14,47 @@ import (
 
 func main() {
 	pulumi.Run(func(ctx *pulumi.Context) error {
+		ctx.Log.Info("ltbase-infra: starting Pulumi program", nil)
 		cfg, err := infraConfig.Load(ctx)
 		if err != nil {
 			return err
 		}
+		ctx.Log.Info("ltbase-infra: loaded stack config", nil)
 		awsProvider, err := aws.NewProvider(ctx, "aws-provider", &aws.ProviderArgs{
 			Region: pulumi.String(cfg.AWSRegion),
 		})
 		if err != nil {
 			return err
 		}
+		ctx.Log.Info("ltbase-infra: created AWS provider", nil)
 		providers := services.Providers{AWS: awsProvider}
 		if err := ensureGitHubOIDC(ctx, cfg, providers); err != nil {
 			return err
 		}
+		ctx.Log.Info("ltbase-infra: ensured GitHub OIDC resources", nil)
 		runtime, err := services.NewRuntimeResources(ctx, cfg, providers)
 		if err != nil {
 			return err
 		}
+		ctx.Log.Info("ltbase-infra: declared runtime resources", nil)
 		lambdas, err := services.NewLambdaServices(ctx, cfg, runtime, providers)
 		if err != nil {
 			return err
 		}
+		ctx.Log.Info("ltbase-infra: declared lambda services", nil)
 		if _, err = services.NewAPIs(ctx, cfg, providers, runtime, lambdas); err != nil {
 			return err
 		}
+		ctx.Log.Info("ltbase-infra: declared API resources", nil)
 		canaries, err := services.NewCanaryDeployments(ctx, cfg, providers, lambdas)
 		if err != nil {
 			return err
 		}
+		ctx.Log.Info("ltbase-infra: declared canary resources", nil)
 		if err := wireFormaSchedule(ctx, cfg, providers, lambdas); err != nil {
 			return err
 		}
+		ctx.Log.Info("ltbase-infra: declared forma schedule", nil)
 		ctx.Export("runtimeBucket", runtime.RuntimeBucket.Bucket)
 		ctx.Export("tableName", runtime.Table.Name)
 		ctx.Export("dsqlClusterArn", runtime.DSQL.Cluster.Arn)
