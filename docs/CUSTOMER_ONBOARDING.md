@@ -98,6 +98,8 @@ Before you run any bootstrap automation, confirm all of the following:
   - Confirm `CLOUDFLARE_ACCOUNT_ID`, `CLOUDFLARE_ZONE_ID`, `CLOUDFLARE_API_TOKEN`, and `OIDC_DISCOVERY_DOMAIN` are final.
   - Confirm the token can manage the Pages project and custom domain that bootstrap creates for OIDC discovery.
   - If the operator account or token does not meet the minimum permission matrix, use the manual path instead of one-click bootstrap.
+  - Confirm the zone can proxy the `api`, `auth`, and `control-plane` hostnames through Cloudflare.
+  - Plan to keep Cloudflare SSL mode on `Full (strict)` and enable Authenticated Origin Pulls before sending production traffic.
 - Release and application inputs are ready.
   - Confirm `LTBASE_RELEASES_REPO`, `LTBASE_RELEASE_ID`, `LTBASE_RELEASES_TOKEN`, and `GEMINI_API_KEY` are available before you continue.
 - `.env` is clean.
@@ -196,6 +198,21 @@ The current repository version uses a bootstrap-safe flow:
 - the template repository does not auto-run preview on pull requests because it has no live customer credentials
 - manual preview only supports the first stack in `PROMOTION_PATH`
 - protected promotions happen in your own repository through per-stack GitHub environment gates
+
+## Cloudflare mTLS Rollout Notes
+
+- `api`, `auth`, and `control-plane` are expected to use Cloudflare-proxied custom domains.
+- API Gateway custom domains are configured for mutual TLS with the template's built-in Cloudflare Authenticated Origin Pull truststore.
+- Operators still need to enable Authenticated Origin Pulls in Cloudflare. This version documents that requirement but does not toggle it through IaC.
+- Direct `https://<api-id>.execute-api.<region>.amazonaws.com/...` access is expected to fail after rollout because the default API Gateway endpoints are disabled.
+- A `403` from the custom domain usually means Cloudflare is not presenting the expected client certificate chain or the truststore/config is out of sync.
+- A `526` from Cloudflare usually means the origin TLS configuration is not compatible with `Full (strict)` or the custom domain certificate is not valid yet.
+- Recommended rollout order:
+  - apply the infra change in a lower environment first
+  - confirm the DNS records are proxied in Cloudflare
+  - confirm Authenticated Origin Pulls is enabled
+  - verify the custom domain succeeds through Cloudflare
+  - verify direct `execute-api` access fails
 
 ## Related Documents
 

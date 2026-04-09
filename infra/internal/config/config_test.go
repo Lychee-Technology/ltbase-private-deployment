@@ -63,6 +63,8 @@ func TestValidateAllowsProjectIDAndAuthProviderConfigFile(t *testing.T) {
 		ManageGitHubOIDCProvider: true,
 		ProjectID:                "11111111-1111-4111-8111-111111111111",
 		AuthProviderConfigFile:   "infra/auth-providers.devo.json",
+		MTLSTruststoreFile:       "infra/certs/cloudflare-origin-pull-ca.pem",
+		MTLSTruststoreKey:        "mtls/cloudflare-origin-pull-ca.pem",
 	}
 	if err := cfg.Validate(); err != nil {
 		t.Fatalf("Validate() unexpected error: %v", err)
@@ -72,5 +74,11 @@ func TestValidateAllowsProjectIDAndAuthProviderConfigFile(t *testing.T) {
 	}
 	if cfg.AuthProviderConfigFile == "" {
 		t.Fatal("AuthProviderConfigFile should be preserved")
+	}
+	if cfg.MTLSTruststoreFile == "" {
+		t.Fatal("MTLSTruststoreFile should be preserved")
+	}
+	if cfg.MTLSTruststoreKey == "" {
+		t.Fatal("MTLSTruststoreKey should be preserved")
 	}
 }

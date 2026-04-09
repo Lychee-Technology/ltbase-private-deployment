@@ -42,7 +42,7 @@ if ! bootstrap_env_has_stack "${STACK}"; then
   exit 1
 fi
 
-required_vars=(DEPLOYMENT_REPO PULUMI_BACKEND_URL LTBASE_RELEASES_REPO LTBASE_RELEASE_ID LTBASE_RELEASES_TOKEN CLOUDFLARE_API_TOKEN GEMINI_API_KEY CLOUDFLARE_ZONE_ID GITHUB_ORG GITHUB_REPO GEMINI_MODEL DSQL_PORT DSQL_DB DSQL_USER DSQL_PROJECT_SCHEMA)
+required_vars=(DEPLOYMENT_REPO PULUMI_BACKEND_URL LTBASE_RELEASES_REPO LTBASE_RELEASE_ID LTBASE_RELEASES_TOKEN CLOUDFLARE_API_TOKEN GEMINI_API_KEY CLOUDFLARE_ZONE_ID GITHUB_ORG GITHUB_REPO GEMINI_MODEL DSQL_PORT DSQL_DB DSQL_USER DSQL_PROJECT_SCHEMA MTLS_TRUSTSTORE_FILE MTLS_TRUSTSTORE_KEY)
 for name in "${required_vars[@]}"; do
   if [[ -z "${!name:-}" ]]; then
     echo "${name} is required" >&2
@@ -109,6 +109,8 @@ fi
 "${stack_env[@]}" pulumi config set awsRegion "${selected_region}" --stack "${STACK}"
 "${stack_env[@]}" pulumi config set runtimeBucket "${selected_runtime_bucket}" --stack "${STACK}"
 "${stack_env[@]}" pulumi config set tableName "${selected_table_name}" --stack "${STACK}"
+"${stack_env[@]}" pulumi config set mtlsTruststoreFile "${MTLS_TRUSTSTORE_FILE}" --stack "${STACK}"
+"${stack_env[@]}" pulumi config set mtlsTruststoreKey "${MTLS_TRUSTSTORE_KEY}" --stack "${STACK}"
 "${stack_env[@]}" pulumi config set apiDomain "${selected_api_domain}" --stack "${STACK}"
 "${stack_env[@]}" pulumi config set controlPlaneDomain "${selected_control_domain}" --stack "${STACK}"
 "${stack_env[@]}" pulumi config set authDomain "${selected_auth_domain}" --stack "${STACK}"

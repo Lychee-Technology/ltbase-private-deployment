@@ -81,6 +81,8 @@ DSQL_PORT=5432
 DSQL_DB=postgres
 DSQL_USER=admin
 DSQL_PROJECT_SCHEMA=ltbase
+MTLS_TRUSTSTORE_FILE=infra/certs/cloudflare-origin-pull-ca.pem
+MTLS_TRUSTSTORE_KEY=mtls/cloudflare-origin-pull-ca.pem
 EOF
 
 cat >"${fake_bin}/gh" <<EOF
@@ -125,6 +127,8 @@ if [[ -x "${SCRIPT_PATH}" ]]; then
   assert_log_contains "${log_file}" "pulumi config set oidcIssuerUrl https://issuer.example.com/prod --stack prod"
   assert_log_contains "${log_file}" "pulumi config set githubOidcProviderArn arn:aws:iam::123456789012:oidc-provider/token.actions.githubusercontent.com --stack prod"
   assert_log_contains "${log_file}" "pulumi config set tableName ltbase-private-deployment-prod --stack prod"
+  assert_log_contains "${log_file}" "pulumi config set mtlsTruststoreFile infra/certs/cloudflare-origin-pull-ca.pem --stack prod"
+  assert_log_contains "${log_file}" "pulumi config set mtlsTruststoreKey mtls/cloudflare-origin-pull-ca.pem --stack prod"
   assert_log_contains "${log_file}" "pulumi config set dsqlDB postgres --stack prod"
   assert_log_contains "${log_file}" "pulumi config set dsqlUser admin --stack prod"
   assert_log_contains "${log_file}" "pulumi config set --secret geminiApiKey test-gemini-key --stack prod"

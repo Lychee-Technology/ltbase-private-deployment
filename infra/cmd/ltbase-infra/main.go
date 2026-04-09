@@ -36,7 +36,7 @@ func main() {
 		if err != nil {
 			return err
 		}
-		if _, err = services.NewAPIs(ctx, cfg, providers, lambdas); err != nil {
+		if _, err = services.NewAPIs(ctx, cfg, providers, runtime, lambdas); err != nil {
 			return err
 		}
 		canaries, err := services.NewCanaryDeployments(ctx, cfg, providers, lambdas)

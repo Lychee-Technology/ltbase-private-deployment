@@ -50,6 +50,7 @@
 - 阅读 [`onboarding/04-prepare-env-file.zh.md`](onboarding/04-prepare-env-file.zh.md)
 - 将 `env.template` 复制为 `.env`
 - 填写客户可控输入值；除非确实需要 override，否则派生值先不要手填；并且绝对不要提交 `.env`
+- 除非 LTBase 另行说明，否则保持 `MTLS_TRUSTSTORE_FILE` 与 `MTLS_TRUSTSTORE_KEY` 为模板默认值
 
 ### 5. 选择 bootstrap 路径
 
@@ -102,3 +103,7 @@
 - 客户仓库中的 preview 默认为手动触发，因为真实凭据由客户持有
 - 手动 preview 只支持 `PROMOTION_PATH` 的第一个环境
 - rollout 中的受保护目标环境由各自的 GitHub environment 审批 gate 保护
+- 当前模板默认假设 `api`、`auth`、`control-plane` 都通过 Cloudflare 代理的自定义域名对外提供访问
+- 在承载正式流量前，将 Cloudflare SSL 模式设置为 `Full (strict)`
+- 在期待 API Gateway mTLS 生效前，先启用 Cloudflare Authenticated Origin Pulls
+- 一旦应用 mTLS rollout，直接访问 `execute-api` endpoint 失败属于预期行为

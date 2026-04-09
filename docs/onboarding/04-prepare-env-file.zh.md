@@ -44,27 +44,32 @@
    - 来源：你希望 bootstrap 创建或使用的共享 Pulumi backend 资源命名
    - 重要：`PULUMI_STATE_BUCKET` 指向的共享 backend bucket 会创建在 `PROMOTION_PATH` 第一个 stack 对应的 AWS 账户中
 7. 填写 release 信息：
-   - `LTBASE_RELEASES_REPO`
-   - `LTBASE_RELEASE_ID`
-   - 来源：要部署的 LTBase release 仓库和 release ID
-8. 填写按 stack 划分的域名信息：
-    - `API_DOMAIN_<STACK>`
-    - `CONTROL_DOMAIN_<STACK>`
-    - `AUTH_DOMAIN_<STACK>`
+    - `LTBASE_RELEASES_REPO`
+    - `LTBASE_RELEASE_ID`
+    - 来源：要部署的 LTBase release 仓库和 release ID
+8. 保留必填的 mTLS 默认值：
+   - `MTLS_TRUSTSTORE_FILE`
+   - `MTLS_TRUSTSTORE_KEY`
+   - 来源：此模板内置并已提交的 Cloudflare 全局 Authenticated Origin Pull truststore
+   - 重要：它们是模板必需的默认值，不是可选功能开关。`api`、`auth`、`control-plane` 都会部署在 Cloudflare 代理和 API Gateway mutual TLS 之后。
+9. 填写按 stack 划分的域名信息：
+     - `API_DOMAIN_<STACK>`
+     - `CONTROL_DOMAIN_<STACK>`
+     - `AUTH_DOMAIN_<STACK>`
     - `PROJECT_ID`
     - `AUTH_PROVIDER_CONFIG_FILE_<STACK>`
     - `CLOUDFLARE_ZONE_ID`
     - 来源：你在目标 Cloudflare zone 中规划好的最终域名
     - `AUTH_PROVIDER_CONFIG_FILE_<STACK>` 应该指向一个已提交的 JSON 文件，该文件列出该 stack 启用的外部 JWT provider。
-9. 填写应用默认值：
-   - `GEMINI_MODEL`
-   - `DSQL_PORT`、`DSQL_DB`、`DSQL_USER`、`DSQL_PROJECT_SCHEMA`
-   - 来源：LTBase 应用默认值，以及经过确认的客户特定 override
-10. 填写 secrets：
-     - `GEMINI_API_KEY`
-     - `CLOUDFLARE_API_TOKEN`
-     - `LTBASE_RELEASES_TOKEN`
-11. 将文件保存在本地，并确认不会提交进仓库。
+10. 填写应用默认值：
+    - `GEMINI_MODEL`
+    - `DSQL_PORT`、`DSQL_DB`、`DSQL_USER`、`DSQL_PROJECT_SCHEMA`
+    - 来源：LTBase 应用默认值，以及经过确认的客户特定 override
+11. 填写 secrets：
+    - `GEMINI_API_KEY`
+    - `CLOUDFLARE_API_TOKEN`
+    - `LTBASE_RELEASES_TOKEN`
+12. 将文件保存在本地，并确认不会提交进仓库。
 
 ## 通常需要手动填写的值
 
@@ -77,6 +82,7 @@
 - 多账户场景下的 `AWS_PROFILE_<STACK>`
 - `PULUMI_STATE_BUCKET`、`PULUMI_KMS_ALIAS`
 - `LTBASE_RELEASES_REPO`、`LTBASE_RELEASE_ID`
+- 保持模板默认值不变的 `MTLS_TRUSTSTORE_FILE`、`MTLS_TRUSTSTORE_KEY`
 - `API_DOMAIN_<STACK>`、`CONTROL_DOMAIN_<STACK>`、`AUTH_DOMAIN_<STACK>`、`PROJECT_ID`、`AUTH_PROVIDER_CONFIG_FILE_<STACK>`、`CLOUDFLARE_ZONE_ID`
 - `GEMINI_MODEL`、`DSQL_PORT`、`DSQL_DB`、`DSQL_USER`、`DSQL_PROJECT_SCHEMA`
 - `GEMINI_API_KEY`、`CLOUDFLARE_API_TOKEN`、`LTBASE_RELEASES_TOKEN`
@@ -130,6 +136,8 @@
 - 如果你依赖 bootstrap 创建 backend 资源，请把 `PULUMI_BACKEND_URL` 和 `PULUMI_SECRETS_PROVIDER_*` 当作生成值
 - 只填写你真正控制的输入项，生成值应来自 bootstrap 输出
 - 对于 managed 部署，不要手动设置 `DSQL_ENDPOINT`；bootstrap 和后续 reconcile 会发布权威值
+- 除非 LTBase 模板本身发生变更，否则保持 `MTLS_TRUSTSTORE_FILE=infra/certs/cloudflare-origin-pull-ca.pem` 和 `MTLS_TRUSTSTORE_KEY=mtls/cloudflare-origin-pull-ca.pem`；bootstrap 要求这两个值必须存在
+- 一旦应用后续 mTLS rollout 任务，`api`、`auth`、`control-plane` 将只通过 Cloudflare 代理的自定义域名对外提供访问
 - 以下变量由 `scripts/lib/bootstrap-env.sh` 自动派生，通常不需要手动填写：`DEPLOYMENT_REPO`、`PULUMI_BACKEND_URL`、`PULUMI_SECRETS_PROVIDER_*`、`AWS_ROLE_ARN_*`、`OIDC_ISSUER_URL_*`、`JWKS_URL_*`、`RUNTIME_BUCKET_*`、`TABLE_NAME_*`、`GITHUB_ORG`、`GITHUB_REPO`、`OIDC_DISCOVERY_TEMPLATE_REPO`、`OIDC_DISCOVERY_REPO_NAME`、`OIDC_DISCOVERY_REPO`、`OIDC_DISCOVERY_PAGES_PROJECT`、`OIDC_DISCOVERY_AWS_ROLE_NAME_*`、`OIDC_DISCOVERY_AWS_ROLE_ARN_*`、`PREVIEW_DEFAULT_STACK`
 
 ## 预期结果

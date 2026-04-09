@@ -1,9 +1,12 @@
 package services
 
 import (
+	"os"
+	"path/filepath"
 	"testing"
 
 	"lychee.technology/ltbase/infra/internal/config"
+	"lychee.technology/ltbase/infra/internal/dns"
 )
 
 func TestBuildAPIRouteSpecs(t *testing.T) {
@@ -101,4 +104,122 @@ func TestControlRouteAliases(t *testing.T) {
 	if got := legacyRouteAliasName(cfg, "api", routeSpec{RouteKey: "ANY /"}); got != "" {
 		t.Fatalf("non-control alias = %q, want empty", got)
 	}
+}
+
+func TestResolveMTLSTruststorePathUsesPulumiRoot(t *testing.T) {
+	repoRoot := t.TempDir()
+	infraDir := filepath.Join(repoRoot, "infra")
+	truststorePath := filepath.Join(infraDir, "certs", "cloudflare-origin-pull-ca.pem")
+	if err := os.MkdirAll(filepath.Dir(truststorePath), 0o755); err != nil {
+		t.Fatalf("os.MkdirAll() error = %v", err)
+	}
+	if err := os.WriteFile(truststorePath, []byte("pem"), 0o600); err != nil {
+		t.Fatalf("os.WriteFile() error = %v", err)
+	}
+
+	got, err := resolveMTLSTruststorePath(infraDir, "infra/certs/cloudflare-origin-pull-ca.pem")
+	if err != nil {
+		t.Fatalf("resolveMTLSTruststorePath() error = %v", err)
+	}
+	if got != truststorePath {
+		t.Fatalf("resolveMTLSTruststorePath() = %q, want %q", got, truststorePath)
+	}
+}
+
+func TestResolveMTLSTruststorePathRejectsMissingFile(t *testing.T) {
+	infraDir := filepath.Join(t.TempDir(), "infra")
+	if err := os.MkdirAll(infraDir, 0o755); err != nil {
+		t.Fatalf("os.MkdirAll() error = %v", err)
+	}
+
+	if _, err := resolveMTLSTruststorePath(infraDir, "infra/certs/missing.pem"); err == nil {
+		t.Fatal("resolveMTLSTruststorePath() expected error for missing truststore")
+	}
+}
+
+func TestMTLSTruststoreURI(t *testing.T) {
+	if got := mtlsTruststoreURI("runtime-bucket", "mtls/cloudflare-origin-pull-ca.pem"); got != "s3://runtime-bucket/mtls/cloudflare-origin-pull-ca.pem" {
+		t.Fatalf("mtlsTruststoreURI() = %q", got)
+	}
+}
+
+func TestHTTPAPIDisableExecuteEndpointDefault(t *testing.T) {
+	settings := httpAPISettings()
+	if !settings.DisableExecuteAPIEndpoint {
+		t.Fatal("DisableExecuteAPIEndpoint = false, want true")
+	}
+}
+
+func TestBuildHTTPAPIDomainConfigsUsesSharedTruststoreForAllDomains(t *testing.T) {
+	truststore := mtlsTruststore{URI: "s3://runtime-bucket/mtls/cloudflare-origin-pull-ca.pem"}
+	configs := buildHTTPAPIDomainConfigs(config.StackConfig{
+		APIDomain:          "api.example.com",
+		ControlPlaneDomain: "control.example.com",
+		AuthDomain:         "auth.example.com",
+	}, truststore)
+
+	for _, key := range []string{"api", "control", "auth"} {
+		cfg, ok := configs[key]
+		if !ok {
+			t.Fatalf("missing domain config for %s", key)
+		}
+		if cfg.Truststore.URI != truststore.URI {
+			t.Fatalf("domain %s truststore uri = %q, want %q", key, cfg.Truststore.URI, truststore.URI)
+		}
+	}
+	if configs["api"].Domain != "api.example.com" {
+		t.Fatalf("api domain = %q", configs["api"].Domain)
+	}
+	if configs["control"].Domain != "control.example.com" {
+		t.Fatalf("control domain = %q", configs["control"].Domain)
+	}
+	if configs["auth"].Domain != "auth.example.com" {
+		t.Fatalf("auth domain = %q", configs["auth"].Domain)
+	}
+	if configs["api"].Suffix != "api" || configs["control"].Suffix != "control" || configs["auth"].Suffix != "auth" {
+		t.Fatal("unexpected suffix mapping in buildHTTPAPIDomainConfigs()")
+	}
+}
+
+func TestLTBaseAuthorizerSpecUsesIssuerAndProjectID(t *testing.T) {
+	spec := ltbaseAuthorizerSpec(config.StackConfig{
+		OIDCIssuerURL: "https://oidc.example.com/devo",
+		ProjectID:     "11111111-1111-4111-8111-111111111111",
+	})
+	if spec.Name != "LTBase" {
+		t.Fatalf("ltbaseAuthorizerSpec() name = %q", spec.Name)
+	}
+	if spec.Issuer != "https://oidc.example.com/devo" {
+		t.Fatalf("ltbaseAuthorizerSpec() issuer = %q", spec.Issuer)
+	}
+	if len(spec.Audiences) != 1 || spec.Audiences[0] != "11111111-1111-4111-8111-111111111111" {
+		t.Fatalf("ltbaseAuthorizerSpec() audiences = %#v", spec.Audiences)
+	}
+}
+
+func TestAPIDomainDNSRecordIsProxied(t *testing.T) {
+	args := apiDomainRecordArgs(config.StackConfig{
+		CloudflareZoneID:   "zone-id",
+		CloudflareZoneName: "example.com",
+	}, "api.example.com", nil)
+	if !args.Proxied {
+		t.Fatal("apiDomainRecordArgs() proxied = false, want true")
+	}
+}
+
+func TestCertificateValidationDNSRecordIsNotProxied(t *testing.T) {
+	args := certificateValidationRecordArgs(config.StackConfig{
+		CloudflareZoneID:   "zone-id",
+		CloudflareZoneName: "example.com",
+	}, nil, nil)
+	if args.Proxied {
+		t.Fatal("certificateValidationRecordArgs() proxied = true, want false")
+	}
+	if args.ZoneID != "zone-id" {
+		t.Fatalf("certificateValidationRecordArgs() zone id = %q", args.ZoneID)
+	}
+	if args.ZoneName != "example.com" {
+		t.Fatalf("certificateValidationRecordArgs() zone name = %q", args.ZoneName)
+	}
+	_ = dns.RecordArgs{}
 }

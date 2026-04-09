@@ -18,6 +18,8 @@ type StackConfig struct {
 	ReleaseAssetDir          string
 	RuntimeBucket            string
 	TableName                string
+	MTLSTruststoreFile       string
+	MTLSTruststoreKey        string
 	APIDomain                string
 	ControlPlaneDomain       string
 	AuthDomain               string
@@ -54,6 +56,8 @@ func Load(ctx *pulumi.Context) (StackConfig, error) {
 		ReleaseAssetDir:          valueOrDefault(cfg.Get("releaseAssetDir"), defaultReleaseAssetDir),
 		RuntimeBucket:            cfg.Require("runtimeBucket"),
 		TableName:                cfg.Require("tableName"),
+		MTLSTruststoreFile:       cfg.Require("mtlsTruststoreFile"),
+		MTLSTruststoreKey:        cfg.Require("mtlsTruststoreKey"),
 		APIDomain:                cfg.Require("apiDomain"),
 		ControlPlaneDomain:       cfg.Require("controlPlaneDomain"),
 		AuthDomain:               cfg.Require("authDomain"),

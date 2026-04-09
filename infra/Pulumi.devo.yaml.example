@@ -2,6 +2,8 @@ config:
   ltbase-infra:awsRegion: ap-northeast-1
   ltbase-infra:runtimeBucket: customer-ltbase-runtime-devo
   ltbase-infra:tableName: customer-ltbase-devo
+  ltbase-infra:mtlsTruststoreFile: infra/certs/cloudflare-origin-pull-ca.pem
+  ltbase-infra:mtlsTruststoreKey: mtls/cloudflare-origin-pull-ca.pem
   ltbase-infra:apiDomain: api.devo.customer.example.com
   ltbase-infra:controlPlaneDomain: control.devo.customer.example.com
   ltbase-infra:authDomain: auth.devo.customer.example.com

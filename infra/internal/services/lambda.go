@@ -19,10 +19,11 @@ import (
 )
 
 type RuntimeResources struct {
-	RuntimeBucket *s3.BucketV2
-	Table         *dynamodb.Table
-	DSQL          *DSQLResources
-	AuthKey       *kms.Key
+	RuntimeBucket           *s3.BucketV2
+	RuntimeBucketVersioning *s3.BucketVersioningV2
+	Table                   *dynamodb.Table
+	DSQL                    *DSQLResources
+	AuthKey                 *kms.Key
 }
 
 type DSQLResources struct {
@@ -55,7 +56,8 @@ func NewRuntimeResources(ctx *pulumi.Context, cfg config.StackConfig, providers 
 	if err != nil {
 		return nil, err
 	}
-	if err := secureBucket(ctx, naming.ResourceName(cfg.Project, cfg.Stack, "runtime"), runtimeBucket, providers); err != nil {
+	bucketVersioning, err := secureBucket(ctx, naming.ResourceName(cfg.Project, cfg.Stack, "runtime"), runtimeBucket, providers)
+	if err != nil {
 		return nil, err
 	}
 	table, err := dynamodb.NewTable(ctx, naming.ResourceName(cfg.Project, cfg.Stack, "table"), &dynamodb.TableArgs{
@@ -87,10 +89,11 @@ func NewRuntimeResources(ctx *pulumi.Context, cfg config.StackConfig, providers 
 		return nil, err
 	}
 	return &RuntimeResources{
-		RuntimeBucket: runtimeBucket,
-		Table:         table,
-		DSQL:          dsqlResources,
-		AuthKey:       authKey,
+		RuntimeBucket:           runtimeBucket,
+		RuntimeBucketVersioning: bucketVersioning,
+		Table:                   table,
+		DSQL:                    dsqlResources,
+		AuthKey:                 authKey,
 	}, nil
 }
 
@@ -342,14 +345,15 @@ func lambdaPolicyDocument(runtime *RuntimeResources, allowKMS bool) pulumi.Strin
 	})
 }
 
-func secureBucket(ctx *pulumi.Context, name string, bucket *s3.BucketV2, providers Providers) error {
-	if _, err := s3.NewBucketVersioningV2(ctx, name+"-versioning", &s3.BucketVersioningV2Args{
+func secureBucket(ctx *pulumi.Context, name string, bucket *s3.BucketV2, providers Providers) (*s3.BucketVersioningV2, error) {
+	versioning, err := s3.NewBucketVersioningV2(ctx, name+"-versioning", &s3.BucketVersioningV2Args{
 		Bucket: bucket.ID(),
 		VersioningConfiguration: &s3.BucketVersioningV2VersioningConfigurationArgs{
 			Status: pulumi.String("Enabled"),
 		},
-	}, pulumi.Provider(providers.AWS)); err != nil {
-		return err
+	}, pulumi.Provider(providers.AWS))
+	if err != nil {
+		return nil, err
 	}
 	if _, err := s3.NewBucketServerSideEncryptionConfigurationV2(ctx, name+"-sse", &s3.BucketServerSideEncryptionConfigurationV2Args{
 		Bucket: bucket.ID(),
@@ -361,16 +365,19 @@ func secureBucket(ctx *pulumi.Context, name string, bucket *s3.BucketV2, provide
 			},
 		},
 	}, pulumi.Provider(providers.AWS)); err != nil {
-		return err
+		return nil, err
 	}
-	_, err := s3.NewBucketPublicAccessBlock(ctx, name+"-public-access", &s3.BucketPublicAccessBlockArgs{
+	_, err = s3.NewBucketPublicAccessBlock(ctx, name+"-public-access", &s3.BucketPublicAccessBlockArgs{
 		Bucket:                bucket.ID(),
 		BlockPublicAcls:       pulumi.Bool(true),
 		BlockPublicPolicy:     pulumi.Bool(true),
 		IgnorePublicAcls:      pulumi.Bool(true),
 		RestrictPublicBuckets: pulumi.Bool(true),
 	}, pulumi.Provider(providers.AWS))
-	return err
+	if err != nil {
+		return nil, err
+	}
+	return versioning, nil
 }
 
 func mergeEnv(parts ...pulumi.StringMap) pulumi.StringMap {

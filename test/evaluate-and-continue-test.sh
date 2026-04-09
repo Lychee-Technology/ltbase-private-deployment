@@ -83,6 +83,8 @@ DSQL_PORT=5432
 DSQL_DB=postgres
 DSQL_USER=admin
 DSQL_PROJECT_SCHEMA=ltbase
+MTLS_TRUSTSTORE_FILE=infra/certs/cloudflare-origin-pull-ca.pem
+MTLS_TRUSTSTORE_KEY=mtls/cloudflare-origin-pull-ca.pem
 GEMINI_API_KEY=test-gemini-key
 CLOUDFLARE_API_TOKEN=test-cloudflare-token
 LTBASE_RELEASES_TOKEN=test-release-token
@@ -103,9 +105,11 @@ cmd="${1:-}"
 sub="${2:-}"
 if [[ "${cmd} ${sub}" == "repo view" ]]; then
   if [[ "${SCENARIO}" == "repo_config_missing" || "${SCENARIO}" == "bootstrap_force" ]]; then
+    printf 'GraphQL: Could not resolve to a Repository with the name %s.\n' "${3:-unknown}" >&2
     exit 1
   fi
   if [[ "${3:-}" == "customer-org/customer-ltbase-oidc-discovery" && "${SCENARIO}" == "oidc_companion_missing" ]]; then
+    printf 'GraphQL: Could not resolve to a Repository with the name %s.\n' "${3}" >&2
     exit 1
   fi
   exit 0
@@ -241,12 +245,22 @@ set -euo pipefail
 printf 'curl %s\n' "$*" >>"${COMMAND_LOG}"
 method="GET"
 url=""
+output_file=""
+write_format=""
 args=("$@")
 index=0
 while [[ ${index} -lt ${#args[@]} ]]; do
   case "${args[${index}]}" in
     -X)
       method="${args[$((index + 1))]}"
+      index=$((index + 2))
+      ;;
+    -o)
+      output_file="${args[$((index + 1))]}"
+      index=$((index + 2))
+      ;;
+    -w)
+      write_format="${args[$((index + 1))]}"
       index=$((index + 2))
       ;;
     http*)
@@ -264,7 +278,14 @@ fi
 if [[ "${SCENARIO}" == "oidc_companion_missing" && "${method}" == "GET" && "${url}" == *"/pages/projects/customer-ltbase-oidc-discovery/domains/oidc.customer.example.com" ]]; then
   exit 22
 fi
-printf '{"success":true}'
+if [[ -n "${output_file}" ]]; then
+  printf '{"success":true}' >"${output_file}"
+else
+  printf '{"success":true}'
+fi
+if [[ "${write_format}" == "%{http_code}" ]]; then
+  printf '200'
+fi
 EOF
   chmod +x "${fake_bin}/curl"
 

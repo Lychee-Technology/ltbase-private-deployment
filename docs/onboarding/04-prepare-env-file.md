@@ -44,27 +44,32 @@ Use this guide to create the local `.env` file that drives the bootstrap scripts
    - Source: the names you want bootstrap to use for shared Pulumi backend resources
    - Important: the shared backend bucket named by `PULUMI_STATE_BUCKET` is created in the AWS account for the first stack in `PROMOTION_PATH`
 7. Fill in release values:
-   - `LTBASE_RELEASES_REPO`
-   - `LTBASE_RELEASE_ID`
-   - Source: the LTBase release repository and release ID you plan to deploy
-8. Fill in per-stack domain values:
-    - `API_DOMAIN_<STACK>`
-    - `CONTROL_DOMAIN_<STACK>`
-    - `AUTH_DOMAIN_<STACK>`
+    - `LTBASE_RELEASES_REPO`
+    - `LTBASE_RELEASE_ID`
+    - Source: the LTBase release repository and release ID you plan to deploy
+8. Keep the mandatory mTLS defaults in place:
+   - `MTLS_TRUSTSTORE_FILE`
+   - `MTLS_TRUSTSTORE_KEY`
+   - Source: the checked-in Cloudflare global Authenticated Origin Pull truststore shipped with this template
+   - Important: these are required defaults for the template, not optional feature flags. `api`, `auth`, and `control-plane` are all deployed behind Cloudflare proxying and API Gateway mutual TLS.
+9. Fill in per-stack domain values:
+     - `API_DOMAIN_<STACK>`
+     - `CONTROL_DOMAIN_<STACK>`
+     - `AUTH_DOMAIN_<STACK>`
     - `PROJECT_ID`
     - `AUTH_PROVIDER_CONFIG_FILE_<STACK>`
     - `CLOUDFLARE_ZONE_ID`
     - Source: your final DNS plan in the target Cloudflare zone
     - For `AUTH_PROVIDER_CONFIG_FILE_<STACK>`, point to a checked-in JSON file that lists the external JWT providers enabled for that stack.
-9. Fill in application defaults:
-   - `GEMINI_MODEL`
-   - `DSQL_PORT`, `DSQL_DB`, `DSQL_USER`, `DSQL_PROJECT_SCHEMA`
-   - Source: LTBase application defaults and any approved customer-specific override
-10. Fill in secret values:
-     - `GEMINI_API_KEY`
-     - `CLOUDFLARE_API_TOKEN`
-     - `LTBASE_RELEASES_TOKEN`
-11. Save the file locally and confirm it is not committed.
+10. Fill in application defaults:
+    - `GEMINI_MODEL`
+    - `DSQL_PORT`, `DSQL_DB`, `DSQL_USER`, `DSQL_PROJECT_SCHEMA`
+    - Source: LTBase application defaults and any approved customer-specific override
+11. Fill in secret values:
+    - `GEMINI_API_KEY`
+    - `CLOUDFLARE_API_TOKEN`
+    - `LTBASE_RELEASES_TOKEN`
+12. Save the file locally and confirm it is not committed.
 
 ## Values You Normally Fill Manually
 
@@ -77,6 +82,7 @@ These values are customer-controlled inputs and should usually be set explicitly
 - `AWS_PROFILE_<STACK>` when multiple stacks use different AWS credentials locally
 - `PULUMI_STATE_BUCKET`, `PULUMI_KMS_ALIAS`
 - `LTBASE_RELEASES_REPO`, `LTBASE_RELEASE_ID`
+- `MTLS_TRUSTSTORE_FILE`, `MTLS_TRUSTSTORE_KEY` with the template defaults intact
 - `API_DOMAIN_<STACK>`, `CONTROL_DOMAIN_<STACK>`, `AUTH_DOMAIN_<STACK>`, `PROJECT_ID`, `AUTH_PROVIDER_CONFIG_FILE_<STACK>`, `CLOUDFLARE_ZONE_ID`
 - `GEMINI_MODEL`, `DSQL_PORT`, `DSQL_DB`, `DSQL_USER`, `DSQL_PROJECT_SCHEMA`
 - `GEMINI_API_KEY`, `CLOUDFLARE_API_TOKEN`, `LTBASE_RELEASES_TOKEN`
@@ -130,6 +136,8 @@ Only fill these when the defaults are wrong for your customer environment:
 - treat `PULUMI_BACKEND_URL` and `PULUMI_SECRETS_PROVIDER_*` as generated values if you rely on bootstrap to create backend resources
 - only fill values you actually control; generated values should come from bootstrap outputs
 - do not set `DSQL_ENDPOINT` manually for managed deployments; bootstrap and later reconciliation publish the authoritative value
+- keep `MTLS_TRUSTSTORE_FILE=infra/certs/cloudflare-origin-pull-ca.pem` and `MTLS_TRUSTSTORE_KEY=mtls/cloudflare-origin-pull-ca.pem` unless the LTBase template itself changes; bootstrap requires both values
+- expect `api`, `auth`, and `control-plane` to be reachable only through Cloudflare-proxied custom domains once the mTLS rollout tasks are applied
 - the following variables are auto-derived by `scripts/lib/bootstrap-env.sh` and normally do not need manual filling: `DEPLOYMENT_REPO`, `PULUMI_BACKEND_URL`, `PULUMI_SECRETS_PROVIDER_*`, `AWS_ROLE_ARN_*`, `OIDC_ISSUER_URL_*`, `JWKS_URL_*`, `RUNTIME_BUCKET_*`, `TABLE_NAME_*`, `GITHUB_ORG`, `GITHUB_REPO`, `OIDC_DISCOVERY_TEMPLATE_REPO`, `OIDC_DISCOVERY_REPO_NAME`, `OIDC_DISCOVERY_REPO`, `OIDC_DISCOVERY_PAGES_PROJECT`, `OIDC_DISCOVERY_AWS_ROLE_NAME_*`, `OIDC_DISCOVERY_AWS_ROLE_ARN_*`, `PREVIEW_DEFAULT_STACK`
 
 ## Expected Result
