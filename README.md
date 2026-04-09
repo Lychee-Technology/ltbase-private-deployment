@@ -73,6 +73,7 @@ Important files and scripts:
 - `scripts/bootstrap-deployment-repo.sh`
 - `scripts/bootstrap-all.sh`
 - `scripts/evaluate-and-continue.sh`
+- `scripts/update-sync-template-tooling.sh`
 - `scripts/sync-template-upstream.sh`
 
 Preferred recovery-aware bootstrap entrypoint:
@@ -85,7 +86,10 @@ The bootstrap flow now also manages the customer-specific `*-oidc-discovery` com
 
 For day-2 maintenance, the generated deployment repository can sync later template changes by running:
 
+- `./scripts/update-sync-template-tooling.sh`
 - `./scripts/sync-template-upstream.sh`
+
+Use `./scripts/update-sync-template-tooling.sh` first when you want the latest sync helper and its regression test from the template. Then run `./scripts/sync-template-upstream.sh` to sync template-managed files. The template sync preserves local `.env` files, `infra/Pulumi.*.yaml`, customer-owned `infra/auth-providers.*.json`, and the sync helper's own script/test files.
 
 ## Deployment Principles
 

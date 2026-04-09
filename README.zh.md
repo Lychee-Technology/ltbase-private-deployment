@@ -73,6 +73,7 @@ onboarding 文档支持通用多 stack 拓扑。文中出现 `devo`、`prod` 等
 - `scripts/bootstrap-deployment-repo.sh`
 - `scripts/bootstrap-all.sh`
 - `scripts/evaluate-and-continue.sh`
+- `scripts/update-sync-template-tooling.sh`
 - `scripts/sync-template-upstream.sh`
 
 推荐的可恢复 bootstrap 入口：
@@ -85,7 +86,10 @@ onboarding 文档支持通用多 stack 拓扑。文中出现 `devo`、`prod` 等
 
 对于日常维护，从该模板生成出来的部署仓库可以通过以下命令同步后续模板变更：
 
+- `./scripts/update-sync-template-tooling.sh`
 - `./scripts/sync-template-upstream.sh`
+
+当你希望先拿到模板中的最新同步工具和对应回归测试时，先运行 `./scripts/update-sync-template-tooling.sh`，再运行 `./scripts/sync-template-upstream.sh` 同步模板管理的文件。模板同步会保留本地 `.env`、`infra/Pulumi.*.yaml`、由 deployment repo 自行维护的 `infra/auth-providers.*.json`，以及同步工具自己的脚本与测试文件。
 
 ## 部署原则
 

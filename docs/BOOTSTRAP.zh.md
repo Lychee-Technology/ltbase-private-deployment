@@ -23,6 +23,7 @@
 - `scripts/bootstrap-deployment-repo.sh`
 - `scripts/bootstrap-all.sh`
 - `scripts/evaluate-and-continue.sh`
+- `scripts/update-sync-template-tooling.sh`
 - `scripts/sync-template-upstream.sh`
 - `scripts/reconcile-managed-dsql-endpoint.sh`
 - `scripts/lib/bootstrap-env.sh`
