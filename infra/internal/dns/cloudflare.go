@@ -12,6 +12,7 @@ type RecordArgs struct {
 	ZoneID   string
 	ZoneName string
 	Target   pulumi.StringPtrInput
+	Proxied  bool
 }
 
 func NewCNAME(ctx *pulumi.Context, logicalName string, args RecordArgs, opts ...pulumi.ResourceOption) (*cloudflare.DnsRecord, error) {
@@ -27,6 +28,10 @@ func NewCNAME(ctx *pulumi.Context, logicalName string, args RecordArgs, opts ...
 		Type:    pulumi.String("CNAME"),
 		Content: args.Target,
 		Ttl:     pulumi.Float64(1),
-		Proxied: pulumi.Bool(false),
+		Proxied: pulumi.Bool(recordProxied(args)),
 	}, opts...)
+}
+
+func recordProxied(args RecordArgs) bool {
+	return args.Proxied
 }

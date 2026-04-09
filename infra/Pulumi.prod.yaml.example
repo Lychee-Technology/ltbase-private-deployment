@@ -2,6 +2,8 @@ config:
   ltbase-infra:awsRegion: ap-northeast-1
   ltbase-infra:runtimeBucket: customer-ltbase-runtime-prod
   ltbase-infra:tableName: customer-ltbase-prod
+  ltbase-infra:mtlsTruststoreFile: infra/certs/cloudflare-origin-pull-ca.pem
+  ltbase-infra:mtlsTruststoreKey: mtls/cloudflare-origin-pull-ca.pem
   ltbase-infra:apiDomain: api.customer.example.com
   ltbase-infra:controlPlaneDomain: control.customer.example.com
   ltbase-infra:authDomain: auth.customer.example.com

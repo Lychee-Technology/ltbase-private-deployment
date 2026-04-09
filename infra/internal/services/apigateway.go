@@ -1,6 +1,9 @@
 package services
 
 import (
+	"fmt"
+	"os"
+	"path/filepath"
 	"regexp"
 	"strings"
 
@@ -8,6 +11,7 @@ import (
 	"github.com/pulumi/pulumi-aws/sdk/v7/go/aws/apigatewayv2"
 	"github.com/pulumi/pulumi-aws/sdk/v7/go/aws/cloudwatch"
 	"github.com/pulumi/pulumi-aws/sdk/v7/go/aws/lambda"
+	"github.com/pulumi/pulumi-aws/sdk/v7/go/aws/s3"
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 
 	"lychee.technology/ltbase/infra/internal/config"
@@ -35,11 +39,16 @@ type authorizerSpec struct {
 
 var routeResourceNameCleaner = regexp.MustCompile(`[^a-z0-9]+`)
 
-func NewAPIs(ctx *pulumi.Context, cfg config.StackConfig, providers Providers, lambdas *ServiceSet) (*APISet, error) {
+func NewAPIs(ctx *pulumi.Context, cfg config.StackConfig, providers Providers, runtime *RuntimeResources, lambdas *ServiceSet) (*APISet, error) {
 	providerCfg, err := loadAuthProviderConfig(ctx.RootDirectory(), cfg.AuthProviderConfigFile)
 	if err != nil {
 		return nil, err
 	}
+	truststore, err := newMTLSTruststore(ctx, cfg, providers, runtime)
+	if err != nil {
+		return nil, err
+	}
+	domains := buildHTTPAPIDomainConfigs(cfg, truststore)
 	apiCert, err := newValidatedCertificate(ctx, cfg, providers, "api", cfg.APIDomain)
 	if err != nil {
 		return nil, err
@@ -52,19 +61,34 @@ func NewAPIs(ctx *pulumi.Context, cfg config.StackConfig, providers Providers, l
 	if err != nil {
 		return nil, err
 	}
-	api, err := newHTTPAPI(ctx, cfg, providers, "api", cfg.APIDomain, apiCert, lambdas.DataPlane, buildAPIRouteSpecs(), []authorizerSpec{ltbaseAuthorizerSpec(cfg)})
+	api, err := newHTTPAPI(ctx, cfg, providers, domains["api"].Suffix, domains["api"].Domain, apiCert, domains["api"].Truststore, lambdas.DataPlane, buildAPIRouteSpecs(), []authorizerSpec{ltbaseAuthorizerSpec(cfg)})
 	if err != nil {
 		return nil, err
 	}
-	controlPlane, err := newHTTPAPI(ctx, cfg, providers, "control", cfg.ControlPlaneDomain, controlCert, lambdas.ControlPlane, buildControlPlaneRouteSpecs(), []authorizerSpec{ltbaseAuthorizerSpec(cfg)})
+	controlPlane, err := newHTTPAPI(ctx, cfg, providers, domains["control"].Suffix, domains["control"].Domain, controlCert, domains["control"].Truststore, lambdas.ControlPlane, buildControlPlaneRouteSpecs(), []authorizerSpec{ltbaseAuthorizerSpec(cfg)})
 	if err != nil {
 		return nil, err
 	}
-	auth, err := newHTTPAPI(ctx, cfg, providers, "auth", cfg.AuthDomain, authCert, lambdas.AuthService, buildAuthRouteSpecs(providerCfg), buildAuthAuthorizerSpecs(cfg, providerCfg))
+	auth, err := newHTTPAPI(ctx, cfg, providers, domains["auth"].Suffix, domains["auth"].Domain, authCert, domains["auth"].Truststore, lambdas.AuthService, buildAuthRouteSpecs(providerCfg), buildAuthAuthorizerSpecs(cfg, providerCfg))
 	if err != nil {
 		return nil, err
 	}
 	return &APISet{API: api, ControlPlane: controlPlane, Auth: auth, Certificate: apiCert}, nil
+}
+
+type mtlsTruststore struct {
+	URI     string
+	Version pulumi.StringOutput
+}
+
+type httpAPIConfig struct {
+	DisableExecuteAPIEndpoint bool
+}
+
+type httpAPIDomainConfig struct {
+	Suffix     string
+	Domain     string
+	Truststore mtlsTruststore
 }
 
 func ltbaseAuthorizerSpec(cfg config.StackConfig) authorizerSpec {
@@ -150,10 +174,12 @@ func buildAuthRouteSpecs(providerCfg AuthProviderConfig) []routeSpec {
 	return routes
 }
 
-func newHTTPAPI(ctx *pulumi.Context, cfg config.StackConfig, providers Providers, suffix, domain string, cert *acm.CertificateValidation, service *LambdaService, routes []routeSpec, authorizers []authorizerSpec) (*apigatewayv2.Api, error) {
+func newHTTPAPI(ctx *pulumi.Context, cfg config.StackConfig, providers Providers, suffix, domain string, cert *acm.CertificateValidation, truststore mtlsTruststore, service *LambdaService, routes []routeSpec, authorizers []authorizerSpec) (*apigatewayv2.Api, error) {
+	settings := httpAPISettings()
 	api, err := apigatewayv2.NewApi(ctx, naming.ResourceName(cfg.Project, cfg.Stack, suffix+"-api"), &apigatewayv2.ApiArgs{
-		Name:         pulumi.String(naming.ResourceName(cfg.Project, cfg.Stack, suffix+"-api")),
-		ProtocolType: pulumi.String("HTTP"),
+		Name:                      pulumi.String(naming.ResourceName(cfg.Project, cfg.Stack, suffix+"-api")),
+		ProtocolType:              pulumi.String("HTTP"),
+		DisableExecuteApiEndpoint: pulumi.BoolPtr(settings.DisableExecuteAPIEndpoint),
 	}, pulumi.Provider(providers.AWS))
 	if err != nil {
 		return nil, err
@@ -234,6 +260,10 @@ func newHTTPAPI(ctx *pulumi.Context, cfg config.StackConfig, providers Providers
 			EndpointType:   pulumi.String("REGIONAL"),
 			SecurityPolicy: pulumi.String("TLS_1_2"),
 		},
+		MutualTlsAuthentication: &apigatewayv2.DomainNameMutualTlsAuthenticationArgs{
+			TruststoreUri:     pulumi.String(truststore.URI),
+			TruststoreVersion: truststore.Version.ToStringPtrOutput(),
+		},
 	}, pulumi.Provider(providers.AWS), pulumi.DependsOn([]pulumi.Resource{cert}))
 	if err != nil {
 		return nil, err
@@ -257,12 +287,8 @@ func newHTTPAPI(ctx *pulumi.Context, cfg config.StackConfig, providers Providers
 		return nil, err
 	}
 	targetDomain := domainName.DomainNameConfiguration.TargetDomainName().Elem()
-	if _, err = dns.NewCNAME(ctx, naming.ResourceName(cfg.Project, cfg.Stack, suffix+"-dns"), dns.RecordArgs{
-		Name:     pulumi.StringPtr(domain),
-		ZoneID:   cfg.CloudflareZoneID,
-		ZoneName: cfg.CloudflareZoneName,
-		Target:   targetDomain,
-	}); err != nil {
+	apiDNSRecord := apiDomainRecordArgs(cfg, domain, targetDomain)
+	if _, err = dns.NewCNAME(ctx, naming.ResourceName(cfg.Project, cfg.Stack, suffix+"-dns"), apiDNSRecord); err != nil {
 		return nil, err
 	}
 	return api, nil
@@ -283,12 +309,7 @@ func newValidatedCertificate(ctx *pulumi.Context, cfg config.StackConfig, provid
 		return nil, err
 	}
 	option := cert.DomainValidationOptions.Index(pulumi.Int(0))
-	record, err := dns.NewCNAME(ctx, naming.ResourceName(cfg.Project, cfg.Stack, suffix+"-cert-validation"), dns.RecordArgs{
-		Name:     option.ResourceRecordName(),
-		ZoneID:   cfg.CloudflareZoneID,
-		ZoneName: cfg.CloudflareZoneName,
-		Target:   option.ResourceRecordValue(),
-	})
+	record, err := dns.NewCNAME(ctx, naming.ResourceName(cfg.Project, cfg.Stack, suffix+"-cert-validation"), certificateValidationRecordArgs(cfg, option.ResourceRecordName(), option.ResourceRecordValue()))
 	if err != nil {
 		return nil, err
 	}
@@ -298,4 +319,97 @@ func newValidatedCertificate(ctx *pulumi.Context, cfg config.StackConfig, provid
 			option.ResourceRecordName().Elem(),
 		},
 	}, pulumi.Provider(providers.AWS), pulumi.DependsOn([]pulumi.Resource{record}))
+}
+
+func httpAPISettings() httpAPIConfig {
+	return httpAPIConfig{DisableExecuteAPIEndpoint: true}
+}
+
+func buildHTTPAPIDomainConfigs(cfg config.StackConfig, truststore mtlsTruststore) map[string]httpAPIDomainConfig {
+	return map[string]httpAPIDomainConfig{
+		"api": {
+			Suffix:     "api",
+			Domain:     cfg.APIDomain,
+			Truststore: truststore,
+		},
+		"control": {
+			Suffix:     "control",
+			Domain:     cfg.ControlPlaneDomain,
+			Truststore: truststore,
+		},
+		"auth": {
+			Suffix:     "auth",
+			Domain:     cfg.AuthDomain,
+			Truststore: truststore,
+		},
+	}
+}
+
+func apiDomainRecordArgs(cfg config.StackConfig, domain string, target pulumi.StringPtrInput) dns.RecordArgs {
+	return dns.RecordArgs{
+		Name:     pulumi.StringPtr(domain),
+		ZoneID:   cfg.CloudflareZoneID,
+		ZoneName: cfg.CloudflareZoneName,
+		Target:   target,
+		Proxied:  true,
+	}
+}
+
+func certificateValidationRecordArgs(cfg config.StackConfig, name pulumi.StringPtrInput, target pulumi.StringPtrInput) dns.RecordArgs {
+	return dns.RecordArgs{
+		Name:     name,
+		ZoneID:   cfg.CloudflareZoneID,
+		ZoneName: cfg.CloudflareZoneName,
+		Target:   target,
+		Proxied:  false,
+	}
+}
+
+func newMTLSTruststore(ctx *pulumi.Context, cfg config.StackConfig, providers Providers, runtime *RuntimeResources) (mtlsTruststore, error) {
+	path, err := resolveMTLSTruststorePath(ctx.RootDirectory(), cfg.MTLSTruststoreFile)
+	if err != nil {
+		return mtlsTruststore{}, err
+	}
+	object, err := s3.NewBucketObjectv2(ctx, naming.ResourceName(cfg.Project, cfg.Stack, "mtls-truststore"), &s3.BucketObjectv2Args{
+		Bucket:               runtime.RuntimeBucket.ID(),
+		Key:                  pulumi.String(cfg.MTLSTruststoreKey),
+		Source:               pulumi.NewFileAsset(path),
+		ServerSideEncryption: pulumi.String("AES256"),
+	}, pulumi.Provider(providers.AWS), pulumi.DependsOn([]pulumi.Resource{runtime.RuntimeBucketVersioning}))
+	if err != nil {
+		return mtlsTruststore{}, err
+	}
+	return mtlsTruststore{
+		URI:     mtlsTruststoreURI(cfg.RuntimeBucket, cfg.MTLSTruststoreKey),
+		Version: object.VersionId,
+	}, nil
+}
+
+func resolveMTLSTruststorePath(rootDir, path string) (string, error) {
+	resolved, err := filepath.Abs(resolveTruststorePath(rootDir, path))
+	if err != nil {
+		return "", fmt.Errorf("resolve mTLS truststore path: %w", err)
+	}
+	if _, err := os.Stat(resolved); err != nil {
+		if os.IsNotExist(err) {
+			return "", fmt.Errorf("read mTLS truststore: %w", err)
+		}
+		return "", fmt.Errorf("stat mTLS truststore: %w", err)
+	}
+	return resolved, nil
+}
+
+func resolveTruststorePath(rootDir, path string) string {
+	cleaned := filepath.Clean(path)
+	if filepath.IsAbs(cleaned) || rootDir == "" {
+		return cleaned
+	}
+	if strings.HasPrefix(cleaned, "infra/") {
+		return filepath.Join(rootDir, strings.TrimPrefix(cleaned, "infra/"))
+	}
+	return filepath.Join(rootDir, cleaned)
+}
+
+func mtlsTruststoreURI(bucket, key string) string {
+	return "s3://" + bucket + "/" + key
 }

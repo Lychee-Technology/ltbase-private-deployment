@@ -95,9 +95,12 @@ onboarding 文档支持通用多 stack 拓扑。文中出现 `devo`、`prod` 等
 - 共享的 Pulumi backend bucket 只创建一次，并固定放在 `PROMOTION_PATH` 第一个 stack 对应的 AWS 账户中
 - 手动 preview 只针对 `PROMOTION_PATH` 的第一个环境
 - 自动 rollout 会按 `PROMOTION_PATH` 逐跳推进，受保护目标环境仍由客户自己审批
+- `api`、`auth`、`control-plane` 默认应通过 Cloudflare 代理的自定义域名访问，并在 API Gateway 上启用 mutual TLS
 
 ## 说明
 
 - 保持本地 `.env` 文件私密，不要纳入版本控制
 - 客户 onboarding 请以 `docs/` 下文档为准
 - 如果后续仓库版本调整了 managed DSQL 生命周期，请以该版本自带文档为准
+- 操作者需要将 Cloudflare SSL 模式保持为 `Full (strict)`，并为 API hostname 启用 Authenticated Origin Pulls
+- 一旦应用 mTLS rollout，直连 `execute-api` 失败属于设计预期

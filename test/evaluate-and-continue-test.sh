@@ -83,6 +83,68 @@ DSQL_PORT=5432
 DSQL_DB=postgres
 DSQL_USER=admin
 DSQL_PROJECT_SCHEMA=ltbase
+MTLS_TRUSTSTORE_FILE=infra/certs/cloudflare-origin-pull-ca.pem
+MTLS_TRUSTSTORE_KEY=mtls/cloudflare-origin-pull-ca.pem
+GEMINI_API_KEY=test-gemini-key
+CLOUDFLARE_API_TOKEN=test-cloudflare-token
+LTBASE_RELEASES_TOKEN=test-release-token
+EOF
+}
+
+write_env_without_mtls() {
+  local path="$1"
+  cat >"${path}" <<'EOF'
+STACKS=devo,staging,prod
+PROMOTION_PATH=devo,staging,prod
+TEMPLATE_REPO=Lychee-Technology/ltbase-private-deployment
+GITHUB_OWNER=customer-org
+DEPLOYMENT_REPO_NAME=customer-ltbase
+DEPLOYMENT_REPO_VISIBILITY=private
+DEPLOYMENT_REPO_DESCRIPTION="Customer LTBase deployment repo"
+AWS_REGION_DEVO=ap-northeast-1
+AWS_REGION_STAGING=us-east-1
+AWS_REGION_PROD=us-west-2
+AWS_ACCOUNT_ID_DEVO=123456789012
+AWS_ACCOUNT_ID_STAGING=123456789012
+AWS_ACCOUNT_ID_PROD=210987654321
+AWS_PROFILE_DEVO=devo-profile
+AWS_PROFILE_STAGING=staging-profile
+AWS_PROFILE_PROD=prod-profile
+AWS_ROLE_NAME_DEVO=ltbase-deploy-devo
+AWS_ROLE_NAME_STAGING=ltbase-deploy-staging
+AWS_ROLE_NAME_PROD=ltbase-deploy-prod
+PULUMI_STATE_BUCKET=test-pulumi-state
+PULUMI_KMS_ALIAS=alias/test-pulumi-secrets
+PULUMI_BACKEND_URL=s3://test-pulumi-state
+LTBASE_RELEASES_REPO=Lychee-Technology/ltbase-releases
+LTBASE_RELEASE_ID=v1.0.0
+API_DOMAIN_DEVO=api.devo.example.com
+API_DOMAIN_STAGING=api.staging.example.com
+API_DOMAIN_PROD=api.example.com
+CONTROL_DOMAIN_DEVO=control.devo.example.com
+CONTROL_DOMAIN_STAGING=control.staging.example.com
+CONTROL_DOMAIN_PROD=control.example.com
+AUTH_DOMAIN_DEVO=auth.devo.example.com
+AUTH_DOMAIN_STAGING=auth.staging.example.com
+AUTH_DOMAIN_PROD=auth.example.com
+PROJECT_ID=33333333-3333-4333-8333-333333333333
+AUTH_PROVIDER_CONFIG_FILE_DEVO=infra/auth-providers.devo.json
+AUTH_PROVIDER_CONFIG_FILE_STAGING=infra/auth-providers.staging.json
+AUTH_PROVIDER_CONFIG_FILE_PROD=infra/auth-providers.prod.json
+CLOUDFLARE_ZONE_ID=zone-123
+OIDC_ISSUER_URL_DEVO=https://issuer.example.com/devo
+OIDC_ISSUER_URL_STAGING=https://issuer.example.com/staging
+OIDC_ISSUER_URL_PROD=https://issuer.example.com/prod
+JWKS_URL_DEVO=https://issuer.example.com/devo/jwks.json
+JWKS_URL_STAGING=https://issuer.example.com/staging/jwks.json
+JWKS_URL_PROD=https://issuer.example.com/prod/jwks.json
+OIDC_DISCOVERY_DOMAIN=oidc.customer.example.com
+CLOUDFLARE_ACCOUNT_ID=cf-account-123
+GEMINI_MODEL=gemini-3-flash-preview
+DSQL_PORT=5432
+DSQL_DB=postgres
+DSQL_USER=admin
+DSQL_PROJECT_SCHEMA=ltbase
 GEMINI_API_KEY=test-gemini-key
 CLOUDFLARE_API_TOKEN=test-cloudflare-token
 LTBASE_RELEASES_TOKEN=test-release-token
@@ -103,9 +165,11 @@ cmd="${1:-}"
 sub="${2:-}"
 if [[ "${cmd} ${sub}" == "repo view" ]]; then
   if [[ "${SCENARIO}" == "repo_config_missing" || "${SCENARIO}" == "bootstrap_force" ]]; then
+    printf 'GraphQL: Could not resolve to a Repository with the name %s.\n' "${3:-unknown}" >&2
     exit 1
   fi
   if [[ "${3:-}" == "customer-org/customer-ltbase-oidc-discovery" && "${SCENARIO}" == "oidc_companion_missing" ]]; then
+    printf 'GraphQL: Could not resolve to a Repository with the name %s.\n' "${3}" >&2
     exit 1
   fi
   exit 0
@@ -241,12 +305,22 @@ set -euo pipefail
 printf 'curl %s\n' "$*" >>"${COMMAND_LOG}"
 method="GET"
 url=""
+output_file=""
+write_format=""
 args=("$@")
 index=0
 while [[ ${index} -lt ${#args[@]} ]]; do
   case "${args[${index}]}" in
     -X)
       method="${args[$((index + 1))]}"
+      index=$((index + 2))
+      ;;
+    -o)
+      output_file="${args[$((index + 1))]}"
+      index=$((index + 2))
+      ;;
+    -w)
+      write_format="${args[$((index + 1))]}"
       index=$((index + 2))
       ;;
     http*)
@@ -264,7 +338,14 @@ fi
 if [[ "${SCENARIO}" == "oidc_companion_missing" && "${method}" == "GET" && "${url}" == *"/pages/projects/customer-ltbase-oidc-discovery/domains/oidc.customer.example.com" ]]; then
   exit 22
 fi
-printf '{"success":true}'
+if [[ -n "${output_file}" ]]; then
+  printf '{"success":true}' >"${output_file}"
+else
+  printf '{"success":true}'
+fi
+if [[ "${write_format}" == "%{http_code}" ]]; then
+  printf '200'
+fi
 EOF
   chmod +x "${fake_bin}/curl"
 
@@ -323,6 +404,20 @@ if [[ "${1:-} ${2:-} ${3:-} ${4:-}" == "config get dsqlEndpoint --stack" ]]; the
   esac
   exit 1
 fi
+if [[ "${1:-} ${2:-} ${3:-} ${4:-}" == "config get mtlsTruststoreFile --stack" ]]; then
+  if [[ "${SCENARIO}" == "missing_mtls_stack_config" ]]; then
+    exit 1
+  fi
+  printf 'infra/certs/cloudflare-origin-pull-ca.pem\n'
+  exit 0
+fi
+if [[ "${1:-} ${2:-} ${3:-} ${4:-}" == "config get mtlsTruststoreKey --stack" ]]; then
+  if [[ "${SCENARIO}" == "missing_mtls_stack_config" ]]; then
+    exit 1
+  fi
+  printf 'mtls/cloudflare-origin-pull-ca.pem\n'
+  exit 0
+fi
 if [[ "${1:-} ${2:-}" == "config set" || "${1:-} ${2:-}" == "config rm" ]]; then
   exit 0
 fi
@@ -362,6 +457,14 @@ done
 
 write_env "${temp_dir}/.env"
 setup_fake_bin "${temp_dir}/bin" "${temp_dir}/commands.log"
+
+write_env_without_mtls "${temp_dir}/missing-mtls.env"
+
+run_expect_exit_code 1 env \
+  PATH="${temp_dir}/bin:$PATH" \
+  COMMAND_LOG="${temp_dir}/commands.log" \
+  SCENARIO="rollout_mix" \
+  "${SCRIPT_PATH}" --env-file "${temp_dir}/missing-mtls.env" --infra-dir "${temp_dir}/infra" --report-dir "${temp_dir}/report-missing-mtls-env"
 
 run_expect_exit_code 2 env \
   PATH="${temp_dir}/bin:$PATH" \
@@ -420,6 +523,14 @@ assert_log_contains "${temp_dir}/commands.log" "AWS_REGION=ap-northeast-1 AWS_DE
 assert_log_contains "${temp_dir}/commands.log" "AWS_REGION=ap-northeast-1 AWS_DEFAULT_REGION=ap-northeast-1 AWS_PROFILE=devo-profile pulumi stack select devo"
 assert_log_contains "${temp_dir}/commands.log" "AWS_REGION=us-east-1 AWS_DEFAULT_REGION=us-east-1 AWS_PROFILE=staging-profile pulumi stack select staging"
 assert_log_contains "${temp_dir}/commands.log" "AWS_REGION=us-west-2 AWS_DEFAULT_REGION=us-west-2 AWS_PROFILE=prod-profile pulumi stack select prod"
+
+run_expect_exit_code 2 env \
+  PATH="${temp_dir}/bin:$PATH" \
+  COMMAND_LOG="${temp_dir}/commands.log" \
+  SCENARIO="missing_mtls_stack_config" \
+  "${SCRIPT_PATH}" --env-file "${temp_dir}/.env" --infra-dir "${temp_dir}/infra" --report-dir "${temp_dir}/report-missing-mtls-stack-config"
+
+assert_file_contains "${temp_dir}/report-missing-mtls-stack-config/report.json" '"status": "needs_stack_bootstrap"'
 
 run_expect_exit_code 2 env \
   PATH="${temp_dir}/bin:$PATH" \

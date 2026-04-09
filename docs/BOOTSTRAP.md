@@ -50,6 +50,7 @@ Your deployment repository should contain:
 - read [`onboarding/04-prepare-env-file.md`](onboarding/04-prepare-env-file.md)
 - copy `env.template` to `.env`
 - fill customer-controlled values, leave derived values alone unless you need overrides, and never commit `.env`
+- keep `MTLS_TRUSTSTORE_FILE` and `MTLS_TRUSTSTORE_KEY` at the template defaults unless LTBase instructs otherwise
 
 ### 5. Choose a bootstrap path
 
@@ -102,3 +103,7 @@ Manual path:
 - preview is manual in the customer repo because live credentials are customer-owned
 - manual preview only supports the first stack in `PROMOTION_PATH`
 - protected target environments are guarded by per-stack GitHub environment approval gates during rollout
+- the template now assumes `api`, `auth`, and `control-plane` are served through Cloudflare-proxied custom domains
+- set Cloudflare SSL mode to `Full (strict)` before enabling production traffic
+- enable Cloudflare Authenticated Origin Pulls before expecting API Gateway mTLS to succeed
+- direct `execute-api` access is expected to fail once the mTLS rollout is applied

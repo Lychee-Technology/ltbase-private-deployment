@@ -42,7 +42,7 @@ func main() {
 			return err
 		}
 		ctx.Log.Info("ltbase-infra: declared lambda services", nil)
-		if _, err = services.NewAPIs(ctx, cfg, providers, lambdas); err != nil {
+		if _, err = services.NewAPIs(ctx, cfg, providers, runtime, lambdas); err != nil {
 			return err
 		}
 		ctx.Log.Info("ltbase-infra: declared API resources", nil)

@@ -95,9 +95,12 @@ For day-2 maintenance, the generated deployment repository can sync later templa
 - the shared Pulumi backend bucket is created once and lives in the AWS account for the first stack in `PROMOTION_PATH`
 - manual preview only targets the first stack in `PROMOTION_PATH`
 - automated rollout continues one hop at a time across `PROMOTION_PATH`, with customer-controlled approvals on protected target environments
+- `api`, `auth`, and `control-plane` are expected to use Cloudflare-proxied custom domains with API Gateway mutual TLS enabled
 
 ## Notes
 
 - keep local `.env` files private and out of version control
 - use the documentation in `docs/` as the source of truth for customer onboarding
 - if a later repository version changes the managed DSQL lifecycle, follow the docs shipped with that version
+- operators must keep Cloudflare SSL mode on `Full (strict)` and enable Authenticated Origin Pulls for the API hostnames
+- once the mTLS rollout is applied, direct `execute-api` access is expected to fail by design

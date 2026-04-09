@@ -68,3 +68,10 @@ func TestAuthLambdaEnvIncludesProviderNames(t *testing.T) {
 		}
 	}
 }
+
+func TestRuntimeResourcesCanCarryBucketVersioningHandle(t *testing.T) {
+	runtime := RuntimeResources{}
+	if runtime.RuntimeBucketVersioning != nil {
+		t.Fatal("RuntimeBucketVersioning should default to nil in zero value")
+	}
+}
