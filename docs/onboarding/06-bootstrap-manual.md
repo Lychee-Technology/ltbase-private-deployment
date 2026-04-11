@@ -137,8 +137,8 @@ After each stack, confirm:
 
 Before you run this stage, confirm:
 
-- `OIDC_DISCOVERY_DOMAIN`, `CLOUDFLARE_ACCOUNT_ID`, and `CLOUDFLARE_API_TOKEN` are correct
-- you are ready for the script to create or update the companion repository, Pages project, and custom domain binding
+- `OIDC_DISCOVERY_DOMAIN`, `CLOUDFLARE_ACCOUNT_ID`, `CLOUDFLARE_ZONE_ID`, and `CLOUDFLARE_API_TOKEN` are correct
+- you are ready for the script to create or update the companion repository, Pages project, custom domain binding, and required DNS `CNAME`
 
 Run:
 
@@ -146,13 +146,14 @@ Run:
 ./scripts/bootstrap-oidc-discovery-companion.sh --env-file .env
 ```
 
-This step creates or updates the OIDC discovery companion repository, Cloudflare Pages project, custom domain binding, and per-stack OIDC discovery IAM roles.
+This step creates or updates the OIDC discovery companion repository, Cloudflare Pages project, custom domain binding, the required zone DNS `CNAME` pointing at `${OIDC_DISCOVERY_PAGES_PROJECT}.pages.dev`, and per-stack OIDC discovery IAM roles.
 
 After this step, confirm:
 
 - the OIDC discovery companion repository now exists
 - that repository has GitHub repository variables `OIDC_DISCOVERY_DOMAIN` and `OIDC_DISCOVERY_STACK_CONFIG`
 - the Cloudflare Pages project and custom domain binding were created
+- the Cloudflare zone now contains the expected `CNAME` for `OIDC_DISCOVERY_DOMAIN`
 - the per-stack OIDC discovery IAM roles now exist
 
 ### 7. Confirm repository configuration

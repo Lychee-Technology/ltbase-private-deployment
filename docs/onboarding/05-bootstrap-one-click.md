@@ -13,6 +13,7 @@ Use this guide when you want the repository creation, policy rendering, AWS foun
 - complete [`04-prepare-env-file.md`](04-prepare-env-file.md)
 - use a local clone of your real deployment repository if possible
 - have enough GitHub and AWS permissions to create and update all required resources
+- have enough Cloudflare permissions to manage the OIDC discovery Pages project, custom domain, and DNS record
 
 Before using the one-click path, review the minimum bootstrap permission matrix in [`01-prerequisites.md`](01-prerequisites.md).
 
@@ -84,6 +85,7 @@ What to expect:
 - hard validation failures such as missing required variables are not normal and should be fixed before continuing
 - authentication failures from GitHub, AWS, Cloudflare, or Pulumi are blockers and should be fixed before continuing
 - the command also writes a machine-readable report to `dist/evaluate-and-continue/report.json`
+- the OIDC companion is only `complete` when the companion repo, Pages project, custom domain binding, required `CNAME`, and discovery IAM roles are all present
 
 ## Steps
 
@@ -120,6 +122,8 @@ The one-click script runs these stages in order:
 - optional `gh workflow run rollout.yml ...` when `--release-id` is set
 
 `bootstrap-aws-foundation.sh` creates the shared Pulumi backend bucket once in the AWS account for the first stack in `PROMOTION_PATH`, then prepares per-stack role and secrets-provider inputs for every stack in `STACKS`.
+
+`bootstrap-oidc-discovery-companion.sh` also creates the required Cloudflare DNS `CNAME` for `OIDC_DISCOVERY_DOMAIN` so the custom domain resolves directly to `${OIDC_DISCOVERY_PAGES_PROJECT}.pages.dev`.
 
 ## Expected Result
 

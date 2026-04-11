@@ -54,6 +54,7 @@ DEPLOYMENT_REPO_VISIBILITY=private
 DEPLOYMENT_REPO_DESCRIPTION="Customer LTBase deployment repo"
 OIDC_DISCOVERY_DOMAIN=oidc.customer.example.com
 CLOUDFLARE_ACCOUNT_ID=cf-account-123
+CLOUDFLARE_ZONE_ID=zone-123
 AWS_REGION_DEVO=ap-northeast-1
 AWS_REGION_PROD=us-west-2
 AWS_ACCOUNT_ID_DEVO=123456789012
@@ -149,6 +150,10 @@ done
 body='{"success":true}'
 status='200'
 
+dns_lookup_url='https://api.cloudflare.com/client/v4/zones/zone-123/dns_records?type=CNAME&name=oidc.customer.example.com'
+dns_create_url='https://api.cloudflare.com/client/v4/zones/zone-123/dns_records'
+dns_expected_content='customer-ltbase-oidc-discovery.pages.dev'
+
 if [[ "${method}" == "GET" && "${CURL_GET_EXISTING_PROJECT:-false}" == "true" && "${url}" == *"/pages/projects/customer-ltbase-oidc-discovery" ]]; then
   body='{"success":true,"result":{"name":"customer-ltbase-oidc-discovery"}}'
   status='200'
@@ -156,6 +161,21 @@ fi
 if [[ "${method}" == "GET" && "${CURL_GET_EXISTING_DOMAIN:-false}" == "true" && "${url}" == *"/pages/projects/customer-ltbase-oidc-discovery/domains/oidc.customer.example.com" ]]; then
   body='{"success":true,"result":{"name":"oidc.customer.example.com"}}'
   status='200'
+fi
+if [[ "${method}" == "GET" && "${url}" == "${dns_lookup_url}" ]]; then
+  if [[ "${CURL_DNS_CONFLICT_WRONG_CONTENT:-false}" == "true" ]]; then
+    body='{"success":true,"result":[{"id":"dns-1","type":"CNAME","name":"oidc.customer.example.com","content":"wrong-target.pages.dev"}]}'
+    status='200'
+  elif [[ "${CURL_DNS_CONFLICT_WRONG_TYPE:-false}" == "true" ]]; then
+    body='{"success":true,"result":[{"id":"dns-1","type":"TXT","name":"oidc.customer.example.com","content":"customer-ltbase-oidc-discovery.pages.dev"}]}'
+    status='200'
+  elif [[ "${CURL_DNS_MATCHING_RECORD:-false}" == "true" ]]; then
+    body='{"success":true,"result":[{"id":"dns-1","type":"CNAME","name":"oidc.customer.example.com","content":"customer-ltbase-oidc-discovery.pages.dev"}]}'
+    status='200'
+  else
+    body='{"success":true,"result":[]}'
+    status='200'
+  fi
 fi
 
 if [[ "${method}" == "GET" && "${CURL_GET_AUTH_FAILURE:-false}" == "true" && "${url}" == *"/pages/projects/customer-ltbase-oidc-discovery" ]]; then
@@ -174,6 +194,11 @@ fi
 if [[ "${method}" == "GET" && "${status}" == '200' && "${CURL_GET_EXISTING_DOMAIN:-false}" != "true" && "${url}" == *"/pages/projects/customer-ltbase-oidc-discovery/domains/oidc.customer.example.com" ]]; then
   status='404'
   body='{"success":false,"errors":[{"message":"not found"}]}'
+fi
+
+if [[ "${method}" == "POST" && "${url}" == "${dns_create_url}" && "${CURL_FAIL_DNS_POST_SUCCESS:-false}" == "true" ]]; then
+  body='{"success":false,"errors":[{"message":"dns create failed"}]}'
+  status='200'
 fi
 
 if [[ "${method}" == "POST" && "${CURL_FAIL_POST_SUCCESS:-true}" == "false" ]]; then
@@ -220,6 +245,8 @@ fi
 assert_log_contains "${log_file}" "gh repo create customer-org/customer-ltbase-oidc-discovery --template Lychee-Technology/ltbase-oidc-discovery-template --private --description LTBase OIDC discovery companion for customer-ltbase --clone=false"
 assert_log_contains "${log_file}" "https://api.cloudflare.com/client/v4/accounts/cf-account-123/pages/projects"
 assert_log_contains "${log_file}" "https://api.cloudflare.com/client/v4/accounts/cf-account-123/pages/projects/customer-ltbase-oidc-discovery/domains"
+assert_log_contains "${log_file}" "https://api.cloudflare.com/client/v4/zones/zone-123/dns_records?type=CNAME&name=oidc.customer.example.com"
+assert_log_contains "${log_file}" "https://api.cloudflare.com/client/v4/zones/zone-123/dns_records"
 assert_log_contains "${log_file}" "gh variable set OIDC_DISCOVERY_DOMAIN --repo customer-org/customer-ltbase-oidc-discovery --body oidc.customer.example.com"
 assert_log_contains "${log_file}" "gh variable set OIDC_DISCOVERY_STACK_CONFIG --repo customer-org/customer-ltbase-oidc-discovery --body {\"devo\":{\"aws_region\":\"ap-northeast-1\",\"aws_role_arn\":\"arn:aws:iam::123456789012:role/customer-ltbase-oidc-discovery-devo\",\"kms_auth_key_alias\":\"alias/ltbase-oidc-discovery-devo-authservice\"},\"prod\":{\"aws_region\":\"us-west-2\",\"aws_role_arn\":\"arn:aws:iam::210987654321:role/customer-ltbase-oidc-discovery-prod\",\"kms_auth_key_alias\":\"alias/ltbase-oidc-discovery-prod-authservice\"}}"
 assert_log_contains "${log_file}" "gh variable set CLOUDFLARE_ACCOUNT_ID --repo customer-org/customer-ltbase-oidc-discovery --body cf-account-123"
@@ -232,6 +259,7 @@ assert_log_contains "${log_file}" "aws --profile prod-profile iam put-role-polic
 
 assert_file_contains "${temp_dir}/dist/oidc-discovery-companion.env" "OIDC_DISCOVERY_REPO=customer-org/customer-ltbase-oidc-discovery"
 assert_file_contains "${temp_dir}/dist/oidc-discovery-companion.env" "OIDC_DISCOVERY_PAGES_PROJECT=customer-ltbase-oidc-discovery"
+assert_file_contains "${temp_dir}/dist/oidc-discovery-companion.env" "OIDC_DISCOVERY_DOMAIN=oidc.customer.example.com"
 assert_file_contains "${temp_dir}/dist/oidc-discovery-companion.env" "OIDC_ISSUER_URL_DEVO=https://oidc.customer.example.com/devo"
 assert_file_contains "${temp_dir}/dist/oidc-discovery-companion.env" "JWKS_URL_PROD=https://oidc.customer.example.com/prod/.well-known/jwks.json"
 
@@ -245,6 +273,7 @@ DEPLOYMENT_REPO_VISIBILITY=private
 DEPLOYMENT_REPO_DESCRIPTION="Customer LTBase deployment repo"
 OIDC_DISCOVERY_DOMAIN=oidc_customer.example.com
 CLOUDFLARE_ACCOUNT_ID=cf-account-123
+CLOUDFLARE_ZONE_ID=zone-123
 AWS_REGION_DEVO=ap-northeast-1
 AWS_REGION_PROD=us-west-2
 AWS_ACCOUNT_ID_DEVO=123456789012
@@ -271,16 +300,41 @@ fi
 assert_log_contains "${temp_dir}/cloudflare-failure.log" "Cloudflare API request failed"
 
 : >"${log_file}"
-if ! output="$(PATH="${fake_bin}:$PATH" COMMAND_LOG="${log_file}" GH_REPO_VIEW_EXISTS=true GH_REPO_VIEW_NOT_FOUND=false CURL_GET_EXISTING_PROJECT=true CURL_GET_EXISTING_DOMAIN=true "${SCRIPT_PATH}" --env-file "${temp_dir}/.env" --output-dir "${temp_dir}/dist-existing" 2>&1)"; then
+if ! output="$(PATH="${fake_bin}:$PATH" COMMAND_LOG="${log_file}" GH_REPO_VIEW_EXISTS=true GH_REPO_VIEW_NOT_FOUND=false CURL_GET_EXISTING_PROJECT=true CURL_GET_EXISTING_DOMAIN=true CURL_DNS_MATCHING_RECORD=true "${SCRIPT_PATH}" --env-file "${temp_dir}/.env" --output-dir "${temp_dir}/dist-existing" 2>&1)"; then
   fail "expected idempotent rerun to succeed, got: ${output}"
 fi
 
 assert_log_not_contains "${log_file}" "gh repo create customer-org/customer-ltbase-oidc-discovery --template Lychee-Technology/ltbase-oidc-discovery-template --private --description LTBase OIDC discovery companion for customer-ltbase --clone=false"
 assert_log_not_contains "${log_file}" "https://api.cloudflare.com/client/v4/accounts/cf-account-123/pages/projects --data"
 assert_log_not_contains "${log_file}" "https://api.cloudflare.com/client/v4/accounts/cf-account-123/pages/projects/customer-ltbase-oidc-discovery/domains --data"
+assert_log_not_contains "${log_file}" "https://api.cloudflare.com/client/v4/zones/zone-123/dns_records --data"
 assert_log_contains "${log_file}" "gh variable set CLOUDFLARE_ACCOUNT_ID --repo customer-org/customer-ltbase-oidc-discovery --body cf-account-123"
 assert_log_contains "${log_file}" "gh variable set OIDC_DISCOVERY_PAGES_PROJECT --repo customer-org/customer-ltbase-oidc-discovery --body customer-ltbase-oidc-discovery"
 assert_log_contains "${log_file}" "gh secret set CLOUDFLARE_API_TOKEN --repo customer-org/customer-ltbase-oidc-discovery --body test-cloudflare-token"
+
+: >"${log_file}"
+if PATH="${fake_bin}:$PATH" COMMAND_LOG="${log_file}" CURL_DNS_CONFLICT_WRONG_CONTENT=true "${SCRIPT_PATH}" --env-file "${temp_dir}/.env" --output-dir "${temp_dir}/dist-dns-conflict-content" >"${temp_dir}/dns-conflict-content.log" 2>&1; then
+  fail "expected DNS conflict with wrong content to fail"
+fi
+
+assert_log_contains "${temp_dir}/dns-conflict-content.log" "OIDC discovery DNS record already exists with unexpected target"
+assert_log_contains "${temp_dir}/dns-conflict-content.log" "wrong-target.pages.dev"
+
+: >"${log_file}"
+if PATH="${fake_bin}:$PATH" COMMAND_LOG="${log_file}" CURL_DNS_CONFLICT_WRONG_TYPE=true "${SCRIPT_PATH}" --env-file "${temp_dir}/.env" --output-dir "${temp_dir}/dist-dns-conflict-type" >"${temp_dir}/dns-conflict-type.log" 2>&1; then
+  fail "expected DNS conflict with wrong type to fail"
+fi
+
+assert_log_contains "${temp_dir}/dns-conflict-type.log" "OIDC discovery DNS record already exists with unexpected type"
+assert_log_contains "${temp_dir}/dns-conflict-type.log" "TXT"
+
+: >"${log_file}"
+if PATH="${fake_bin}:$PATH" COMMAND_LOG="${log_file}" CURL_FAIL_DNS_POST_SUCCESS=true "${SCRIPT_PATH}" --env-file "${temp_dir}/.env" --output-dir "${temp_dir}/dist-dns-post-failed" >"${temp_dir}/dns-post-failure.log" 2>&1; then
+  fail "expected Cloudflare DNS POST success=false response to fail"
+fi
+
+assert_log_contains "${temp_dir}/dns-post-failure.log" "Cloudflare API request failed: create DNS CNAME"
+assert_log_contains "${temp_dir}/dns-post-failure.log" "dns create failed"
 
 : >"${log_file}"
 if PATH="${fake_bin}:$PATH" COMMAND_LOG="${log_file}" GH_REPO_VIEW_ERROR=true GH_REPO_VIEW_NOT_FOUND=false "${SCRIPT_PATH}" --env-file "${temp_dir}/.env" --output-dir "${temp_dir}/dist-gh-repo-view-error" >"${temp_dir}/github-repo-view-error.log" 2>&1; then

@@ -82,7 +82,7 @@ Preferred recovery-aware bootstrap entrypoint:
 - `./scripts/evaluate-and-continue.sh --env-file .env --scope bootstrap --force`
 - `./scripts/evaluate-and-continue.sh --env-file .env --scope bootstrap --force --release-id <release>`
 
-The bootstrap flow now also manages the customer-specific `*-oidc-discovery` companion repository, its Cloudflare Pages project and custom domain, and the per-stack read-only discovery roles that the companion publish workflow assumes.
+The bootstrap flow now also manages the customer-specific `*-oidc-discovery` companion repository, its Cloudflare Pages project, its custom domain binding, the required zone-level CNAME pointing at `${OIDC_DISCOVERY_PAGES_PROJECT}.pages.dev`, and the per-stack read-only discovery roles that the companion publish workflow assumes.
 
 For day-2 maintenance, the generated deployment repository can sync later template changes by running:
 
