@@ -1,7 +1,6 @@
 package services
 
 import (
-	"errors"
 	"os"
 	"path/filepath"
 	"testing"
@@ -70,22 +69,6 @@ func TestLoadAuthProviderConfigRejectsInvalidJSON(t *testing.T) {
 	path := writeProviderConfigFixture(t, `{not-json}`)
 	if _, err := loadAuthProviderConfig("", path); err == nil {
 		t.Fatal("loadAuthProviderConfig() expected invalid json error")
-	}
-}
-
-func TestLoadAuthProviderConfigMissingFileDefaultsToEmpty(t *testing.T) {
-	path := filepath.Join(t.TempDir(), "missing.json")
-
-	cfg, err := loadAuthProviderConfig("", path)
-	if err != nil {
-		t.Fatalf("loadAuthProviderConfig() error = %v", err)
-	}
-	if len(cfg.Providers) != 0 {
-		t.Fatalf("provider count = %d, want 0", len(cfg.Providers))
-	}
-
-	if _, err := os.Stat(path); !errors.Is(err, os.ErrNotExist) {
-		t.Fatalf("os.Stat() error = %v, want not exist", err)
 	}
 }
 

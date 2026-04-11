@@ -87,7 +87,6 @@ rsync -a --delete \
   --exclude '.env' \
   --exclude '.env.*' \
   --exclude 'infra/Pulumi.*.yaml' \
-  --exclude 'infra/auth-providers.*.json' \
   --exclude 'scripts/sync-template-upstream.sh' \
   --exclude 'test/sync-template-upstream-test.sh' \
   "${temp_root}/" "./"
