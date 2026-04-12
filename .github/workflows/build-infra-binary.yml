@@ -5,13 +5,26 @@ on:
   push:
     branches:
       - main
+    paths:
+      - 'infra/**'
+      - '.github/workflows/build-infra-binary.yml'
 
 permissions:
   contents: read
 
 jobs:
   build:
-    runs-on: ubuntu-24.04-arm
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: linux-amd64
+            runner: ubuntu-latest
+            goarch: amd64
+          - arch: linux-arm64
+            runner: ubuntu-24.04-arm
+            goarch: arm64
+    runs-on: ${{ matrix.runner }}
     steps:
       - uses: actions/checkout@v6
 
@@ -23,38 +36,73 @@ jobs:
       - name: Build infra binary
         working-directory: infra
         run: |
-          mkdir -p .pulumi/bin
-          GOOS=linux GOARCH=arm64 CGO_ENABLED=0 \
-            go build -buildvcs=false -o .pulumi/bin/ltbase-infra ./cmd/ltbase-infra
+          mkdir -p dist/${{ matrix.arch }}
+          GOOS=linux GOARCH=${{ matrix.goarch }} CGO_ENABLED=0 \
+            go build -buildvcs=false -o dist/${{ matrix.arch }}/ltbase-infra ./cmd/ltbase-infra
 
-      - name: Write binary manifest
+      - name: Package release asset
         working-directory: infra
         run: |
-          sha256="$(shasum -a 256 .pulumi/bin/ltbase-infra | awk '{print $1}')"
-          go_version="$(go version | awk '{print $3}')"
+          tarball="ltbase-blueprint-binaries-${{ matrix.arch }}.tar.gz"
+          tar -C dist/${{ matrix.arch }} -czf "${tarball}" ltbase-infra
+
+      - name: Prepare artifact payload
+        run: |
+          rm -rf dist/release-${{ matrix.arch }}
+          mkdir -p dist/release-${{ matrix.arch }}
+          cp infra/ltbase-blueprint-binaries-${{ matrix.arch }}.tar.gz dist/release-${{ matrix.arch }}/
+          printf '%s\n' "$(go version | awk '{print $3}')" > dist/release-${{ matrix.arch }}/go-version-${{ matrix.arch }}.txt
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: release-${{ matrix.arch }}
+          path: dist/release-${{ matrix.arch }}/*
+
+  publish:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: release-*
+          path: dist/release
+
+      - name: Build release manifest
+        run: |
+          release_tag="r$(date -u +"%Y%m%dT%H%M%SZ")"
+          amd64_file="ltbase-blueprint-binaries-linux-amd64.tar.gz"
+          arm64_file="ltbase-blueprint-binaries-linux-arm64.tar.gz"
+          amd64_sha="$(shasum -a 256 dist/release/release-linux-amd64/${amd64_file} | awk '{print $1}')"
+          arm64_sha="$(shasum -a 256 dist/release/release-linux-arm64/${arm64_file} | awk '{print $1}')"
+          amd64_go="$(cat dist/release/release-linux-amd64/go-version-linux-amd64.txt)"
+          arm64_go="$(cat dist/release/release-linux-arm64/go-version-linux-arm64.txt)"
           built_at="$(date -u +"%Y-%m-%dT%H:%M:%SZ")"
           jq -n \
             --arg source_repository "${GITHUB_REPOSITORY}" \
             --arg source_commit "${GITHUB_SHA}" \
             --arg source_ref "${GITHUB_REF_NAME}" \
-            --arg project "ltbase-infra" \
-            --arg binary_name "ltbase-infra" \
-            --arg os "linux" \
-            --arg arch "arm64" \
-            --arg sha256 "${sha256}" \
-            --arg go_version "${go_version}" \
+            --arg release_tag "${release_tag}" \
+            --arg amd64_file "${amd64_file}" \
+            --arg amd64_sha "${amd64_sha}" \
+            --arg amd64_go "${amd64_go}" \
+            --arg arm64_file "${arm64_file}" \
+            --arg arm64_sha "${arm64_sha}" \
+            --arg arm64_go "${arm64_go}" \
             --arg built_at "${built_at}" \
-            '{source_repository:$source_repository,source_commit:$source_commit,source_ref:$source_ref,project:$project,binary_name:$binary_name,os:$os,arch:$arch,sha256:$sha256,go_version:$go_version,built_at:$built_at}' \
-            > manifest.json
+            '{source_repository:$source_repository,source_commit:$source_commit,source_ref:$source_ref,release_tag:$release_tag,artifacts:[{file:$amd64_file,arch:"linux-amd64",sha256:$amd64_sha,go_version:$amd64_go,built_at:$built_at},{file:$arm64_file,arch:"linux-arm64",sha256:$arm64_sha,go_version:$arm64_go,built_at:$built_at}]}' \
+            > dist/release/manifest.json
+          printf 'release_tag=%s\n' "${release_tag}" >> "$GITHUB_ENV"
 
-      - name: Prepare artifact payload
+      - name: Publish binaries release
+        env:
+          GH_TOKEN: ${{ secrets.LTBASE_PRIVATE_DEPLOYMENT_BINARIES_TOKEN }}
         run: |
-          rm -rf dist/infra-binary-artifact
-          mkdir -p dist/infra-binary-artifact
-          cp infra/.pulumi/bin/ltbase-infra dist/infra-binary-artifact/ltbase-infra
-          cp infra/manifest.json dist/infra-binary-artifact/manifest.json
-
-      - uses: actions/upload-artifact@v4
-        with:
-          name: infra-binary-linux-arm64-${{ github.sha }}
-          path: dist/infra-binary-artifact/*
+          gh release create "${release_tag}" \
+            --repo "Lychee-Technology/ltbase-private-deployment-binaries" \
+            --title "${release_tag}" \
+            --notes "Prebuilt infra binaries for ${GITHUB_REPOSITORY}@${GITHUB_SHA}" \
+            dist/release/release-linux-amd64/ltbase-blueprint-binaries-linux-amd64.tar.gz \
+            dist/release/release-linux-arm64/ltbase-blueprint-binaries-linux-arm64.tar.gz \
+            dist/release/manifest.json
