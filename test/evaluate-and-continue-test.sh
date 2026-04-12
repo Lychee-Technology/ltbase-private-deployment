@@ -338,6 +338,17 @@ fi
 if [[ "${SCENARIO}" == "oidc_companion_missing" && "${method}" == "GET" && "${url}" == *"/pages/projects/customer-ltbase-oidc-discovery/domains/oidc.customer.example.com" ]]; then
   exit 22
 fi
+if [[ "${SCENARIO}" == "oidc_missing_dns" && "${method}" == "GET" && "${url}" == *"/zones/zone-123/dns_records?type=CNAME&name=oidc.customer.example.com" ]]; then
+  if [[ -n "${output_file}" ]]; then
+    printf '{"success":true,"result":[]}' >"${output_file}"
+  else
+    printf '{"success":true,"result":[]}'
+  fi
+  if [[ "${write_format}" == "%{http_code}" ]]; then
+    printf '200'
+  fi
+  exit 0
+fi
 if [[ -n "${output_file}" ]]; then
   printf '{"success":true}' >"${output_file}"
 else
@@ -540,6 +551,15 @@ run_expect_exit_code 2 env \
 
 assert_file_contains "${temp_dir}/report-oidc/report.json" '"oidcDiscovery"'
 assert_file_contains "${temp_dir}/report-oidc/report.json" '"status": "needs_oidc_companion"'
+
+run_expect_exit_code 2 env \
+  PATH="${temp_dir}/bin:$PATH" \
+  COMMAND_LOG="${temp_dir}/commands.log" \
+  SCENARIO="oidc_missing_dns" \
+  "${SCRIPT_PATH}" --env-file "${temp_dir}/.env" --infra-dir "${temp_dir}/infra" --report-dir "${temp_dir}/report-oidc-missing-dns"
+
+assert_file_contains "${temp_dir}/report-oidc-missing-dns/report.json" '"status": "needs_oidc_companion"'
+assert_file_contains "${temp_dir}/report-oidc-missing-dns/report.json" '"pagesDnsPresent": false'
 
 rm -rf "${temp_dir}/infra"
 mkdir -p "${temp_dir}/infra"

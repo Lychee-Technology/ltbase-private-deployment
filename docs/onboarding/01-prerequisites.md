@@ -70,7 +70,7 @@ AWS_PROFILE_STAGING=customer-staging aws sts get-caller-identity
 3. Confirm the API token can manage:
    - Cloudflare Pages projects
    - custom domain bindings
-   - the zone used by your LTBase domains and OIDC discovery domain
+   - the zone DNS records used by your LTBase domains and `OIDC_DISCOVERY_DOMAIN`
 
 ## Minimum Permissions For Bootstrap
 
@@ -150,9 +150,9 @@ The `CLOUDFLARE_API_TOKEN` used for bootstrap must be able to:
 
 - read and create Cloudflare Pages projects in `CLOUDFLARE_ACCOUNT_ID`
 - read and create custom domain bindings for the OIDC discovery Pages project
-- manage the target zone used by `OIDC_DISCOVERY_DOMAIN`
+- read and create the `CNAME` record for `OIDC_DISCOVERY_DOMAIN` in `CLOUDFLARE_ZONE_ID`
 
-This is enough for bootstrap to check whether the Pages project and domain binding already exist, then create them if needed.
+This is enough for bootstrap to check whether the Pages project, domain binding, and required Pages `CNAME` already exist, then create them if needed.
 
 ### 4. Confirm local tools
 

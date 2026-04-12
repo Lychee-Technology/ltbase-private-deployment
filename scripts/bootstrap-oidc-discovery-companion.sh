@@ -32,7 +32,7 @@ script_dir="$(cd "$(dirname "$0")" && pwd)"
 source "${script_dir}/lib/bootstrap-env.sh"
 bootstrap_env_load "${ENV_FILE}"
 
-required_vars=(GITHUB_OWNER DEPLOYMENT_REPO_NAME DEPLOYMENT_REPO_VISIBILITY OIDC_DISCOVERY_DOMAIN CLOUDFLARE_ACCOUNT_ID CLOUDFLARE_API_TOKEN OIDC_DISCOVERY_TEMPLATE_REPO OIDC_DISCOVERY_REPO_NAME OIDC_DISCOVERY_REPO OIDC_DISCOVERY_PAGES_PROJECT)
+required_vars=(GITHUB_OWNER DEPLOYMENT_REPO_NAME DEPLOYMENT_REPO_VISIBILITY OIDC_DISCOVERY_DOMAIN CLOUDFLARE_ACCOUNT_ID CLOUDFLARE_API_TOKEN CLOUDFLARE_ZONE_ID OIDC_DISCOVERY_TEMPLATE_REPO OIDC_DISCOVERY_REPO_NAME OIDC_DISCOVERY_REPO OIDC_DISCOVERY_PAGES_PROJECT)
 bootstrap_env_require_vars "${required_vars[@]}"
 
 if ! python3 -c 'import re, sys; domain = sys.argv[1]; label = r"(?!-)[a-z0-9-]{1,63}(?<!-)"; pattern = rf"^{label}(\.{label})+$"; sys.exit(0 if re.fullmatch(pattern, domain.lower()) else 1)' "${OIDC_DISCOVERY_DOMAIN}"; then
@@ -149,10 +149,103 @@ cloudflare_post() {
   cloudflare_require_success "${action}" "${response}"
 }
 
+cloudflare_get_json() {
+  local action="$1"
+  local url="$2"
+  local response_file status response
+
+  response_file="$(mktemp)"
+  status="$(curl -sS -o "${response_file}" -w '%{http_code}' "${cloudflare_headers[@]}" "${url}")" || status="$?"
+  response="$(<"${response_file}")"
+  rm -f "${response_file}"
+
+  if [[ ! "${status}" =~ ^2 ]]; then
+    printf 'Cloudflare API request failed: %s (HTTP %s)\n' "${action}" "${status}" >&2
+    if [[ -n "${response}" ]]; then
+      printf '%s\n' "${response}" >&2
+    fi
+    exit 1
+  fi
+
+  cloudflare_require_success "${action}" "${response}"
+  printf '%s' "${response}"
+}
+
+ensure_oidc_discovery_dns_record() {
+  local dns_lookup_response record_state
+
+  dns_lookup_response="$(cloudflare_get_json "get DNS CNAME" "${dns_lookup_url}")"
+  record_state="$(printf '%s' "${dns_lookup_response}" | python3 -c '
+import json
+import sys
+
+name = sys.argv[1]
+target = sys.argv[2]
+payload = json.load(sys.stdin)
+records = payload.get("result") or []
+
+if not records:
+    print("missing")
+    sys.exit(0)
+
+record = records[0]
+record_type = (record.get("type") or "").upper()
+record_name = record.get("name") or ""
+record_content = record.get("content") or ""
+
+if record_type != "CNAME":
+    print(f"conflict_type:{record_type}")
+    sys.exit(0)
+
+if record_name != name or record_content != target:
+    print(f"conflict_target:{record_content}")
+    sys.exit(0)
+
+print("matching")
+' "${OIDC_DISCOVERY_DOMAIN}" "${oidc_pages_target}")"
+
+  case "${record_state}" in
+    missing)
+      local dns_payload
+      dns_payload="$(python3 - "${OIDC_DISCOVERY_DOMAIN}" "${oidc_pages_target}" <<'PY'
+import json
+import sys
+
+print(json.dumps({
+    "type": "CNAME",
+    "name": sys.argv[1],
+    "content": sys.argv[2],
+    "proxied": False,
+    "ttl": 1,
+}, separators=(",", ":")))
+PY
+)"
+      cloudflare_post "create DNS CNAME" "${dns_records_url}" "${dns_payload}"
+      ;;
+    matching)
+      ;;
+    conflict_type:*)
+      printf 'OIDC discovery DNS record already exists with unexpected type: %s\n' "${record_state#conflict_type:}" >&2
+      exit 1
+      ;;
+    conflict_target:*)
+      printf 'OIDC discovery DNS record already exists with unexpected target: %s\n' "${record_state#conflict_target:}" >&2
+      exit 1
+      ;;
+    *)
+      printf 'Unable to determine OIDC discovery DNS state\n' >&2
+      exit 1
+      ;;
+  esac
+}
+
 pages_project_url="https://api.cloudflare.com/client/v4/accounts/${CLOUDFLARE_ACCOUNT_ID}/pages/projects/${OIDC_DISCOVERY_PAGES_PROJECT}"
 pages_projects_url="https://api.cloudflare.com/client/v4/accounts/${CLOUDFLARE_ACCOUNT_ID}/pages/projects"
 pages_domain_url="https://api.cloudflare.com/client/v4/accounts/${CLOUDFLARE_ACCOUNT_ID}/pages/projects/${OIDC_DISCOVERY_PAGES_PROJECT}/domains/${OIDC_DISCOVERY_DOMAIN}"
 pages_domains_url="https://api.cloudflare.com/client/v4/accounts/${CLOUDFLARE_ACCOUNT_ID}/pages/projects/${OIDC_DISCOVERY_PAGES_PROJECT}/domains"
+oidc_pages_target="${OIDC_DISCOVERY_PAGES_PROJECT}.pages.dev"
+dns_records_url="https://api.cloudflare.com/client/v4/zones/${CLOUDFLARE_ZONE_ID}/dns_records"
+dns_lookup_url="${dns_records_url}?type=CNAME&name=${OIDC_DISCOVERY_DOMAIN}"
 
 repo_view_output=""
 if ! repo_view_output="$(gh repo view "${OIDC_DISCOVERY_REPO}" 2>&1)"; then
@@ -203,6 +296,8 @@ PY
 )"
   cloudflare_post "create Pages custom domain" "${pages_domains_url}" "${domain_payload}"
 fi
+
+ensure_oidc_discovery_dns_record
 
 gh variable set OIDC_DISCOVERY_DOMAIN --repo "${OIDC_DISCOVERY_REPO}" --body "${OIDC_DISCOVERY_DOMAIN}"
 gh variable set OIDC_DISCOVERY_STACK_CONFIG --repo "${OIDC_DISCOVERY_REPO}" --body "${oidc_stack_config}"

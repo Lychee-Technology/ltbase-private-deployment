@@ -230,6 +230,32 @@ cloudflare_pages_domain_present() {
     "https://api.cloudflare.com/client/v4/accounts/${CLOUDFLARE_ACCOUNT_ID}/pages/projects/${OIDC_DISCOVERY_PAGES_PROJECT}/domains/${OIDC_DISCOVERY_DOMAIN}" >/dev/null 2>&1
 }
 
+cloudflare_oidc_pages_dns_present() {
+  local response expected_target
+
+  expected_target="${OIDC_DISCOVERY_PAGES_PROJECT}.pages.dev"
+  response="$(curl -fsS \
+    -H "Authorization: Bearer ${CLOUDFLARE_API_TOKEN}" \
+    -H "Content-Type: application/json" \
+    "https://api.cloudflare.com/client/v4/zones/${CLOUDFLARE_ZONE_ID}/dns_records?type=CNAME&name=${OIDC_DISCOVERY_DOMAIN}")" || return 1
+
+  printf '%s' "${response}" | python3 -c '
+import json
+import sys
+
+expected_target = sys.argv[1]
+payload = json.load(sys.stdin)
+records = payload.get("result") or []
+
+sys.exit(0 if any(
+    (record.get("type") or "").upper() == "CNAME"
+    and (record.get("name") or "") == sys.argv[2]
+    and (record.get("content") or "") == expected_target
+    for record in records
+) else 1)
+' "${expected_target}" "${OIDC_DISCOVERY_DOMAIN}"
+}
+
 oidc_discovery_roles_present() {
   local stack role_name
   while IFS= read -r stack; do
@@ -246,6 +272,7 @@ scan_oidc_discovery_state() {
   local repo_config_present="false"
   local pages_project_present="false"
   local pages_domain_present="false"
+  local pages_dns_present="false"
   local roles_present="false"
   local status="needs_oidc_companion"
 
@@ -264,11 +291,14 @@ scan_oidc_discovery_state() {
     if cloudflare_pages_domain_present; then
       pages_domain_present="true"
     fi
+    if cloudflare_oidc_pages_dns_present; then
+      pages_dns_present="true"
+    fi
     if oidc_discovery_roles_present; then
       roles_present="true"
     fi
 
-    if [[ "${repo_present}" == "true" && "${repo_config_present}" == "true" && "${pages_project_present}" == "true" && "${pages_domain_present}" == "true" && "${roles_present}" == "true" ]]; then
+    if [[ "${repo_present}" == "true" && "${repo_config_present}" == "true" && "${pages_project_present}" == "true" && "${pages_domain_present}" == "true" && "${pages_dns_present}" == "true" && "${roles_present}" == "true" ]]; then
       status="complete"
     fi
   fi
@@ -279,6 +309,7 @@ OIDC_DISCOVERY_REPO_PRESENT=${repo_present}
 OIDC_DISCOVERY_REPO_CONFIG_PRESENT=${repo_config_present}
 OIDC_DISCOVERY_PAGES_PROJECT_PRESENT=${pages_project_present}
 OIDC_DISCOVERY_PAGES_DOMAIN_PRESENT=${pages_domain_present}
+OIDC_DISCOVERY_PAGES_DNS_PRESENT=${pages_dns_present}
 OIDC_DISCOVERY_ROLES_PRESENT=${roles_present}
 EOF
 }
@@ -442,6 +473,7 @@ report = {
         "repoConfigPresent": oidc_values.get("OIDC_DISCOVERY_REPO_CONFIG_PRESENT", "false") == "true",
         "pagesProjectPresent": oidc_values.get("OIDC_DISCOVERY_PAGES_PROJECT_PRESENT", "false") == "true",
         "pagesDomainPresent": oidc_values.get("OIDC_DISCOVERY_PAGES_DOMAIN_PRESENT", "false") == "true",
+        "pagesDnsPresent": oidc_values.get("OIDC_DISCOVERY_PAGES_DNS_PRESENT", "false") == "true",
         "rolesPresent": oidc_values.get("OIDC_DISCOVERY_ROLES_PRESENT", "false") == "true",
     },
     "scope": scope,
