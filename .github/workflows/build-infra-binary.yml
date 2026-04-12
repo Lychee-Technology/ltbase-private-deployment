@@ -1,0 +1,60 @@
+name: Build Infra Binary
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04-arm
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: infra/go.mod
+          cache-dependency-path: infra/go.sum
+
+      - name: Build infra binary
+        working-directory: infra
+        run: |
+          mkdir -p .pulumi/bin
+          GOOS=linux GOARCH=arm64 CGO_ENABLED=0 \
+            go build -buildvcs=false -o .pulumi/bin/ltbase-infra ./cmd/ltbase-infra
+
+      - name: Write binary manifest
+        working-directory: infra
+        run: |
+          sha256="$(shasum -a 256 .pulumi/bin/ltbase-infra | awk '{print $1}')"
+          go_version="$(go version | awk '{print $3}')"
+          built_at="$(date -u +"%Y-%m-%dT%H:%M:%SZ")"
+          jq -n \
+            --arg source_repository "${GITHUB_REPOSITORY}" \
+            --arg source_commit "${GITHUB_SHA}" \
+            --arg source_ref "${GITHUB_REF_NAME}" \
+            --arg project "ltbase-infra" \
+            --arg binary_name "ltbase-infra" \
+            --arg os "linux" \
+            --arg arch "arm64" \
+            --arg sha256 "${sha256}" \
+            --arg go_version "${go_version}" \
+            --arg built_at "${built_at}" \
+            '{source_repository:$source_repository,source_commit:$source_commit,source_ref:$source_ref,project:$project,binary_name:$binary_name,os:$os,arch:$arch,sha256:$sha256,go_version:$go_version,built_at:$built_at}' \
+            > manifest.json
+
+      - name: Prepare artifact payload
+        run: |
+          rm -rf dist/infra-binary-artifact
+          mkdir -p dist/infra-binary-artifact
+          cp infra/.pulumi/bin/ltbase-infra dist/infra-binary-artifact/ltbase-infra
+          cp infra/manifest.json dist/infra-binary-artifact/manifest.json
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: infra-binary-linux-arm64-${{ github.sha }}
+          path: dist/infra-binary-artifact/*

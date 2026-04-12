@@ -101,6 +101,7 @@ Manual path:
 
 - keep `.env` private and outside version control
 - the deployment repository downloads official LTBase releases; it does not build the app itself
+- official workflows may install a commit-bound prebuilt `ltbase-infra` binary from the same blueprint repository before running Pulumi; if no matching artifact exists, the repo's `infra/scripts/pulumi-wrapper.sh` falls back to local source build
 - preview is manual in the customer repo because live credentials are customer-owned
 - manual preview only supports the first stack in `PROMOTION_PATH`
 - protected target environments are guarded by per-stack GitHub environment approval gates during rollout

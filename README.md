@@ -16,6 +16,7 @@ It is not the LTBase application source repository.
 
 - thin wrapper workflows that call the public reusable LTBase deployment workflows
 - bootstrap scripts for GitHub repository setup, AWS foundation setup, and Pulumi stack configuration
+- a Pulumi program wrapper at `infra/scripts/pulumi-wrapper.sh` that uses a prebuilt binary when available and falls back to local source build when it is not
 - example deployment inputs such as `env.template`
 - customer onboarding and bootstrap documentation
 
@@ -94,6 +95,7 @@ Use `./scripts/update-sync-template-tooling.sh` first when you want the latest s
 ## Deployment Principles
 
 - the deployment repository downloads official LTBase releases instead of building the application source code
+- official workflows may also download a commit-bound prebuilt `ltbase-infra` binary from the blueprint repository to avoid recompiling the Pulumi Go program on every run
 - customers own the GitHub repository, AWS account resources, and deployment approvals
 - bootstrap scripts prepare repository state and deployment configuration
 - the shared Pulumi backend bucket is created once and lives in the AWS account for the first stack in `PROMOTION_PATH`
@@ -105,6 +107,7 @@ Use `./scripts/update-sync-template-tooling.sh` first when you want the latest s
 
 - keep local `.env` files private and out of version control
 - use the documentation in `docs/` as the source of truth for customer onboarding
+- keep `infra/.pulumi/bin/ltbase-infra` out of version control; the wrapper can recreate it locally and official workflows may preinstall it temporarily
 - if a later repository version changes the managed DSQL lifecycle, follow the docs shipped with that version
 - operators must keep Cloudflare SSL mode on `Full (strict)` and enable Authenticated Origin Pulls for the API hostnames
 - once the mTLS rollout is applied, direct `execute-api` access is expected to fail by design
