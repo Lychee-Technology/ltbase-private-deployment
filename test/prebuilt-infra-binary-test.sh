@@ -45,8 +45,8 @@ assert_file_contains "${WORKFLOW_PATH}" "linux-amd64"
 assert_file_contains "${WORKFLOW_PATH}" "linux-arm64"
 assert_file_contains "${WORKFLOW_PATH}" "ltbase-private-deployment-binaries"
 assert_file_contains "${WORKFLOW_PATH}" 'r$(date -u +"%Y%m%dT%H%M%SZ")'
-assert_file_contains "${WORKFLOW_PATH}" "ltbase-blueprint-binaries-linux-amd64.tar.gz"
-assert_file_contains "${WORKFLOW_PATH}" "ltbase-blueprint-binaries-linux-arm64.tar.gz"
+assert_file_contains "${WORKFLOW_PATH}" "ltbase-infra-bin-linux-amd64.tar.gz"
+assert_file_contains "${WORKFLOW_PATH}" "ltbase-infra-bin-linux-arm64.tar.gz"
 assert_file_contains "${WORKFLOW_PATH}" "manifest.json"
 assert_file_contains "${WORKFLOW_PATH}" "release_tag"
 
