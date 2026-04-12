@@ -43,14 +43,14 @@ jobs:
       - name: Package release asset
         working-directory: infra
         run: |
-          tarball="ltbase-blueprint-binaries-${{ matrix.arch }}.tar.gz"
+          tarball="ltbase-infra-bin-${{ matrix.arch }}.tar.gz"
           tar -C dist/${{ matrix.arch }} -czf "${tarball}" ltbase-infra
 
       - name: Prepare artifact payload
         run: |
           rm -rf dist/release-${{ matrix.arch }}
           mkdir -p dist/release-${{ matrix.arch }}
-          cp infra/ltbase-blueprint-binaries-${{ matrix.arch }}.tar.gz dist/release-${{ matrix.arch }}/
+          cp infra/ltbase-infra-bin-${{ matrix.arch }}.tar.gz dist/release-${{ matrix.arch }}/
           printf '%s\n' "$(go version | awk '{print $3}')" > dist/release-${{ matrix.arch }}/go-version-${{ matrix.arch }}.txt
 
       - uses: actions/upload-artifact@v4
@@ -72,8 +72,8 @@ jobs:
       - name: Build release manifest
         run: |
           release_tag="r$(date -u +"%Y%m%dT%H%M%SZ")"
-          amd64_file="ltbase-blueprint-binaries-linux-amd64.tar.gz"
-          arm64_file="ltbase-blueprint-binaries-linux-arm64.tar.gz"
+          amd64_file="ltbase-infra-bin-linux-amd64.tar.gz"
+          arm64_file="ltbase-infra-bin-linux-arm64.tar.gz"
           amd64_sha="$(shasum -a 256 dist/release/release-linux-amd64/${amd64_file} | awk '{print $1}')"
           arm64_sha="$(shasum -a 256 dist/release/release-linux-arm64/${arm64_file} | awk '{print $1}')"
           amd64_go="$(cat dist/release/release-linux-amd64/go-version-linux-amd64.txt)"
@@ -103,6 +103,6 @@ jobs:
             --repo "Lychee-Technology/ltbase-private-deployment-binaries" \
             --title "${release_tag}" \
             --notes "Prebuilt infra binaries for ${GITHUB_REPOSITORY}@${GITHUB_SHA}" \
-            dist/release/release-linux-amd64/ltbase-blueprint-binaries-linux-amd64.tar.gz \
-            dist/release/release-linux-arm64/ltbase-blueprint-binaries-linux-arm64.tar.gz \
+            dist/release/release-linux-amd64/ltbase-infra-bin-linux-amd64.tar.gz \
+            dist/release/release-linux-arm64/ltbase-infra-bin-linux-arm64.tar.gz \
             dist/release/manifest.json
