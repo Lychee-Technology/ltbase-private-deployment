@@ -39,10 +39,16 @@ assert_file_contains "${GITIGNORE_PATH}" "infra/.pulumi/"
 
 assert_file_contains "${WORKFLOW_PATH}" "workflow_dispatch:"
 assert_file_contains "${WORKFLOW_PATH}" "push:"
-assert_file_contains "${WORKFLOW_PATH}" "runs-on: ubuntu-24.04-arm"
-assert_file_contains "${WORKFLOW_PATH}" 'name: infra-binary-linux-arm64-${{ github.sha }}'
+assert_file_contains "${WORKFLOW_PATH}" "paths:"
+assert_file_contains "${WORKFLOW_PATH}" "matrix:"
+assert_file_contains "${WORKFLOW_PATH}" "linux-amd64"
+assert_file_contains "${WORKFLOW_PATH}" "linux-arm64"
+assert_file_contains "${WORKFLOW_PATH}" "ltbase-private-deployment-binaries"
+assert_file_contains "${WORKFLOW_PATH}" 'r$(date -u +"%Y%m%dT%H%M%SZ")'
+assert_file_contains "${WORKFLOW_PATH}" "ltbase-blueprint-binaries-linux-amd64.tar.gz"
+assert_file_contains "${WORKFLOW_PATH}" "ltbase-blueprint-binaries-linux-arm64.tar.gz"
 assert_file_contains "${WORKFLOW_PATH}" "manifest.json"
-assert_file_contains "${WORKFLOW_PATH}" ".pulumi/bin/ltbase-infra"
+assert_file_contains "${WORKFLOW_PATH}" "release_tag"
 
 temp_dir="$(mktemp -d)"
 trap 'rm -rf "${temp_dir}"' EXIT
@@ -101,5 +107,8 @@ PATH="${fake_bin}:$PATH" COMMAND_LOG="${log_file}" "${temp_dir}/infra/scripts/pu
 
 assert_log_contains "${log_file}" "go build -buildvcs=false -o .pulumi/bin/ltbase-infra ./cmd/ltbase-infra"
 assert_log_contains "${log_file}" "pulumi up --stack devo"
+
+assert_file_contains "${ROOT_DIR}/README.md" "ltbase-private-deployment-binaries"
+assert_file_contains "${ROOT_DIR}/docs/BOOTSTRAP.md" "ltbase-private-deployment-binaries"
 
 printf 'PASS: prebuilt infra binary tests\n'

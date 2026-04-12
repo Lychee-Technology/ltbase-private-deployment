@@ -9,8 +9,7 @@ cd "${infra_dir}"
 mkdir -p .pulumi/bin
 
 if [[ ! -x .pulumi/bin/ltbase-infra ]]; then
-  GOOS=linux GOARCH=arm64 CGO_ENABLED=0 \
-    go build -buildvcs=false -o .pulumi/bin/ltbase-infra ./cmd/ltbase-infra
+  CGO_ENABLED=0 go build -buildvcs=false -o .pulumi/bin/ltbase-infra ./cmd/ltbase-infra
 fi
 
 exec pulumi "$@"
