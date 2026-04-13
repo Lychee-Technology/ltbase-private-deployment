@@ -49,6 +49,7 @@ assert_file_contains "${WORKFLOW_PATH}" "ltbase-infra-bin-linux-amd64.tar.gz"
 assert_file_contains "${WORKFLOW_PATH}" "ltbase-infra-bin-linux-arm64.tar.gz"
 assert_file_contains "${WORKFLOW_PATH}" "manifest.json"
 assert_file_contains "${WORKFLOW_PATH}" "release_tag"
+assert_file_contains "${WORKFLOW_PATH}" "if: github.repository == 'Lychee-Technology/ltbase-private-deployment'"
 
 temp_dir="$(mktemp -d)"
 trap 'rm -rf "${temp_dir}"' EXIT

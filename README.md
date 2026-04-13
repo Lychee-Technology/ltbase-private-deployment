@@ -96,6 +96,7 @@ Use `./scripts/update-sync-template-tooling.sh` first when you want the latest s
 
 - the deployment repository downloads official LTBase releases instead of building the application source code
 - official workflows may also download a commit-bound prebuilt `ltbase-infra` binary from `Lychee-Technology/ltbase-private-deployment-binaries` to avoid recompiling the Pulumi Go program on every run
+- only the upstream template repository publishes those prebuilt infra binaries; generated customer deployment repositories consume them only
 - customers own the GitHub repository, AWS account resources, and deployment approvals
 - bootstrap scripts prepare repository state and deployment configuration
 - the shared Pulumi backend bucket is created once and lives in the AWS account for the first stack in `PROMOTION_PATH`
@@ -108,7 +109,8 @@ Use `./scripts/update-sync-template-tooling.sh` first when you want the latest s
 - keep local `.env` files private and out of version control
 - use the documentation in `docs/` as the source of truth for customer onboarding
 - keep `infra/.pulumi/bin/ltbase-infra` out of version control; the wrapper can recreate it locally and official workflows may preinstall it temporarily
-- publishing into `ltbase-private-deployment-binaries` requires a repo secret named `LTBASE_PRIVATE_DEPLOYMENT_BINARIES_TOKEN`
+- publishing into `ltbase-private-deployment-binaries` requires a repo secret named `LTBASE_PRIVATE_DEPLOYMENT_BINARIES_TOKEN` in the upstream template repository
+- generated customer deployment repositories still receive `.github/workflows/build-infra-binary.yml` from the template, but the workflow is repo-guarded and is skipped outside `Lychee-Technology/ltbase-private-deployment`
 - if a later repository version changes the managed DSQL lifecycle, follow the docs shipped with that version
 - operators must keep Cloudflare SSL mode on `Full (strict)` and enable Authenticated Origin Pulls for the API hostnames
 - once the mTLS rollout is applied, direct `execute-api` access is expected to fail by design

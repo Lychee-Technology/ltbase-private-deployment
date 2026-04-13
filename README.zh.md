@@ -94,6 +94,8 @@ onboarding 文档支持通用多 stack 拓扑。文中出现 `devo`、`prod` 等
 ## 部署原则
 
 - 部署仓库负责下载官方 LTBase release，而不是自行构建应用源码
+- 官方工作流也可能先从 `Lychee-Technology/ltbase-private-deployment-binaries` 下载与 commit 绑定的预构建 `ltbase-infra` 二进制，以避免每次都重新编译 Pulumi Go 程序
+- 这些预构建 infra binary 只由上游模板仓库发布；从模板生成出的客户部署仓库只负责消费
 - 客户自行持有 GitHub 仓库、AWS 资源和部署审批权
 - bootstrap 脚本负责准备仓库状态和部署配置
 - 共享的 Pulumi backend bucket 只创建一次，并固定放在 `PROMOTION_PATH` 第一个 stack 对应的 AWS 账户中
@@ -105,6 +107,8 @@ onboarding 文档支持通用多 stack 拓扑。文中出现 `devo`、`prod` 等
 
 - 保持本地 `.env` 文件私密，不要纳入版本控制
 - 客户 onboarding 请以 `docs/` 下文档为准
+- 向 `ltbase-private-deployment-binaries` 发布二进制只需要在上游模板仓库配置 `LTBASE_PRIVATE_DEPLOYMENT_BINARIES_TOKEN`
+- 从模板生成出的客户部署仓库也会带上 `.github/workflows/build-infra-binary.yml`，但该工作流带有 repo guard，在 `Lychee-Technology/ltbase-private-deployment` 之外会直接跳过
 - 如果后续仓库版本调整了 managed DSQL 生命周期，请以该版本自带文档为准
 - 操作者需要将 Cloudflare SSL 模式保持为 `Full (strict)`，并为 API hostname 启用 Authenticated Origin Pulls
 - 一旦应用 mTLS rollout，直连 `execute-api` 失败属于设计预期

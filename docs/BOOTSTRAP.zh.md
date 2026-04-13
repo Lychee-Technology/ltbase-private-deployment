@@ -101,6 +101,8 @@
 
 - 保持 `.env` 私密，不要纳入版本控制
 - 部署仓库负责下载官方 LTBase release，不负责自行构建应用
+- 官方工作流也可能在 Pulumi 执行前从 `ltbase-private-deployment-binaries` 安装与 commit 绑定的预构建 `ltbase-infra`；如果找不到匹配 release，仓库内的 `infra/scripts/pulumi-wrapper.sh` 会回退到本地源码构建
+- 客户部署仓库只消费这些预构建二进制；复制过去的 `build-infra-binary.yml` 在 `Lychee-Technology/ltbase-private-deployment` 之外会直接跳过
 - 客户仓库中的 preview 默认为手动触发，因为真实凭据由客户持有
 - 手动 preview 只支持 `PROMOTION_PATH` 的第一个环境
 - rollout 中的受保护目标环境由各自的 GitHub environment 审批 gate 保护

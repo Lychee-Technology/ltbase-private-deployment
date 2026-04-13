@@ -196,6 +196,7 @@ The current repository version uses a bootstrap-safe flow:
 - `LTBASE_RELEASES_TOKEN` is only for downloading official LTBase releases
 - local `.env` files contain secrets and must never be committed
 - the template repository does not auto-run preview on pull requests because it has no live customer credentials
+- generated customer deployment repositories do not publish prebuilt infra binaries; the copied `build-infra-binary.yml` workflow is expected to be skipped outside `Lychee-Technology/ltbase-private-deployment`
 - manual preview only supports the first stack in `PROMOTION_PATH`
 - protected promotions happen in your own repository through per-stack GitHub environment gates
 
