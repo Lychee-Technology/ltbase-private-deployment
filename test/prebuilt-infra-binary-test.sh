@@ -32,10 +32,22 @@ assert_log_contains() {
   fi
 }
 
+assert_tracked_file_mode() {
+  local path="$1"
+  local expected_mode="$2"
+  local actual
+
+  actual="$(git -C "${ROOT_DIR}" ls-files --stage -- "${path}")"
+  if [[ "${actual}" != "${expected_mode}"* ]]; then
+    fail "expected ${path} to be tracked with mode ${expected_mode}, got: ${actual}"
+  fi
+}
+
 assert_file_contains "${PULUMI_PROJECT}" "name: go"
 assert_file_contains "${PULUMI_PROJECT}" "options:"
-assert_file_contains "${PULUMI_PROJECT}" "binary: ./.pulumi/bin/ltbase-infra"
+assert_file_contains "${PULUMI_PROJECT}" "binary: ../../.pulumi/bin/ltbase-infra"
 assert_file_contains "${GITIGNORE_PATH}" "infra/.pulumi/"
+assert_tracked_file_mode "infra/scripts/pulumi-wrapper.sh" "100755"
 
 assert_file_contains "${WORKFLOW_PATH}" "workflow_dispatch:"
 assert_file_contains "${WORKFLOW_PATH}" "push:"
