@@ -95,7 +95,7 @@ Use `./scripts/update-sync-template-tooling.sh` first when you want the latest s
 ## Deployment Principles
 
 - the deployment repository downloads official LTBase releases instead of building the application source code
-- official workflows may also download a commit-bound prebuilt `ltbase-infra` binary from `Lychee-Technology/ltbase-private-deployment-binaries` to avoid recompiling the Pulumi Go program on every run
+- official workflows may also download an upstream-template-bound prebuilt `ltbase-infra` binary from `Lychee-Technology/ltbase-private-deployment-binaries` to avoid recompiling the Pulumi Go program on every run
 - only the upstream template repository publishes those prebuilt infra binaries; generated customer deployment repositories consume them only
 - customers own the GitHub repository, AWS account resources, and deployment approvals
 - bootstrap scripts prepare repository state and deployment configuration
@@ -109,8 +109,10 @@ Use `./scripts/update-sync-template-tooling.sh` first when you want the latest s
 - keep local `.env` files private and out of version control
 - use the documentation in `docs/` as the source of truth for customer onboarding
 - keep `infra/.pulumi/bin/ltbase-infra` out of version control; the wrapper can recreate it locally and official workflows may preinstall it temporarily
+- `__ref__/template-provenance.json` records the upstream template commit and `build_fingerprint` that official workflows use when looking up prebuilt infra binaries
 - publishing into `ltbase-private-deployment-binaries` requires a repo secret named `LTBASE_PRIVATE_DEPLOYMENT_BINARIES_TOKEN` in the upstream template repository
 - generated customer deployment repositories still receive `.github/workflows/build-infra-binary.yml` from the template, but the workflow is repo-guarded and is skipped outside `Lychee-Technology/ltbase-private-deployment`
+- official workflows only install a prebuilt infra binary when the synced template provenance and `build_fingerprint` exactly match an upstream published manifest; otherwise they fall back to source build
 - if a later repository version changes the managed DSQL lifecycle, follow the docs shipped with that version
 - operators must keep Cloudflare SSL mode on `Full (strict)` and enable Authenticated Origin Pulls for the API hostnames
 - once the mTLS rollout is applied, direct `execute-api` access is expected to fail by design

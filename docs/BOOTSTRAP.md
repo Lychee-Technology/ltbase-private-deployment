@@ -101,7 +101,7 @@ Manual path:
 
 - keep `.env` private and outside version control
 - the deployment repository downloads official LTBase releases; it does not build the app itself
-- official workflows may install a commit-bound prebuilt `ltbase-infra` binary from `ltbase-private-deployment-binaries` before running Pulumi; if no matching release exists, the repo's `infra/scripts/pulumi-wrapper.sh` falls back to local source build
+- official workflows may install an upstream-template-bound prebuilt `ltbase-infra` binary from `ltbase-private-deployment-binaries` before running Pulumi; they use `__ref__/template-provenance.json` and its `build_fingerprint` to find an exact upstream match, otherwise the repo's `infra/scripts/pulumi-wrapper.sh` falls back to local source build
 - customer deployment repositories consume those prebuilt binaries only; the copied `build-infra-binary.yml` workflow is skipped outside `Lychee-Technology/ltbase-private-deployment`
 - preview is manual in the customer repo because live credentials are customer-owned
 - manual preview only supports the first stack in `PROMOTION_PATH`
