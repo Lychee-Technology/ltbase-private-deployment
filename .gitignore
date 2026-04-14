@@ -5,3 +5,4 @@ infra/auth-providers.*.json
 .worktrees/
 dist/
 infra/.pulumi/
+customer-owned/
