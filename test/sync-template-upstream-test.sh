@@ -41,7 +41,7 @@ setup_fake_git() {
 set -euo pipefail
 printf 'git %s\n' "$*" >>"${COMMAND_LOG}"
 
-case "$*" in
+  case "$*" in
   "rev-parse --is-inside-work-tree")
     printf 'true\n'
     exit 0
@@ -69,6 +69,10 @@ case "$*" in
   "fetch upstream")
     exit 0
     ;;
+  "rev-parse upstream/main")
+    printf 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\n'
+    exit 0
+    ;;
   "archive --format=tar --output sync-template-upstream.tar upstream/main")
     exit 0
     ;;
@@ -77,6 +81,48 @@ esac
 exit 0
 EOF
   chmod +x "${fake_bin}/git"
+
+  cat >"${fake_bin}/find" <<'EOF'
+#!/usr/bin/env bash
+set -euo pipefail
+printf 'find %s\n' "$*" >>"${COMMAND_LOG}"
+if [[ "$*" == "${TEMP_ROOT}/upstream-checkout/infra -type f" ]]; then
+  printf '%s\n' \
+    "${TEMP_ROOT}/upstream-checkout/infra/go.mod" \
+    "${TEMP_ROOT}/upstream-checkout/infra/go.sum"
+  exit 0
+fi
+exit 1
+EOF
+  chmod +x "${fake_bin}/find"
+
+  cat >"${fake_bin}/shasum" <<'EOF'
+#!/usr/bin/env bash
+set -euo pipefail
+printf 'shasum %s\n' "$*" >>"${COMMAND_LOG}"
+printf 'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb  -\n'
+EOF
+  chmod +x "${fake_bin}/shasum"
+
+  cat >"${fake_bin}/jq" <<'EOF'
+#!/usr/bin/env bash
+set -euo pipefail
+printf 'jq %s\n' "$*" >>"${COMMAND_LOG}"
+if [[ "${1:-}" != "-n" ]]; then
+  exit 1
+fi
+cat <<JSON
+{
+  "template_repository": "Lychee-Technology/ltbase-private-deployment",
+  "template_ref": "main",
+  "template_commit": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "build_fingerprint": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+  "generated_at": "2026-04-13T00:00:00Z",
+  "generator": "scripts/sync-template-upstream.sh"
+}
+JSON
+EOF
+  chmod +x "${fake_bin}/jq"
 
   cat >"${fake_bin}/tar" <<'EOF'
 #!/usr/bin/env bash
@@ -92,6 +138,9 @@ if [[ "$*" == "-xf sync-template-upstream.tar -C ${TEMP_ROOT}/upstream-checkout"
     "${TEMP_ROOT}/upstream-checkout/__ref__"
   : >"${TEMP_ROOT}/upstream-checkout/env.template"
   : >"${TEMP_ROOT}/upstream-checkout/.gitignore"
+  : >"${TEMP_ROOT}/upstream-checkout/.github/workflows/build-infra-binary.yml"
+  printf 'module example.com/ltbase\n' >"${TEMP_ROOT}/upstream-checkout/infra/go.mod"
+  printf 'sum example\n' >"${TEMP_ROOT}/upstream-checkout/infra/go.sum"
 fi
 exit 0
 EOF
@@ -101,6 +150,12 @@ EOF
 #!/usr/bin/env bash
 set -euo pipefail
 printf 'rsync %s\n' "$*" >>"${COMMAND_LOG}"
+src="${@: -2:1}"
+dest="${@: -1}"
+mkdir -p "${dest}/__ref__"
+if [[ -f "${src}/__ref__/template-provenance.json" ]]; then
+  /bin/cp "${src}/__ref__/template-provenance.json" "${dest}/__ref__/template-provenance.json"
+fi
 exit 0
 EOF
   chmod +x "${fake_bin}/rsync"
@@ -141,10 +196,22 @@ run_success_case() {
   assert_log_contains "${log_file}" "git remote get-url upstream"
   assert_log_contains "${log_file}" "git remote add upstream https://github.com/Lychee-Technology/ltbase-private-deployment.git"
   assert_log_contains "${log_file}" "git fetch upstream"
+  assert_log_contains "${log_file}" "git rev-parse upstream/main"
   assert_log_contains "${log_file}" "git archive --format=tar --output sync-template-upstream.tar upstream/main"
   assert_log_contains "${log_file}" "tar -xf sync-template-upstream.tar"
+  assert_log_contains "${log_file}" "find ${temp_dir}/upstream-checkout/infra -type f"
+  assert_log_contains "${log_file}" "shasum -a 256"
+  assert_log_contains "${log_file}" "jq -n"
   assert_log_contains "${log_file}" "rsync -a --delete --exclude .git/ --exclude dist/ --exclude .DS_Store --exclude .env --exclude .env.* --exclude infra/Pulumi.*.yaml --exclude infra/auth-providers.*.json --exclude scripts/sync-template-upstream.sh --exclude test/sync-template-upstream-test.sh ${temp_dir}/upstream-checkout/ ./"
   assert_log_not_contains "${log_file}" "git merge --no-edit upstream/main"
+
+  if [[ ! -f "${ROOT_DIR}/__ref__/template-provenance.json" ]]; then
+    fail "expected provenance file to be written"
+  fi
+
+  assert_log_contains "${ROOT_DIR}/__ref__/template-provenance.json" '"template_repository": "Lychee-Technology/ltbase-private-deployment"'
+  assert_log_contains "${ROOT_DIR}/__ref__/template-provenance.json" '"template_commit": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"'
+  assert_log_contains "${ROOT_DIR}/__ref__/template-provenance.json" '"build_fingerprint": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"'
 }
 
 run_dirty_tree_case() {
