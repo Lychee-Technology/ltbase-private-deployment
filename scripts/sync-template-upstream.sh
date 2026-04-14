@@ -50,6 +50,35 @@ UPSTREAM_URL="https://github.com/Lychee-Technology/ltbase-private-deployment.git
 BRANCH="main"
 ARCHIVE_PATH="sync-template-upstream.tar"
 
+customer_owned_paths=(
+  "infra/auth-providers.devo.json"
+  "infra/auth-providers.prod.json"
+)
+
+preserve_customer_owned_files() {
+  local backup_root="$1"
+  local path
+
+  for path in "${customer_owned_paths[@]}"; do
+    if [[ -f "./${path}" ]]; then
+      mkdir -p "${backup_root}/$(dirname "${path}")"
+      cp "./${path}" "${backup_root}/${path}"
+    fi
+  done
+}
+
+restore_customer_owned_files() {
+  local backup_root="$1"
+  local path
+
+  for path in "${customer_owned_paths[@]}"; do
+    if [[ -f "${backup_root}/${path}" ]]; then
+      mkdir -p "./$(dirname "${path}")"
+      cp "${backup_root}/${path}" "./${path}"
+    fi
+  done
+}
+
 build_fingerprint() {
   local root="$1"
   local paths paths_file hash_output status
@@ -150,6 +179,7 @@ capture_stdout_quiet upstream_commit git rev-parse "${UPSTREAM_NAME}/${BRANCH}"
 
 temp_root="$(mktemp -d)"
 trap 'rm -rf "${temp_root}" "${ARCHIVE_PATH}"' EXIT
+customer_owned_backup_root="${temp_root}/customer-owned"
 
 sync_template_run_quiet git archive --format=tar --output "${ARCHIVE_PATH}" "${UPSTREAM_NAME}/${BRANCH}"
 mkdir -p "${temp_root}"
@@ -176,6 +206,8 @@ capture_stdout_quiet provenance_json jq -n \
   '{template_repository:$template_repository,template_ref:$template_ref,template_commit:$template_commit,build_fingerprint:$build_fingerprint,generated_at:$generated_at,generator:$generator}'
 printf '%s\n' "${provenance_json}" > "${temp_root}/__ref__/template-provenance.json"
 
+preserve_customer_owned_files "${customer_owned_backup_root}"
+
 sync_template_info "syncing template-managed files"
 sync_template_run_quiet rsync -a --delete \
   --exclude '.git/' \
@@ -184,9 +216,9 @@ sync_template_run_quiet rsync -a --delete \
   --exclude '.env' \
   --exclude '.env.*' \
   --exclude 'infra/Pulumi.*.yaml' \
-  --exclude 'infra/auth-providers.*.json' \
   --exclude 'scripts/sync-template-upstream.sh' \
   --exclude 'test/sync-template-upstream-test.sh' \
   "${temp_root}/" "./"
+restore_customer_owned_files "${customer_owned_backup_root}"
 
 printf 'synced %s/%s into %s\n' "${UPSTREAM_NAME}" "${BRANCH}" "${BRANCH}"

@@ -92,6 +92,8 @@ For day-2 maintenance, the generated deployment repository can sync later templa
 
 Use `./scripts/update-sync-template-tooling.sh` first when you want the latest sync helper and its regression test from the template. Then run `./scripts/sync-template-upstream.sh` to sync template-managed files. The template sync preserves local `.env` files, `infra/Pulumi.*.yaml`, customer-owned `infra/auth-providers.*.json`, and the sync helper's own script/test files.
 
+This template repository only tracks `infra/auth-providers.*.json.example`. A generated customer deployment repository should create and maintain the real `infra/auth-providers.<stack>.json` files itself, and may commit those customer-specific files in that generated repository.
+
 ## Deployment Principles
 
 - the deployment repository downloads official LTBase releases instead of building the application source code

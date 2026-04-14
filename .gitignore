@@ -1,5 +1,7 @@
 .env
 .env.*
+infra/auth-providers.*.json
+!infra/auth-providers.*.json.example
 .worktrees/
 dist/
 infra/.pulumi/

@@ -61,6 +61,7 @@
     - `CLOUDFLARE_ZONE_ID`
     - 来源：你在目标 Cloudflare zone 中规划好的最终域名
     - `AUTH_PROVIDER_CONFIG_FILE_<STACK>` 应该指向一个已提交的 JSON 文件，该文件列出该 stack 启用的外部 JWT provider。
+    - 先把 `infra/auth-providers.<stack>.json.example` 复制成 `infra/auth-providers.<stack>.json`，再在生成出来的客户 deployment repo 中编辑这个真实文件。
 10. 填写应用默认值：
     - `GEMINI_MODEL`
     - `DSQL_PORT`、`DSQL_DB`、`DSQL_USER`、`DSQL_PROJECT_SCHEMA`
@@ -133,6 +134,7 @@
 
 - 不要提交 `.env`
 - 不要把生产 secrets 写进被版本控制的文件
+- 模板仓库只提供 `infra/auth-providers.*.json.example`；真实的 `infra/auth-providers.<stack>.json` 文件应保留在生成出来的客户 deployment repo 中维护
 - 如果你依赖 bootstrap 创建 backend 资源，请把 `PULUMI_BACKEND_URL` 和 `PULUMI_SECRETS_PROVIDER_*` 当作生成值
 - 只填写你真正控制的输入项，生成值应来自 bootstrap 输出
 - 对于 managed 部署，不要手动设置 `DSQL_ENDPOINT`；bootstrap 和后续 reconcile 会发布权威值

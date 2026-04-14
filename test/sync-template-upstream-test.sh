@@ -217,7 +217,7 @@ EOF
 #!/usr/bin/env bash
 set -euo pipefail
 printf 'cp %s\n' "$*" >>"${COMMAND_LOG}"
-exit 0
+/bin/cp "$@"
 EOF
   chmod +x "${fake_bin}/cp"
 
@@ -276,7 +276,7 @@ run_success_case() {
   assert_log_contains "${log_file}" "find ${temp_dir}/upstream-checkout/infra -type f"
   assert_log_contains "${log_file}" "shasum -a 256"
   assert_log_contains "${log_file}" "jq -n"
-  assert_log_contains "${log_file}" "rsync -a --delete --exclude .git/ --exclude dist/ --exclude .DS_Store --exclude .env --exclude .env.* --exclude infra/Pulumi.*.yaml --exclude infra/auth-providers.*.json --exclude scripts/sync-template-upstream.sh --exclude test/sync-template-upstream-test.sh ${temp_dir}/upstream-checkout/ ./"
+  assert_log_contains "${log_file}" "rsync -a --delete --exclude .git/ --exclude dist/ --exclude .DS_Store --exclude .env --exclude .env.* --exclude infra/Pulumi.*.yaml --exclude scripts/sync-template-upstream.sh --exclude test/sync-template-upstream-test.sh ${temp_dir}/upstream-checkout/ ./"
   assert_log_not_contains "${log_file}" "git merge --no-edit upstream/main"
 
   if [[ ! -f "${ROOT_DIR}/__ref__/template-provenance.json" ]]; then
@@ -352,6 +352,45 @@ run_empty_find_case() {
   assert_text_not_contains "${output}" "find failed"
 }
 
+run_preserves_customer_auth_provider_case() {
+  local fake_bin="$1"
+  local auth_provider_path="${ROOT_DIR}/infra/auth-providers.prod.json"
+  local original_content='{"providers":[{"name":"customer"}]}'
+
+  setup_fake_git "${fake_bin}"
+  mkdir -p "${ROOT_DIR}/infra"
+  printf '%s\n' "${original_content}" >"${auth_provider_path}"
+
+  if ! output="$(PATH="${fake_bin}:$PATH" COMMAND_LOG="${log_file}" TEMP_ROOT="${temp_dir}" "${SCRIPT_PATH}" 2>&1)"; then
+    rm -f "${auth_provider_path}"
+    fail "expected script to preserve customer auth provider file, got: ${output}"
+  fi
+
+  assert_text_contains "${output}" "synced upstream/main into main"
+  assert_log_contains "${auth_provider_path}" "${original_content}"
+  assert_log_contains "${log_file}" "cp ./infra/auth-providers.prod.json ${temp_dir}/upstream-checkout/customer-owned/infra/auth-providers.prod.json"
+  assert_log_contains "${log_file}" "cp ${temp_dir}/upstream-checkout/customer-owned/infra/auth-providers.prod.json ./infra/auth-providers.prod.json"
+  rm -f "${auth_provider_path}"
+}
+
+run_missing_customer_auth_provider_case() {
+  local fake_bin="$1"
+  local auth_provider_path="${ROOT_DIR}/infra/auth-providers.prod.json"
+
+  setup_fake_git "${fake_bin}"
+  rm -f "${auth_provider_path}"
+
+  if ! output="$(PATH="${fake_bin}:$PATH" COMMAND_LOG="${log_file}" TEMP_ROOT="${temp_dir}" "${SCRIPT_PATH}" 2>&1)"; then
+    fail "expected script to succeed when customer auth provider file is absent, got: ${output}"
+  fi
+
+  assert_text_contains "${output}" "synced upstream/main into main"
+  if [[ -e "${auth_provider_path}" ]]; then
+    rm -f "${auth_provider_path}"
+    fail "expected sync to leave missing customer auth provider file absent"
+  fi
+}
+
 run_without_bootstrap_env_case() {
   local fake_bin="$1"
   local backup_path="${ROOT_DIR}/scripts/lib/bootstrap-env.sh.test-backup"
@@ -382,6 +421,8 @@ upstream_commit_failure_bin="${temp_dir}/upstream-commit-failure-bin"
 find_failure_bin="${temp_dir}/find-failure-bin"
 empty_find_bin="${temp_dir}/empty-find-bin"
 self_contained_bin="${temp_dir}/self-contained-bin"
+preserve_auth_provider_bin="${temp_dir}/preserve-auth-provider-bin"
+missing_auth_provider_bin="${temp_dir}/missing-auth-provider-bin"
 
 run_success_case "${success_bin}" "${log_file}"
 run_dirty_tree_case "${dirty_bin}"
@@ -390,5 +431,7 @@ run_upstream_commit_failure_case "${upstream_commit_failure_bin}"
 run_find_failure_case "${find_failure_bin}"
 run_empty_find_case "${empty_find_bin}"
 run_without_bootstrap_env_case "${self_contained_bin}"
+run_preserves_customer_auth_provider_case "${preserve_auth_provider_bin}"
+run_missing_customer_auth_provider_case "${missing_auth_provider_bin}"
 
 printf 'PASS: sync-template-upstream tests\n'
