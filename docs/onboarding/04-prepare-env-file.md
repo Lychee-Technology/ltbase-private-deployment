@@ -61,6 +61,7 @@ Use this guide to create the local `.env` file that drives the bootstrap scripts
     - `CLOUDFLARE_ZONE_ID`
     - Source: your final DNS plan in the target Cloudflare zone
     - For `AUTH_PROVIDER_CONFIG_FILE_<STACK>`, point to a checked-in JSON file that lists the external JWT providers enabled for that stack.
+    - Start by copying `infra/auth-providers.<stack>.json.example` to `infra/auth-providers.<stack>.json`, then edit the real file in the generated customer deployment repository.
 10. Fill in application defaults:
     - `GEMINI_MODEL`
     - `DSQL_PORT`, `DSQL_DB`, `DSQL_USER`, `DSQL_PROJECT_SCHEMA`
@@ -133,6 +134,7 @@ Only fill these when the defaults are wrong for your customer environment:
 
 - do not commit `.env`
 - do not put production secrets into tracked files
+- the template repository only ships `infra/auth-providers.*.json.example`; keep the real `infra/auth-providers.<stack>.json` files in the generated customer deployment repository
 - treat `PULUMI_BACKEND_URL` and `PULUMI_SECRETS_PROVIDER_*` as generated values if you rely on bootstrap to create backend resources
 - only fill values you actually control; generated values should come from bootstrap outputs
 - do not set `DSQL_ENDPOINT` manually for managed deployments; bootstrap and later reconciliation publish the authoritative value
