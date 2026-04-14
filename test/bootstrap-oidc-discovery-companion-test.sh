@@ -73,6 +73,8 @@ cmd="${1:-}"
 sub="${2:-}"
 if [[ "${cmd} ${sub}" == "repo view" ]]; then
   if [[ "${GH_REPO_VIEW_EXISTS:-false}" == "true" ]]; then
+    printf 'NOISY_GH_STDOUT repo view success\n'
+    printf 'NOISY_GH_STDERR repo view success\n' >&2
     printf 'customer-org/customer-ltbase-oidc-discovery\n'
     exit 0
   fi
@@ -91,9 +93,12 @@ if [[ "${cmd} ${sub}" == "repo view" ]]; then
   exit 1
 fi
 if [[ "${cmd} ${sub}" == "api repos/customer-org/customer-ltbase-oidc-discovery" ]]; then
+  printf 'NOISY_GH_STDERR repo metadata success\n' >&2
   printf '{"default_branch":"main","private":false}'
   exit 0
 fi
+printf 'NOISY_GH_STDOUT generic success\n'
+printf 'NOISY_GH_STDERR generic success\n' >&2
 exit 0
 EOF
 chmod +x "${fake_bin}/gh"
@@ -109,6 +114,8 @@ fi
 if [[ "${args[0]:-} ${args[1]:-}" == "iam get-role" ]]; then
   exit 255
 fi
+printf 'NOISY_AWS_STDOUT generic success\n'
+printf 'NOISY_AWS_STDERR generic success\n' >&2
 exit 0
 EOF
 chmod +x "${fake_bin}/aws"
@@ -150,7 +157,7 @@ done
 body='{"success":true}'
 status='200'
 
-dns_lookup_url='https://api.cloudflare.com/client/v4/zones/zone-123/dns_records?type=CNAME&name=oidc.customer.example.com'
+dns_lookup_url='https://api.cloudflare.com/client/v4/zones/zone-123/dns_records?name=oidc.customer.example.com'
 dns_create_url='https://api.cloudflare.com/client/v4/zones/zone-123/dns_records'
 dns_expected_content='customer-ltbase-oidc-discovery.pages.dev'
 
@@ -167,7 +174,7 @@ if [[ "${method}" == "GET" && "${url}" == "${dns_lookup_url}" ]]; then
     body='{"success":true,"result":[{"id":"dns-1","type":"CNAME","name":"oidc.customer.example.com","content":"wrong-target.pages.dev"}]}'
     status='200'
   elif [[ "${CURL_DNS_CONFLICT_WRONG_TYPE:-false}" == "true" ]]; then
-    body='{"success":true,"result":[{"id":"dns-1","type":"TXT","name":"oidc.customer.example.com","content":"customer-ltbase-oidc-discovery.pages.dev"}]}'
+    body='{"success":true,"result":[{"id":"dns-1","type":"TXT","name":"oidc.customer.example.com","content":"some-text-value"},{"id":"dns-2","type":"CNAME","name":"other.customer.example.com","content":"customer-ltbase-oidc-discovery.pages.dev"}]}'
     status='200'
   elif [[ "${CURL_DNS_MATCHING_RECORD:-false}" == "true" ]]; then
     body='{"success":true,"result":[{"id":"dns-1","type":"CNAME","name":"oidc.customer.example.com","content":"customer-ltbase-oidc-discovery.pages.dev"}]}'
@@ -201,6 +208,11 @@ if [[ "${method}" == "POST" && "${url}" == "${dns_create_url}" && "${CURL_FAIL_D
   status='200'
 fi
 
+if [[ "${method}" == "POST" && "${CURL_TRANSPORT_FAILURE_POST:-false}" == "true" && "${url}" == *"/pages/projects" ]]; then
+  printf 'curl: (7) Failed to connect to api.cloudflare.com port 443\n' >&2
+  exit 7
+fi
+
 if [[ "${method}" == "POST" && "${CURL_FAIL_POST_SUCCESS:-true}" == "false" ]]; then
   body='{"success":false,"errors":[{"message":"simulated failure"}]}'
   status='200'
@@ -219,6 +231,7 @@ fi
 
 if [[ -n "${write_out}" ]]; then
   if [[ "${write_out}" == '%{http_code}' ]]; then
+    printf 'NOISY_CURL_STDERR http code success\n' >&2
     printf '%s' "${status}"
   else
     printf '%s' "${write_out}"
@@ -227,6 +240,8 @@ if [[ -n "${write_out}" ]]; then
 fi
 
 if [[ "${status}" =~ ^2 ]]; then
+  printf 'NOISY_CURL_STDOUT generic success\n'
+  printf 'NOISY_CURL_STDERR generic success\n' >&2
   exit 0
 fi
 
@@ -245,7 +260,7 @@ fi
 assert_log_contains "${log_file}" "gh repo create customer-org/customer-ltbase-oidc-discovery --template Lychee-Technology/ltbase-oidc-discovery-template --private --description LTBase OIDC discovery companion for customer-ltbase --clone=false"
 assert_log_contains "${log_file}" "https://api.cloudflare.com/client/v4/accounts/cf-account-123/pages/projects"
 assert_log_contains "${log_file}" "https://api.cloudflare.com/client/v4/accounts/cf-account-123/pages/projects/customer-ltbase-oidc-discovery/domains"
-assert_log_contains "${log_file}" "https://api.cloudflare.com/client/v4/zones/zone-123/dns_records?type=CNAME&name=oidc.customer.example.com"
+assert_log_contains "${log_file}" "https://api.cloudflare.com/client/v4/zones/zone-123/dns_records?name=oidc.customer.example.com"
 assert_log_contains "${log_file}" "https://api.cloudflare.com/client/v4/zones/zone-123/dns_records"
 assert_log_contains "${log_file}" "gh variable set OIDC_DISCOVERY_DOMAIN --repo customer-org/customer-ltbase-oidc-discovery --body oidc.customer.example.com"
 assert_log_contains "${log_file}" "gh variable set OIDC_DISCOVERY_STACK_CONFIG --repo customer-org/customer-ltbase-oidc-discovery --body {\"devo\":{\"aws_region\":\"ap-northeast-1\",\"aws_role_arn\":\"arn:aws:iam::123456789012:role/customer-ltbase-oidc-discovery-devo\",\"kms_auth_key_alias\":\"alias/ltbase-oidc-discovery-devo-authservice\"},\"prod\":{\"aws_region\":\"us-west-2\",\"aws_role_arn\":\"arn:aws:iam::210987654321:role/customer-ltbase-oidc-discovery-prod\",\"kms_auth_key_alias\":\"alias/ltbase-oidc-discovery-prod-authservice\"}}"
@@ -262,6 +277,18 @@ assert_file_contains "${temp_dir}/dist/oidc-discovery-companion.env" "OIDC_DISCO
 assert_file_contains "${temp_dir}/dist/oidc-discovery-companion.env" "OIDC_DISCOVERY_DOMAIN=oidc.customer.example.com"
 assert_file_contains "${temp_dir}/dist/oidc-discovery-companion.env" "OIDC_ISSUER_URL_DEVO=https://oidc.customer.example.com/devo"
 assert_file_contains "${temp_dir}/dist/oidc-discovery-companion.env" "JWKS_URL_PROD=https://oidc.customer.example.com/prod/.well-known/jwks.json"
+assert_log_contains <(printf '%s' "${output}") "[info] Ensuring OIDC discovery repository: customer-org/customer-ltbase-oidc-discovery"
+assert_log_contains <(printf '%s' "${output}") "[info] Ensuring Pages project: customer-ltbase-oidc-discovery"
+assert_log_contains <(printf '%s' "${output}") "[info] Ensuring Pages domain: oidc.customer.example.com"
+assert_log_contains <(printf '%s' "${output}") "[info] Reconciling DNS for OIDC discovery domain: oidc.customer.example.com"
+assert_log_contains <(printf '%s' "${output}") "[info] Configuring companion repository variables and secrets"
+assert_log_contains <(printf '%s' "${output}") "[info] Reconciling OIDC discovery IAM role for stack: devo"
+assert_log_not_contains <(printf '%s' "${output}") "NOISY_GH_STDOUT"
+assert_log_not_contains <(printf '%s' "${output}") "NOISY_GH_STDERR"
+assert_log_not_contains <(printf '%s' "${output}") "NOISY_CURL_STDOUT"
+assert_log_not_contains <(printf '%s' "${output}") "NOISY_CURL_STDERR"
+assert_log_not_contains <(printf '%s' "${output}") "NOISY_AWS_STDOUT"
+assert_log_not_contains <(printf '%s' "${output}") "NOISY_AWS_STDERR"
 
 cat >"${temp_dir}/invalid-domain.env" <<'EOF'
 STACKS=devo,prod
@@ -372,6 +399,15 @@ fi
 
 assert_log_contains "${temp_dir}/cloudflare-get-auth-failure.log" "Cloudflare API request failed: get Pages project (HTTP 403)"
 assert_log_not_contains "${log_file}" "https://api.cloudflare.com/client/v4/accounts/cf-account-123/pages/projects --data"
+
+: >"${log_file}"
+if PATH="${fake_bin}:$PATH" COMMAND_LOG="${log_file}" CURL_TRANSPORT_FAILURE_POST=true "${SCRIPT_PATH}" --env-file "${temp_dir}/.env" --output-dir "${temp_dir}/dist-transport-failed-post" >"${temp_dir}/cloudflare-transport-failure-post.log" 2>&1; then
+  fail "expected Cloudflare POST transport failure to fail"
+fi
+
+assert_log_contains "${temp_dir}/cloudflare-transport-failure-post.log" "Cloudflare API request failed: create Pages project"
+assert_log_contains "${temp_dir}/cloudflare-transport-failure-post.log" "curl: (7) Failed to connect"
+assert_log_not_contains "${log_file}" "gh variable set CLOUDFLARE_ACCOUNT_ID --repo customer-org/customer-ltbase-oidc-discovery --body cf-account-123"
 
 : >"${log_file}"
 if PATH="${fake_bin}:$PATH" COMMAND_LOG="${log_file}" CURL_GET_SUCCESS_FALSE=true "${SCRIPT_PATH}" --env-file "${temp_dir}/.env" --output-dir "${temp_dir}/dist-success-false-get" >"${temp_dir}/cloudflare-success-false-get.log" 2>&1; then

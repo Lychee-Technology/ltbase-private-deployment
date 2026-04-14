@@ -10,6 +10,22 @@ fail() {
   exit 1
 }
 
+assert_text_contains() {
+  local text="$1"
+  local needle="$2"
+  if [[ "${text}" != *"${needle}"* ]]; then
+    fail "expected output to contain: ${needle}"
+  fi
+}
+
+assert_text_not_contains() {
+  local text="$1"
+  local needle="$2"
+  if [[ "${text}" == *"${needle}"* ]]; then
+    fail "expected output to not contain: ${needle}"
+  fi
+}
+
 assert_log_contains() {
   local path="$1"
   local needle="$2"
@@ -47,9 +63,11 @@ printf 'git %s\n' "$*" >>"${COMMAND_LOG}"
   case "$*" in
   "rev-parse --is-inside-work-tree")
     printf 'true\n'
+    printf 'INSIDE-WORKTREE-NOISE\n' >&2
     exit 0
     ;;
   "status --porcelain")
+    printf 'STATUS-NOISE\n' >&2
     if [[ "${SCENARIO:-success}" == "dirty" ]]; then
       printf ' M README.md\n'
     fi
@@ -57,26 +75,39 @@ printf 'git %s\n' "$*" >>"${COMMAND_LOG}"
     ;;
   "rev-parse --abbrev-ref HEAD")
     printf 'main\n'
+    printf 'BRANCH-NOISE\n' >&2
     exit 0
     ;;
   "remote get-url upstream")
     if [[ "${SCENARIO:-success}" == "url_mismatch" ]]; then
       printf 'https://github.com/example/wrong-template.git\n'
+      printf 'REMOTE-GET-NOISE\n' >&2
       exit 0
     fi
     exit 2
     ;;
   "remote add upstream https://github.com/Lychee-Technology/ltbase-private-deployment.git")
+    printf 'REMOTE-ADD-NOISE\n'
+    printf 'REMOTE-ADD-NOISE\n' >&2
     exit 0
     ;;
   "fetch upstream")
+    printf 'FETCH-NOISE\n'
+    printf 'FETCH-NOISE\n' >&2
     exit 0
     ;;
   "rev-parse upstream/main")
+    if [[ "${SCENARIO:-success}" == "upstream_commit_failure" ]]; then
+      printf 'upstream commit failed\n' >&2
+      exit 23
+    fi
     printf 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\n'
+    printf 'UPSTREAM-COMMIT-NOISE\n' >&2
     exit 0
     ;;
   "archive --format=tar --output sync-template-upstream.tar upstream/main")
+    printf 'ARCHIVE-NOISE\n'
+    printf 'ARCHIVE-NOISE\n' >&2
     exit 0
     ;;
 esac
@@ -90,6 +121,14 @@ EOF
 set -euo pipefail
 printf 'find %s\n' "$*" >>"${COMMAND_LOG}"
 if [[ "$*" == "${TEMP_ROOT}/upstream-checkout/infra -type f" ]]; then
+  if [[ "${SCENARIO:-success}" == "find_failure" ]]; then
+    printf 'find failed\n' >&2
+    exit 31
+  fi
+  printf 'FIND-NOISE\n' >&2
+  if [[ "${SCENARIO:-success}" == "empty_find" ]]; then
+    exit 0
+  fi
   printf '%s\n' \
     "${TEMP_ROOT}/upstream-checkout/infra/go.mod" \
     "${TEMP_ROOT}/upstream-checkout/infra/go.sum"
@@ -103,6 +142,12 @@ EOF
 #!/usr/bin/env bash
 set -euo pipefail
 printf 'shasum %s\n' "$*" >>"${COMMAND_LOG}"
+content="$(cat)"
+if [[ "${SCENARIO:-success}" == "empty_find" && "${content}" == *$'==  ==\n'* ]]; then
+  printf 'malformed fingerprint input\n' >&2
+  exit 41
+fi
+printf 'SHASUM-NOISE\n' >&2
 printf 'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb  -\n'
 EOF
   chmod +x "${fake_bin}/shasum"
@@ -114,6 +159,7 @@ printf 'jq %s\n' "$*" >>"${COMMAND_LOG}"
 if [[ "${1:-}" != "-n" ]]; then
   exit 1
 fi
+printf 'JQ-NOISE\n' >&2
 cat <<JSON
 {
   "template_repository": "Lychee-Technology/ltbase-private-deployment",
@@ -131,6 +177,8 @@ EOF
 #!/usr/bin/env bash
 set -euo pipefail
 printf 'tar %s\n' "$*" >>"${COMMAND_LOG}"
+printf 'TAR-NOISE\n'
+printf 'TAR-NOISE\n' >&2
 if [[ "$*" == "-xf sync-template-upstream.tar -C ${TEMP_ROOT}/upstream-checkout" ]]; then
   mkdir -p \
     "${TEMP_ROOT}/upstream-checkout/.github/workflows" \
@@ -153,6 +201,8 @@ EOF
 #!/usr/bin/env bash
 set -euo pipefail
 printf 'rsync %s\n' "$*" >>"${COMMAND_LOG}"
+printf 'RSYNC-NOISE\n'
+printf 'RSYNC-NOISE\n' >&2
 src="${@: -2:1}"
 dest="${@: -1}"
 mkdir -p "${dest}/__ref__"
@@ -179,6 +229,10 @@ if [[ "${1:-}" == "-d" ]]; then
   mkdir -p "${TEMP_ROOT}/upstream-checkout"
   exit 0
 fi
+path="${TEMP_ROOT}/mktemp-file.$$.$RANDOM"
+: >"${path}"
+printf '%s\n' "${path}"
+exit 0
 exit 1
 EOF
   chmod +x "${fake_bin}/mktemp"
@@ -192,6 +246,23 @@ run_success_case() {
   if ! output="$(PATH="${fake_bin}:$PATH" COMMAND_LOG="${log_file}" TEMP_ROOT="${temp_dir}" "${SCRIPT_PATH}" 2>&1)"; then
     fail "expected script to succeed, got: ${output}"
   fi
+
+  assert_text_contains "${output}" "[info] fetching upstream template from upstream/main"
+  assert_text_contains "${output}" "[info] refreshing provenance metadata"
+  assert_text_contains "${output}" "[info] syncing template-managed files"
+  assert_text_contains "${output}" "synced upstream/main into main"
+  assert_text_not_contains "${output}" "INSIDE-WORKTREE-NOISE"
+  assert_text_not_contains "${output}" "STATUS-NOISE"
+  assert_text_not_contains "${output}" "BRANCH-NOISE"
+  assert_text_not_contains "${output}" "REMOTE-ADD-NOISE"
+  assert_text_not_contains "${output}" "FETCH-NOISE"
+  assert_text_not_contains "${output}" "UPSTREAM-COMMIT-NOISE"
+  assert_text_not_contains "${output}" "ARCHIVE-NOISE"
+  assert_text_not_contains "${output}" "TAR-NOISE"
+  assert_text_not_contains "${output}" "FIND-NOISE"
+  assert_text_not_contains "${output}" "SHASUM-NOISE"
+  assert_text_not_contains "${output}" "JQ-NOISE"
+  assert_text_not_contains "${output}" "RSYNC-NOISE"
 
   assert_log_contains "${log_file}" "git rev-parse --is-inside-work-tree"
   assert_log_contains "${log_file}" "git status --porcelain"
@@ -243,6 +314,44 @@ run_url_mismatch_case() {
   fi
 }
 
+run_upstream_commit_failure_case() {
+  local fake_bin="$1"
+  setup_fake_git "${fake_bin}"
+
+  if PATH="${fake_bin}:$PATH" COMMAND_LOG="${log_file}" TEMP_ROOT="${temp_dir}" SCENARIO="upstream_commit_failure" "${SCRIPT_PATH}" >"${temp_dir}/upstream-commit-failure.out" 2>&1; then
+    fail "expected script to fail when upstream commit capture fails"
+  fi
+
+  if ! grep -Fq "upstream commit failed" "${temp_dir}/upstream-commit-failure.out"; then
+    fail "expected upstream commit capture failure output"
+  fi
+}
+
+run_find_failure_case() {
+  local fake_bin="$1"
+  setup_fake_git "${fake_bin}"
+
+  if PATH="${fake_bin}:$PATH" COMMAND_LOG="${log_file}" TEMP_ROOT="${temp_dir}" SCENARIO="find_failure" "${SCRIPT_PATH}" >"${temp_dir}/find-failure.out" 2>&1; then
+    fail "expected script to fail when fingerprint file discovery fails"
+  fi
+
+  if ! grep -Fq "find failed" "${temp_dir}/find-failure.out"; then
+    fail "expected fingerprint discovery failure output"
+  fi
+}
+
+run_empty_find_case() {
+  local fake_bin="$1"
+  setup_fake_git "${fake_bin}"
+
+  if ! output="$(PATH="${fake_bin}:$PATH" COMMAND_LOG="${log_file}" TEMP_ROOT="${temp_dir}" SCENARIO="empty_find" "${SCRIPT_PATH}" 2>&1)"; then
+    fail "expected script to succeed when fingerprint discovery is empty, got: ${output}"
+  fi
+
+  assert_text_contains "${output}" "synced upstream/main into main"
+  assert_text_not_contains "${output}" "find failed"
+}
+
 if [[ ! -x "${SCRIPT_PATH}" ]]; then
   fail "missing executable script: ${SCRIPT_PATH}"
 fi
@@ -250,9 +359,15 @@ fi
 success_bin="${temp_dir}/success-bin"
 dirty_bin="${temp_dir}/dirty-bin"
 url_mismatch_bin="${temp_dir}/url-mismatch-bin"
+upstream_commit_failure_bin="${temp_dir}/upstream-commit-failure-bin"
+find_failure_bin="${temp_dir}/find-failure-bin"
+empty_find_bin="${temp_dir}/empty-find-bin"
 
 run_success_case "${success_bin}" "${log_file}"
 run_dirty_tree_case "${dirty_bin}"
 run_url_mismatch_case "${url_mismatch_bin}"
+run_upstream_commit_failure_case "${upstream_commit_failure_bin}"
+run_find_failure_case "${find_failure_bin}"
+run_empty_find_case "${empty_find_bin}"
 
 printf 'PASS: sync-template-upstream tests\n'

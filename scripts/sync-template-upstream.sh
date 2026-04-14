@@ -2,6 +2,33 @@
 
 set -euo pipefail
 
+script_dir="$(cd "$(dirname "$0")" && pwd)"
+# shellcheck disable=SC1091
+source "${script_dir}/lib/bootstrap-env.sh"
+
+capture_stdout_quiet() {
+  local destination_var="$1"
+  local stderr_file output status
+  shift
+
+  stderr_file="$(mktemp)"
+  if output="$("$@" 2>"${stderr_file}")"; then
+    printf -v "${destination_var}" '%s' "${output}"
+    rm -f "${stderr_file}"
+    return 0
+  else
+    status=$?
+  fi
+
+  if [[ -s "${stderr_file}" ]]; then
+    while IFS= read -r line; do
+      printf '%s\n' "${line}" >&2
+    done <"${stderr_file}"
+  fi
+  rm -f "${stderr_file}"
+  return "${status}"
+}
+
 UPSTREAM_NAME="upstream"
 UPSTREAM_URL="https://github.com/Lychee-Technology/ltbase-private-deployment.git"
 BRANCH="main"
@@ -9,15 +36,38 @@ ARCHIVE_PATH="sync-template-upstream.tar"
 
 build_fingerprint() {
   local root="$1"
+  local paths paths_file hash_output status
 
-  {
-    find "${root}/infra" -type f | LC_ALL=C sort
-    printf '%s\n' "${root}/.github/workflows/build-infra-binary.yml"
-  } | while read -r path; do
-    printf '== %s ==\n' "${path#${root}/}"
-    cat "${path}"
-    printf '\n'
-  done | shasum -a 256 | awk '{print "sha256:" $1}'
+  capture_stdout_quiet paths find "${root}/infra" -type f || return $?
+
+  paths_file="$(mktemp)"
+  if [[ -n "${paths}" ]]; then
+    printf '%s\n' "${paths}" > "${paths_file}"
+  fi
+
+  capture_stdout_quiet hash_output bash -c '
+    root="$1"
+    paths_file="$2"
+
+    {
+      if [[ -s "${paths_file}" ]]; then
+        LC_ALL=C sort "${paths_file}"
+      fi
+      printf "%s\n" "${root}/.github/workflows/build-infra-binary.yml"
+    } | while IFS= read -r path; do
+      printf "== %s ==\n" "${path#${root}/}"
+      cat "${path}"
+      printf "\n"
+    done | shasum -a 256
+  ' _ "${root}" "${paths_file}" || {
+    status=$?
+    rm -f "${paths_file}"
+    return "${status}"
+  }
+
+  rm -f "${paths_file}"
+
+  printf 'sha256:%s\n' "${hash_output%% *}"
 }
 
 required_source_paths=(
@@ -57,12 +107,13 @@ if ! git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
   exit 1
 fi
 
-if [[ -n "$(git status --porcelain)" ]]; then
+capture_stdout_quiet git_status git status --porcelain
+if [[ -n "${git_status}" ]]; then
   echo "working tree is not clean; commit or stash your changes before syncing" >&2
   exit 1
 fi
 
-current_branch="$(git rev-parse --abbrev-ref HEAD)"
+capture_stdout_quiet current_branch git rev-parse --abbrev-ref HEAD
 if [[ "${current_branch}" != "${BRANCH}" ]]; then
   echo "current branch must be ${BRANCH}; found ${current_branch}" >&2
   exit 1
@@ -74,18 +125,19 @@ if existing_url="$(git remote get-url "${UPSTREAM_NAME}" 2>/dev/null)"; then
     exit 1
   fi
 else
-  git remote add "${UPSTREAM_NAME}" "${UPSTREAM_URL}"
+  bootstrap_env_run_quiet git remote add "${UPSTREAM_NAME}" "${UPSTREAM_URL}"
 fi
 
-git fetch "${UPSTREAM_NAME}"
-upstream_commit="$(git rev-parse "${UPSTREAM_NAME}/${BRANCH}")"
+bootstrap_env_info "fetching upstream template from ${UPSTREAM_NAME}/${BRANCH}"
+bootstrap_env_run_quiet git fetch "${UPSTREAM_NAME}"
+capture_stdout_quiet upstream_commit git rev-parse "${UPSTREAM_NAME}/${BRANCH}"
 
 temp_root="$(mktemp -d)"
 trap 'rm -rf "${temp_root}" "${ARCHIVE_PATH}"' EXIT
 
-git archive --format=tar --output "${ARCHIVE_PATH}" "${UPSTREAM_NAME}/${BRANCH}"
+bootstrap_env_run_quiet git archive --format=tar --output "${ARCHIVE_PATH}" "${UPSTREAM_NAME}/${BRANCH}"
 mkdir -p "${temp_root}"
-tar -xf "${ARCHIVE_PATH}" -C "${temp_root}"
+bootstrap_env_run_quiet tar -xf "${ARCHIVE_PATH}" -C "${temp_root}"
 
 for path in "${required_source_paths[@]}"; do
   if [[ ! -e "${temp_root}/${path}" ]]; then
@@ -97,17 +149,19 @@ done
 fingerprint="$(build_fingerprint "${temp_root}")"
 
 mkdir -p "${temp_root}/__ref__"
-jq -n \
+bootstrap_env_info "refreshing provenance metadata"
+capture_stdout_quiet provenance_json jq -n \
   --arg template_repository "Lychee-Technology/ltbase-private-deployment" \
   --arg template_ref "${BRANCH}" \
   --arg template_commit "${upstream_commit}" \
   --arg build_fingerprint "${fingerprint}" \
   --arg generated_at "$(date -u +"%Y-%m-%dT%H:%M:%SZ")" \
   --arg generator "scripts/sync-template-upstream.sh" \
-  '{template_repository:$template_repository,template_ref:$template_ref,template_commit:$template_commit,build_fingerprint:$build_fingerprint,generated_at:$generated_at,generator:$generator}' \
-  > "${temp_root}/__ref__/template-provenance.json"
+  '{template_repository:$template_repository,template_ref:$template_ref,template_commit:$template_commit,build_fingerprint:$build_fingerprint,generated_at:$generated_at,generator:$generator}'
+printf '%s\n' "${provenance_json}" > "${temp_root}/__ref__/template-provenance.json"
 
-rsync -a --delete \
+bootstrap_env_info "syncing template-managed files"
+bootstrap_env_run_quiet rsync -a --delete \
   --exclude '.git/' \
   --exclude 'dist/' \
   --exclude '.DS_Store' \

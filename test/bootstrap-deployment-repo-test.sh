@@ -26,6 +26,14 @@ assert_log_not_contains() {
   fi
 }
 
+assert_equals() {
+  local expected="$1"
+  local actual="$2"
+  if [[ "${expected}" != "${actual}" ]]; then
+    fail "expected '${expected}', got '${actual}'"
+  fi
+}
+
 temp_dir="$(mktemp -d)"
 fake_bin="${temp_dir}/bin"
 log_file="${temp_dir}/commands.log"
@@ -88,15 +96,37 @@ EOF
 cat >"${fake_bin}/gh" <<EOF
 #!/usr/bin/env bash
 set -euo pipefail
+printf 'NOISY GH STDOUT %s\n' "\$*"
+printf 'NOISY GH STDERR %s\n' "\$*" >&2
 printf 'gh %s\n' "\$*" >>"${log_file}"
+if [[ "\${GH_FAIL_FIRST:-0}" == "1" ]]; then
+  exit 1
+fi
 EOF
 chmod +x "${fake_bin}/gh"
 
 cat >"${fake_bin}/pulumi" <<EOF
 #!/usr/bin/env bash
 set -euo pipefail
+printf 'NOISY PULUMI STDOUT %s\n' "\$*"
+printf 'NOISY PULUMI STDERR %s\n' "\$*" >&2
 printf 'PWD=%s AWS_REGION=%s AWS_DEFAULT_REGION=%s AWS_PROFILE=%s pulumi %s\n' "\$PWD" "\${AWS_REGION:-}" "\${AWS_DEFAULT_REGION:-}" "\${AWS_PROFILE:-}" "\$*" >>"${log_file}"
 if [[ "\$1 \$2" == "stack select" ]]; then
+  case "\${PULUMI_STACK_SELECT_MODE:-missing}" in
+    missing)
+      printf 'error: no stack named %s found\n' "\${3:-}" >&2
+      exit 1
+      ;;
+    unexpected)
+      printf 'error: backend unavailable\n' >&2
+      exit 1
+      ;;
+    existing)
+      exit 0
+      ;;
+  esac
+fi
+if [[ "\${PULUMI_FAIL_COMMAND:-}" == "\$*" ]]; then
   exit 1
 fi
 exit 0
@@ -108,6 +138,13 @@ if [[ -x "${SCRIPT_PATH}" ]]; then
     rm -rf "${temp_dir}"
     fail "expected script to succeed when implemented, got: ${output}"
   fi
+
+  assert_log_contains <(printf '%s' "${output}") "[info] configuring repository variables and secrets for Lychee-Technology/ltbase-private-deployment"
+  assert_log_contains <(printf '%s' "${output}") "[info] configuring Pulumi stack prod"
+  assert_log_not_contains <(printf '%s' "${output}") "NOISY GH STDOUT"
+  assert_log_not_contains <(printf '%s' "${output}") "NOISY GH STDERR"
+  assert_log_not_contains <(printf '%s' "${output}") "NOISY PULUMI STDOUT"
+  assert_log_not_contains <(printf '%s' "${output}") "NOISY PULUMI STDERR"
 
   assert_log_contains "${log_file}" "gh variable set AWS_REGION_DEVO --repo Lychee-Technology/ltbase-private-deployment --body ap-northeast-1"
   assert_log_contains "${log_file}" "gh variable set AWS_REGION_STAGING --repo Lychee-Technology/ltbase-private-deployment --body us-east-1"
@@ -136,6 +173,49 @@ if [[ -x "${SCRIPT_PATH}" ]]; then
   assert_log_not_contains "${log_file}" "pulumi up --stack prod --yes --skip-preview"
   assert_log_not_contains "${log_file}" "pulumi config set dsqlEndpoint"
   assert_log_not_contains "${log_file}" "aws dsql get-cluster"
+
+  if output="$(GH_FAIL_FIRST=1 PATH="${fake_bin}:$PATH" "${SCRIPT_PATH}" --env-file "${temp_dir}/.env" --stack prod --infra-dir "${temp_dir}/infra" 2>&1)"; then
+    rm -rf "${temp_dir}"
+    fail "expected script to fail when gh fails"
+  fi
+
+  first_output_line="$(printf '%s\n' "${output}" | sed -n '1p')"
+  assert_equals "[info] configuring repository variables and secrets for Lychee-Technology/ltbase-private-deployment" "${first_output_line}"
+  assert_log_contains <(printf '%s' "${output}") "NOISY GH STDOUT variable set AWS_REGION_DEVO --repo Lychee-Technology/ltbase-private-deployment --body ap-northeast-1"
+  assert_log_contains <(printf '%s' "${output}") "NOISY GH STDERR variable set AWS_REGION_DEVO --repo Lychee-Technology/ltbase-private-deployment --body ap-northeast-1"
+
+  if output="$(PULUMI_FAIL_COMMAND="config set runtimeBucket ltbase-private-deployment-runtime-prod --stack prod" PATH="${fake_bin}:$PATH" "${SCRIPT_PATH}" --env-file "${temp_dir}/.env" --stack prod --infra-dir "${temp_dir}/infra" 2>&1)"; then
+    rm -rf "${temp_dir}"
+    fail "expected script to fail when pulumi fails"
+  fi
+
+  assert_log_contains <(printf '%s' "${output}") "[info] configuring Pulumi stack prod"
+  assert_log_contains <(printf '%s' "${output}") "NOISY PULUMI STDOUT config set runtimeBucket ltbase-private-deployment-runtime-prod --stack prod"
+  assert_log_contains <(printf '%s' "${output}") "NOISY PULUMI STDERR config set runtimeBucket ltbase-private-deployment-runtime-prod --stack prod"
+
+  : >"${log_file}"
+  if ! output="$(PULUMI_STACK_SELECT_MODE=existing PATH="${fake_bin}:$PATH" "${SCRIPT_PATH}" --env-file "${temp_dir}/.env" --stack prod --infra-dir "${temp_dir}/infra" 2>&1)"; then
+    rm -rf "${temp_dir}"
+    fail "expected script to succeed when stack already exists, got: ${output}"
+  fi
+
+  assert_log_contains <(printf '%s' "${output}") "[info] configuring Pulumi stack prod"
+  assert_log_not_contains <(printf '%s' "${output}") "NOISY PULUMI STDOUT"
+  assert_log_not_contains <(printf '%s' "${output}") "NOISY PULUMI STDERR"
+  assert_log_contains "${log_file}" "pulumi stack select prod"
+  assert_log_not_contains "${log_file}" "pulumi stack init prod --secrets-provider awskms://alias/test-pulumi-secrets?region=us-west-2"
+
+  : >"${log_file}"
+  if output="$(PULUMI_STACK_SELECT_MODE=unexpected PATH="${fake_bin}:$PATH" "${SCRIPT_PATH}" --env-file "${temp_dir}/.env" --stack prod --infra-dir "${temp_dir}/infra" 2>&1)"; then
+    rm -rf "${temp_dir}"
+    fail "expected script to fail when stack select fails unexpectedly"
+  fi
+
+  assert_log_contains <(printf '%s' "${output}") "[info] configuring Pulumi stack prod"
+  assert_log_contains <(printf '%s' "${output}") "NOISY PULUMI STDOUT stack select prod"
+  assert_log_contains <(printf '%s' "${output}") "NOISY PULUMI STDERR stack select prod"
+  assert_log_contains <(printf '%s' "${output}") "error: backend unavailable"
+  assert_log_not_contains "${log_file}" "pulumi stack init prod --secrets-provider awskms://alias/test-pulumi-secrets?region=us-west-2"
 else
   fail "missing executable script: ${SCRIPT_PATH}"
 fi

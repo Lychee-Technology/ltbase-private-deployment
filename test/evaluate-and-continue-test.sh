@@ -29,6 +29,14 @@ assert_log_contains() {
   fi
 }
 
+assert_log_not_contains() {
+  local path="$1"
+  local needle="$2"
+  if grep -Fq "${needle}" "${path}"; then
+    fail "expected ${path} to not contain: ${needle}"
+  fi
+}
+
 write_env() {
   local path="$1"
   cat >"${path}" <<'EOF'
@@ -240,8 +248,12 @@ if [[ "${cmd} ${sub}" == "secret list" ]]; then
   exit 0
 fi
 if [[ "${cmd} ${sub}" == "workflow run" ]]; then
+  printf 'NOISY_GH_STDOUT workflow success\n'
+  printf 'NOISY_GH_STDERR workflow success\n' >&2
   exit 0
 fi
+printf 'NOISY_GH_STDOUT generic success\n'
+printf 'NOISY_GH_STDERR generic success\n' >&2
 exit 0
 EOF
   chmod +x "${fake_bin}/gh"
@@ -263,6 +275,7 @@ case "${SCENARIO}:${command_key}" in
     exit 1
     ;;
   foundation_missing:kms\ list-aliases)
+    printf 'NOISY_AWS_STDERR kms list success\n' >&2
     printf '{"Aliases":[]}'
     exit 0
     ;;
@@ -273,6 +286,7 @@ case "${SCENARIO}:${command_key}" in
     exit 1
     ;;
   bootstrap_force:kms\ list-aliases)
+    printf 'NOISY_AWS_STDERR kms list success\n' >&2
     printf '{"Aliases":[]}'
     exit 0
     ;;
@@ -283,18 +297,24 @@ case "${SCENARIO}:${command_key}" in
     exit 0
     ;;
   bootstrap_force:kms\ create-key)
+    printf 'NOISY_AWS_STDERR kms create success\n' >&2
     printf 'key-123\n'
     exit 0
     ;;
   *:kms\ list-aliases)
+    printf 'NOISY_AWS_STDERR kms list success\n' >&2
     printf '{"Aliases":[{"AliasName":"alias/test-pulumi-secrets","TargetKeyId":"key-123"}]}'
     exit 0
     ;;
   *:dsql\ get-cluster)
+    printf 'NOISY_AWS_STDOUT dsql success\n'
+    printf 'NOISY_AWS_STDERR dsql success\n' >&2
     printf 'managed.%s.endpoint.example.com\n' "${STACK_HINT:-devo}"
     exit 0
     ;;
 esac
+printf 'NOISY_AWS_STDOUT generic success\n'
+printf 'NOISY_AWS_STDERR generic success\n' >&2
 exit 0
 EOF
   chmod +x "${fake_bin}/aws"
@@ -333,10 +353,54 @@ while [[ ${index} -lt ${#args[@]} ]]; do
   esac
 done
 if [[ "${SCENARIO}" == "oidc_companion_missing" && "${method}" == "GET" && "${url}" == *"/pages/projects/customer-ltbase-oidc-discovery" ]]; then
+  printf 'NOISY_CURL_STDERR expected missing project\n' >&2
   exit 22
 fi
 if [[ "${SCENARIO}" == "oidc_companion_missing" && "${method}" == "GET" && "${url}" == *"/pages/projects/customer-ltbase-oidc-discovery/domains/oidc.customer.example.com" ]]; then
+  printf 'NOISY_CURL_STDERR expected missing domain\n' >&2
   exit 22
+fi
+if [[ "${SCENARIO}" == "oidc_project_success_false" && "${method}" == "GET" && "${url}" == *"/pages/projects/customer-ltbase-oidc-discovery" ]]; then
+  if [[ -n "${output_file}" ]]; then
+    printf '{"success":false,"errors":[{"message":"project state unavailable"}]}' >"${output_file}"
+  else
+    printf '{"success":false,"errors":[{"message":"project state unavailable"}]}'
+  fi
+  if [[ "${write_format}" == "%{http_code}" ]]; then
+    printf 'NOISY_CURL_STDERR http code success\n' >&2
+    printf '200'
+  fi
+  printf 'NOISY_CURL_STDOUT generic success\n'
+  printf 'NOISY_CURL_STDERR generic success\n' >&2
+  exit 0
+fi
+if [[ "${SCENARIO}" == "oidc_domain_success_false" && "${method}" == "GET" && "${url}" == *"/pages/projects/customer-ltbase-oidc-discovery/domains/oidc.customer.example.com" ]]; then
+  if [[ -n "${output_file}" ]]; then
+    printf '{"success":false,"errors":[{"message":"domain state unavailable"}]}' >"${output_file}"
+  else
+    printf '{"success":false,"errors":[{"message":"domain state unavailable"}]}'
+  fi
+  if [[ "${write_format}" == "%{http_code}" ]]; then
+    printf 'NOISY_CURL_STDERR http code success\n' >&2
+    printf '200'
+  fi
+  printf 'NOISY_CURL_STDOUT generic success\n'
+  printf 'NOISY_CURL_STDERR generic success\n' >&2
+  exit 0
+fi
+if [[ "${SCENARIO}" == "oidc_dns_success_false" && "${method}" == "GET" && "${url}" == *"/zones/zone-123/dns_records?type=CNAME&name=oidc.customer.example.com" ]]; then
+  if [[ -n "${output_file}" ]]; then
+    printf '{"success":false,"errors":[{"message":"dns state unavailable"}]}' >"${output_file}"
+  else
+    printf '{"success":false,"errors":[{"message":"dns state unavailable"}]}'
+  fi
+  if [[ "${write_format}" == "%{http_code}" ]]; then
+    printf 'NOISY_CURL_STDERR http code success\n' >&2
+    printf '200'
+  fi
+  printf 'NOISY_CURL_STDOUT generic success\n'
+  printf 'NOISY_CURL_STDERR generic success\n' >&2
+  exit 0
 fi
 if [[ "${SCENARIO}" == "oidc_missing_dns" && "${method}" == "GET" && "${url}" == *"/zones/zone-123/dns_records?type=CNAME&name=oidc.customer.example.com" ]]; then
   if [[ -n "${output_file}" ]]; then
@@ -345,8 +409,11 @@ if [[ "${SCENARIO}" == "oidc_missing_dns" && "${method}" == "GET" && "${url}" ==
     printf '{"success":true,"result":[]}'
   fi
   if [[ "${write_format}" == "%{http_code}" ]]; then
+    printf 'NOISY_CURL_STDERR http code success\n' >&2
     printf '200'
   fi
+  printf 'NOISY_CURL_STDOUT generic success\n'
+  printf 'NOISY_CURL_STDERR generic success\n' >&2
   exit 0
 fi
 if [[ -n "${output_file}" ]]; then
@@ -355,8 +422,11 @@ else
   printf '{"success":true}'
 fi
 if [[ "${write_format}" == "%{http_code}" ]]; then
+  printf 'NOISY_CURL_STDERR http code success\n' >&2
   printf '200'
 fi
+printf 'NOISY_CURL_STDOUT generic success\n'
+printf 'NOISY_CURL_STDERR generic success\n' >&2
 EOF
   chmod +x "${fake_bin}/curl"
 
@@ -378,15 +448,20 @@ stack_name() {
 }
 
 if [[ "${1:-}" == "login" ]]; then
+  printf 'NOISY_PULUMI_STDOUT login success\n'
+  printf 'NOISY_PULUMI_STDERR login success\n' >&2
   exit 0
 fi
 if [[ "${1:-} ${2:-}" == "stack select" ]]; then
   if [[ "${SCENARIO}" == "bootstrap_force" ]]; then
+    printf 'error: no stack named %s found\n' "$(stack_name "$@")" >&2
     exit 1
   fi
   exit 0
 fi
 if [[ "${1:-} ${2:-}" == "stack init" ]]; then
+  printf 'NOISY_PULUMI_STDOUT stack init success\n'
+  printf 'NOISY_PULUMI_STDERR stack init success\n' >&2
   exit 0
 fi
 if [[ "${1:-} ${2:-} ${3:-} ${4:-}" == "stack output dsqlClusterIdentifier --stack" ]]; then
@@ -430,8 +505,12 @@ if [[ "${1:-} ${2:-} ${3:-} ${4:-}" == "config get mtlsTruststoreKey --stack" ]]
   exit 0
 fi
 if [[ "${1:-} ${2:-}" == "config set" || "${1:-} ${2:-}" == "config rm" ]]; then
+  printf 'NOISY_PULUMI_STDOUT config success\n'
+  printf 'NOISY_PULUMI_STDERR config success\n' >&2
   exit 0
 fi
+printf 'NOISY_PULUMI_STDOUT generic success\n'
+printf 'NOISY_PULUMI_STDERR generic success\n' >&2
 exit 0
 EOF
   chmod +x "${fake_bin}/pulumi"
@@ -552,6 +631,15 @@ run_expect_exit_code 2 env \
 assert_file_contains "${temp_dir}/report-oidc/report.json" '"oidcDiscovery"'
 assert_file_contains "${temp_dir}/report-oidc/report.json" '"status": "needs_oidc_companion"'
 
+oidc_missing_output="$(env \
+  PATH="${temp_dir}/bin:$PATH" \
+  COMMAND_LOG="${temp_dir}/commands.log" \
+  SCENARIO="oidc_companion_missing" \
+  "${SCRIPT_PATH}" --env-file "${temp_dir}/.env" --infra-dir "${temp_dir}/infra" --report-dir "${temp_dir}/report-oidc-quiet" 2>&1 || true)"
+
+assert_log_not_contains <(printf '%s' "${oidc_missing_output}") "NOISY_CURL_STDERR expected missing project"
+assert_log_not_contains <(printf '%s' "${oidc_missing_output}") "NOISY_CURL_STDERR expected missing domain"
+
 run_expect_exit_code 2 env \
   PATH="${temp_dir}/bin:$PATH" \
   COMMAND_LOG="${temp_dir}/commands.log" \
@@ -560,6 +648,33 @@ run_expect_exit_code 2 env \
 
 assert_file_contains "${temp_dir}/report-oidc-missing-dns/report.json" '"status": "needs_oidc_companion"'
 assert_file_contains "${temp_dir}/report-oidc-missing-dns/report.json" '"pagesDnsPresent": false'
+
+run_expect_exit_code 2 env \
+  PATH="${temp_dir}/bin:$PATH" \
+  COMMAND_LOG="${temp_dir}/commands.log" \
+  SCENARIO="oidc_project_success_false" \
+  "${SCRIPT_PATH}" --env-file "${temp_dir}/.env" --infra-dir "${temp_dir}/infra" --report-dir "${temp_dir}/report-oidc-project-success-false"
+
+assert_file_contains "${temp_dir}/report-oidc-project-success-false/report.json" '"status": "needs_oidc_companion"'
+assert_file_contains "${temp_dir}/report-oidc-project-success-false/report.json" '"pagesProjectPresent": false'
+
+run_expect_exit_code 2 env \
+  PATH="${temp_dir}/bin:$PATH" \
+  COMMAND_LOG="${temp_dir}/commands.log" \
+  SCENARIO="oidc_domain_success_false" \
+  "${SCRIPT_PATH}" --env-file "${temp_dir}/.env" --infra-dir "${temp_dir}/infra" --report-dir "${temp_dir}/report-oidc-domain-success-false"
+
+assert_file_contains "${temp_dir}/report-oidc-domain-success-false/report.json" '"status": "needs_oidc_companion"'
+assert_file_contains "${temp_dir}/report-oidc-domain-success-false/report.json" '"pagesDomainPresent": false'
+
+run_expect_exit_code 2 env \
+  PATH="${temp_dir}/bin:$PATH" \
+  COMMAND_LOG="${temp_dir}/commands.log" \
+  SCENARIO="oidc_dns_success_false" \
+  "${SCRIPT_PATH}" --env-file "${temp_dir}/.env" --infra-dir "${temp_dir}/infra" --report-dir "${temp_dir}/report-oidc-dns-success-false"
+
+assert_file_contains "${temp_dir}/report-oidc-dns-success-false/report.json" '"status": "needs_oidc_companion"'
+assert_file_contains "${temp_dir}/report-oidc-dns-success-false/report.json" '"pagesDnsPresent": false'
 
 rm -rf "${temp_dir}/infra"
 mkdir -p "${temp_dir}/infra"
@@ -588,16 +703,26 @@ EOF
 done
 
 : >"${temp_dir}/commands.log"
-run_expect_exit_code 0 env \
+force_rollout_output="$(env \
   PATH="${temp_dir}/bin:$PATH" \
   COMMAND_LOG="${temp_dir}/commands.log" \
   SCENARIO="rollout_mix" \
-  "${SCRIPT_PATH}" --env-file "${temp_dir}/.env" --infra-dir "${temp_dir}/infra" --report-dir "${temp_dir}/report-force-rollout" --force --release-id v2.0.0
+  "${SCRIPT_PATH}" --env-file "${temp_dir}/.env" --infra-dir "${temp_dir}/infra" --report-dir "${temp_dir}/report-force-rollout" --force --release-id v2.0.0 2>&1)"
 
 # Should call reconcile for staging (needs_dsql_reconcile)
 assert_log_contains "${temp_dir}/report-force-rollout/actions.log" "reconcile-managed-dsql-endpoint.sh --env-file ${temp_dir}/.env --stack staging --infra-dir ${temp_dir}/infra"
 # Should dispatch rollout-hop.yml for devo (first needs_rollout stack), NOT rollout.yml
 assert_log_contains "${temp_dir}/report-force-rollout/actions.log" "gh workflow run rollout-hop.yml --repo customer-org/customer-ltbase -f release_id=v2.0.0 -f target_stack=devo -f continue_chain=true"
+assert_log_contains <(printf '%s' "${force_rollout_output}") "[info] Reconciling managed DSQL endpoint: staging"
+assert_log_contains <(printf '%s' "${force_rollout_output}") "[info] Dispatching rollout workflow: rollout-hop.yml"
+assert_log_not_contains <(printf '%s' "${force_rollout_output}") "NOISY_GH_STDOUT"
+assert_log_not_contains <(printf '%s' "${force_rollout_output}") "NOISY_GH_STDERR"
+assert_log_not_contains <(printf '%s' "${force_rollout_output}") "NOISY_AWS_STDOUT"
+assert_log_not_contains <(printf '%s' "${force_rollout_output}") "NOISY_AWS_STDERR"
+assert_log_not_contains <(printf '%s' "${force_rollout_output}") "NOISY_CURL_STDOUT"
+assert_log_not_contains <(printf '%s' "${force_rollout_output}") "NOISY_CURL_STDERR"
+assert_log_not_contains <(printf '%s' "${force_rollout_output}") "NOISY_PULUMI_STDOUT"
+assert_log_not_contains <(printf '%s' "${force_rollout_output}") "NOISY_PULUMI_STDERR"
 # Should NOT dispatch rollout.yml
 if grep -Fq "gh workflow run rollout.yml" "${temp_dir}/report-force-rollout/actions.log"; then
   fail "force mode with needs_rollout should dispatch rollout-hop.yml, not rollout.yml"
@@ -624,5 +749,22 @@ run_expect_exit_code 2 env \
   "${SCRIPT_PATH}" --env-file "${temp_dir}/.env" --infra-dir "${temp_dir}/infra" --report-dir "${temp_dir}/report-envs-detect"
 
 assert_file_contains "${temp_dir}/report-envs-detect/report.json" '"status": "needs_repo_config"'
+
+force_output="$(env \
+  PATH="${temp_dir}/bin:$PATH" \
+  COMMAND_LOG="${temp_dir}/commands.log" \
+  SCENARIO="envs_missing" \
+  "${SCRIPT_PATH}" --env-file "${temp_dir}/.env" --infra-dir "${temp_dir}/infra" --report-dir "${temp_dir}/report-force-envs-quiet" --force --release-id v4.0.0 2>&1)"
+
+assert_log_contains <(printf '%s' "${force_output}") "[info] Ensuring protected deployment environment: staging"
+assert_log_contains <(printf '%s' "${force_output}") "[info] Dispatching rollout workflow: rollout.yml"
+assert_log_not_contains <(printf '%s' "${force_output}") "NOISY_GH_STDOUT"
+assert_log_not_contains <(printf '%s' "${force_output}") "NOISY_GH_STDERR"
+assert_log_not_contains <(printf '%s' "${force_output}") "NOISY_AWS_STDOUT"
+assert_log_not_contains <(printf '%s' "${force_output}") "NOISY_AWS_STDERR"
+assert_log_not_contains <(printf '%s' "${force_output}") "NOISY_CURL_STDOUT"
+assert_log_not_contains <(printf '%s' "${force_output}") "NOISY_CURL_STDERR"
+assert_log_not_contains <(printf '%s' "${force_output}") "NOISY_PULUMI_STDOUT"
+assert_log_not_contains <(printf '%s' "${force_output}") "NOISY_PULUMI_STDERR"
 
 printf 'PASS: evaluate-and-continue tests\n'
