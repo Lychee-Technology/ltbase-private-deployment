@@ -352,6 +352,25 @@ run_empty_find_case() {
   assert_text_not_contains "${output}" "find failed"
 }
 
+run_without_bootstrap_env_case() {
+  local fake_bin="$1"
+  local backup_path="${ROOT_DIR}/scripts/lib/bootstrap-env.sh.test-backup"
+  setup_fake_git "${fake_bin}"
+
+  mv "${ROOT_DIR}/scripts/lib/bootstrap-env.sh" "${backup_path}"
+  trap 'mv "${backup_path}" "${ROOT_DIR}/scripts/lib/bootstrap-env.sh"; /bin/cp "${original_provenance}" "${provenance_path}"; rm -rf "${temp_dir}"' EXIT
+
+  if ! output="$(PATH="${fake_bin}:$PATH" COMMAND_LOG="${log_file}" TEMP_ROOT="${temp_dir}" "${SCRIPT_PATH}" 2>&1)"; then
+    fail "expected script to stay runnable without bootstrap-env.sh, got: ${output}"
+  fi
+
+  assert_text_contains "${output}" "[info] fetching upstream template from upstream/main"
+  assert_text_contains "${output}" "synced upstream/main into main"
+
+  mv "${backup_path}" "${ROOT_DIR}/scripts/lib/bootstrap-env.sh"
+  trap '/bin/cp "${original_provenance}" "${provenance_path}"; rm -rf "${temp_dir}"' EXIT
+}
+
 if [[ ! -x "${SCRIPT_PATH}" ]]; then
   fail "missing executable script: ${SCRIPT_PATH}"
 fi
@@ -362,6 +381,7 @@ url_mismatch_bin="${temp_dir}/url-mismatch-bin"
 upstream_commit_failure_bin="${temp_dir}/upstream-commit-failure-bin"
 find_failure_bin="${temp_dir}/find-failure-bin"
 empty_find_bin="${temp_dir}/empty-find-bin"
+self_contained_bin="${temp_dir}/self-contained-bin"
 
 run_success_case "${success_bin}" "${log_file}"
 run_dirty_tree_case "${dirty_bin}"
@@ -369,5 +389,6 @@ run_url_mismatch_case "${url_mismatch_bin}"
 run_upstream_commit_failure_case "${upstream_commit_failure_bin}"
 run_find_failure_case "${find_failure_bin}"
 run_empty_find_case "${empty_find_bin}"
+run_without_bootstrap_env_case "${self_contained_bin}"
 
 printf 'PASS: sync-template-upstream tests\n'
