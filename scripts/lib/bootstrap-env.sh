@@ -2,6 +2,45 @@
 
 set -euo pipefail
 
+bootstrap_env_info() {
+  printf '[info] %s\n' "$*"
+}
+
+bootstrap_env_run_quiet() {
+  local output status
+
+  if output="$("$@" 2>&1)"; then
+    return 0
+  else
+    status=$?
+  fi
+
+  if [[ -n "${output}" ]]; then
+    printf '%s\n' "${output}" >&2
+  fi
+
+  return "${status}"
+}
+
+bootstrap_env_capture_quiet() {
+  local destination_var="$1"
+  local output status
+  shift
+
+  if output="$("$@" 2>&1)"; then
+    printf -v "${destination_var}" '%s' "${output}"
+    return 0
+  else
+    status=$?
+  fi
+
+  if [[ -n "${output}" ]]; then
+    printf '%s\n' "${output}" >&2
+  fi
+
+  return "${status}"
+}
+
 bootstrap_env_normalize_csv() {
   printf '%s' "${1:-}" | tr -d '[:space:]'
 }

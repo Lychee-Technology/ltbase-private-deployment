@@ -92,6 +92,7 @@ if [[ "\${args[0]:-} \${args[1]:-}" == "sts get-caller-identity" ]]; then
     printf 'An error occurred (InvalidClientTokenId) when calling the GetCallerIdentity operation: The security token included in the request is invalid.\n' >&2
     exit 254
   fi
+  printf 'NOISY_AWS_STDERR sts success\n' >&2
   printf '{"Account":"123456789012"}'
   exit 0
 fi
@@ -102,10 +103,12 @@ if [[ "\${args[0]:-} \${args[1]:-}" == "s3api head-bucket" ]]; then
   exit 1
 fi
 if [[ "\${args[0]:-} \${args[1]:-}" == "kms list-aliases" ]]; then
+  printf 'NOISY_AWS_STDERR kms list success\n' >&2
   printf '{"Aliases":[]}'
   exit 0
 fi
 if [[ "\${args[0]:-} \${args[1]:-}" == "kms create-key" ]]; then
+  printf 'NOISY_AWS_STDERR kms create success\n' >&2
   printf 'key-123\n'
   exit 0
 fi
@@ -126,8 +129,11 @@ if [[ "\${args[0]:-} \${args[1]:-}" == "iam create-role" ]]; then
   else
     printf '{"Role":{"Arn":"arn:aws:iam::123456789012:role/ltbase-deploy-devo"}}'
   fi
+  printf 'NOISY_AWS_STDERR iam create-role success\n' >&2
   exit 0
 fi
+printf 'NOISY_AWS_STDOUT generic success\n'
+printf 'NOISY_AWS_STDERR generic success\n' >&2
 exit 0
 EOF
 chmod +x "${fake_bin}/aws"
@@ -172,6 +178,11 @@ if [[ -x "${SCRIPT_PATH}" ]]; then
   assert_file_contains "${temp_dir}/dist/devo-role-policy.json" "\"Action\": \"*\""
   assert_file_contains "${temp_dir}/dist/devo-role-policy.json" "\"Resource\": \"*\""
   assert_file_not_contains "${temp_dir}/dist/devo-trust-policy.json" "arn:aws:iam::210987654321:oidc-provider"
+  assert_log_contains <(printf '%s' "${output}") "[info] Validating AWS credentials for stack: devo"
+  assert_log_contains <(printf '%s' "${output}") "[info] Reconciling IAM and KMS resources for stack: prod"
+  assert_log_contains <(printf '%s' "${output}") "[info] Ensuring shared Pulumi state bucket: test-pulumi-state"
+  assert_log_not_contains <(printf '%s' "${output}") "NOISY_AWS_STDOUT"
+  assert_log_not_contains <(printf '%s' "${output}") "NOISY_AWS_STDERR"
 else
   fail "missing executable script: ${SCRIPT_PATH}"
 fi
@@ -224,13 +235,17 @@ if [[ "\${args[0]:-}" == "--profile" ]]; then
   args=("\${args[@]:2}")
 fi
 if [[ "\${args[0]:-} \${args[1]:-}" == "sts get-caller-identity" ]]; then
+  printf 'NOISY_AWS_STDERR sts success\n' >&2
   printf '{"Account":"123456789012"}'
   exit 0
 fi
 if [[ "\${args[0]:-} \${args[1]:-}" == "kms list-aliases" ]]; then
+  printf 'NOISY_AWS_STDERR kms list success\n' >&2
   printf '{"Aliases":[{"AliasName":"alias/test-pulumi-secrets","TargetKeyId":"key-existing"}]}'
   exit 0
 fi
+printf 'NOISY_AWS_STDOUT generic success\n'
+printf 'NOISY_AWS_STDERR generic success\n' >&2
 exit 0
 EOF
 chmod +x "${fake_bin}/aws-reuse"
@@ -252,6 +267,8 @@ assert_file_not_contains "${log_file}" "iam create-role"
 assert_file_not_contains "${log_file}" "kms create-key"
 assert_file_not_contains "${log_file}" "kms create-alias"
 assert_file_not_contains "${log_file}" "s3api create-bucket"
+assert_log_not_contains <(printf '%s' "${output}") "NOISY_AWS_STDOUT"
+assert_log_not_contains <(printf '%s' "${output}") "NOISY_AWS_STDERR"
 
 cp "${fake_bin}/aws-base" "${fake_bin}/aws"
 : >"${log_file}"

@@ -39,7 +39,12 @@ create_stub() {
   cat >"${repo_copy}/scripts/${name}" <<EOF
 #!/usr/bin/env bash
 set -euo pipefail
+printf 'NOISY STDOUT from ${name}\n'
+printf 'NOISY STDERR from ${name}\n' >&2
 printf '%s %s\n' '${name}' "\$*" >>"${log_file}"
+if [[ "\${FAIL_SCRIPT:-}" == "${name}" ]]; then
+  exit 1
+fi
 EOF
   chmod +x "${repo_copy}/scripts/${name}"
 }
@@ -109,6 +114,16 @@ if [[ -x "${SCRIPT_PATH}" ]]; then
     fail "expected orchestrator to succeed when implemented, got: ${output}"
   fi
 
+  assert_log_contains <(printf '%s' "${output}") "[info] ensuring deployment repository"
+  assert_log_contains <(printf '%s' "${output}") "[info] rendering bootstrap policies"
+  assert_log_contains <(printf '%s' "${output}") "[info] bootstrapping AWS foundation"
+  assert_log_contains <(printf '%s' "${output}") "[info] ensuring OIDC discovery companion"
+  assert_log_contains <(printf '%s' "${output}") "[info] configuring stack devo"
+  assert_log_contains <(printf '%s' "${output}") "[info] configuring stack staging"
+  assert_log_contains <(printf '%s' "${output}") "[info] configuring stack prod"
+  assert_log_not_contains <(printf '%s' "${output}") "NOISY STDOUT"
+  assert_log_not_contains <(printf '%s' "${output}") "NOISY STDERR"
+
   assert_log_contains "${log_file}" "create-deployment-repo.sh --env-file ${temp_dir}/.env"
   assert_log_contains "${log_file}" "render-bootstrap-policies.sh --env-file ${temp_dir}/.env"
   assert_log_contains "${log_file}" "bootstrap-aws-foundation.sh --env-file ${temp_dir}/.env"
@@ -119,6 +134,15 @@ if [[ -x "${SCRIPT_PATH}" ]]; then
   assert_log_not_contains "${log_file}" "reconcile-managed-dsql-endpoint.sh --env-file ${temp_dir}/.env --stack devo --infra-dir ${temp_dir}/infra"
   assert_log_not_contains "${log_file}" "reconcile-managed-dsql-endpoint.sh --env-file ${temp_dir}/.env --stack staging --infra-dir ${temp_dir}/infra"
   assert_log_not_contains "${log_file}" "reconcile-managed-dsql-endpoint.sh --env-file ${temp_dir}/.env --stack prod --infra-dir ${temp_dir}/infra"
+
+  if output="$(FAIL_SCRIPT="bootstrap-aws-foundation.sh" "${repo_copy}/scripts/bootstrap-all.sh" --env-file "${temp_dir}/.env" --mode apply --infra-dir "${temp_dir}/infra" 2>&1)"; then
+    rm -rf "${temp_dir}"
+    fail "expected orchestrator to fail when a child script fails"
+  fi
+
+  assert_log_contains <(printf '%s' "${output}") "[info] bootstrapping AWS foundation"
+  assert_log_contains <(printf '%s' "${output}") "NOISY STDOUT from bootstrap-aws-foundation.sh"
+  assert_log_contains <(printf '%s' "${output}") "NOISY STDERR from bootstrap-aws-foundation.sh"
 else
   fail "missing executable script: ${SCRIPT_PATH}"
 fi

@@ -2,6 +2,33 @@
 
 set -euo pipefail
 
+script_dir="$(cd "$(dirname "$0")" && pwd)"
+# shellcheck disable=SC1091
+source "${script_dir}/lib/bootstrap-env.sh"
+
+capture_stdout_quiet() {
+  local destination_var="$1"
+  local stderr_file output status
+  shift
+
+  stderr_file="$(mktemp)"
+  if output="$("$@" 2>"${stderr_file}")"; then
+    printf -v "${destination_var}" '%s' "${output}"
+    rm -f "${stderr_file}"
+    return 0
+  else
+    status=$?
+  fi
+
+  if [[ -s "${stderr_file}" ]]; then
+    while IFS= read -r line; do
+      printf '%s\n' "${line}" >&2
+    done <"${stderr_file}"
+  fi
+  rm -f "${stderr_file}"
+  return "${status}"
+}
+
 UPSTREAM_NAME="upstream"
 UPSTREAM_URL="https://github.com/Lychee-Technology/ltbase-private-deployment.git"
 BRANCH="main"
@@ -33,12 +60,13 @@ if ! git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
   exit 1
 fi
 
-if [[ -n "$(git status --porcelain)" ]]; then
+capture_stdout_quiet git_status git status --porcelain
+if [[ -n "${git_status}" ]]; then
   echo "working tree is not clean; commit or stash your changes before updating sync tooling" >&2
   exit 1
 fi
 
-current_branch="$(git rev-parse --abbrev-ref HEAD)"
+capture_stdout_quiet current_branch git rev-parse --abbrev-ref HEAD
 if [[ "${current_branch}" != "${BRANCH}" ]]; then
   echo "current branch must be ${BRANCH}; found ${current_branch}" >&2
   exit 1
@@ -50,17 +78,18 @@ if existing_url="$(git remote get-url "${UPSTREAM_NAME}" 2>/dev/null)"; then
     exit 1
   fi
 else
-  git remote add "${UPSTREAM_NAME}" "${UPSTREAM_URL}"
+  bootstrap_env_run_quiet git remote add "${UPSTREAM_NAME}" "${UPSTREAM_URL}"
 fi
 
-git fetch "${UPSTREAM_NAME}"
+bootstrap_env_info "fetching upstream template from ${UPSTREAM_NAME}/${BRANCH}"
+bootstrap_env_run_quiet git fetch "${UPSTREAM_NAME}"
 
 temp_root="$(mktemp -d)"
 trap 'rm -rf "${temp_root}" "${ARCHIVE_PATH}"' EXIT
 
-git archive --format=tar --output "${ARCHIVE_PATH}" "${UPSTREAM_NAME}/${BRANCH}"
+bootstrap_env_run_quiet git archive --format=tar --output "${ARCHIVE_PATH}" "${UPSTREAM_NAME}/${BRANCH}"
 mkdir -p "${temp_root}"
-tar -xf "${ARCHIVE_PATH}" -C "${temp_root}"
+bootstrap_env_run_quiet tar -xf "${ARCHIVE_PATH}" -C "${temp_root}"
 
 for path in scripts/sync-template-upstream.sh test/sync-template-upstream-test.sh; do
   if [[ ! -e "${temp_root}/${path}" ]]; then
@@ -69,10 +98,10 @@ for path in scripts/sync-template-upstream.sh test/sync-template-upstream-test.s
   fi
 done
 
-script_dir="$(cd "$(dirname "$0")" && pwd)"
 repo_root="$(cd "${script_dir}/.." && pwd)"
 
-cp "${temp_root}/scripts/sync-template-upstream.sh" "${repo_root}/scripts/sync-template-upstream.sh"
-cp "${temp_root}/test/sync-template-upstream-test.sh" "${repo_root}/test/sync-template-upstream-test.sh"
+bootstrap_env_info "updating local sync helper files"
+bootstrap_env_run_quiet cp "${temp_root}/scripts/sync-template-upstream.sh" "${repo_root}/scripts/sync-template-upstream.sh"
+bootstrap_env_run_quiet cp "${temp_root}/test/sync-template-upstream-test.sh" "${repo_root}/test/sync-template-upstream-test.sh"
 
 printf 'updated sync tooling from %s/%s\n' "${UPSTREAM_NAME}" "${BRANCH}"

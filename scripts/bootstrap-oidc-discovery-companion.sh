@@ -32,6 +32,26 @@ script_dir="$(cd "$(dirname "$0")" && pwd)"
 source "${script_dir}/lib/bootstrap-env.sh"
 bootstrap_env_load "${ENV_FILE}"
 
+capture_stdout_quiet() {
+  local destination_var="$1"
+  local output command_status stderr_file
+  shift
+
+  stderr_file="$(mktemp)"
+  if output="$("$@" 2>"${stderr_file}")"; then
+    rm -f "${stderr_file}"
+    printf -v "${destination_var}" '%s' "${output}"
+    return 0
+  fi
+
+  command_status=$?
+  if [[ -s "${stderr_file}" ]]; then
+    cat "${stderr_file}" >&2
+  fi
+  rm -f "${stderr_file}"
+  return "${command_status}"
+}
+
 required_vars=(GITHUB_OWNER DEPLOYMENT_REPO_NAME DEPLOYMENT_REPO_VISIBILITY OIDC_DISCOVERY_DOMAIN CLOUDFLARE_ACCOUNT_ID CLOUDFLARE_API_TOKEN CLOUDFLARE_ZONE_ID OIDC_DISCOVERY_TEMPLATE_REPO OIDC_DISCOVERY_REPO_NAME OIDC_DISCOVERY_REPO OIDC_DISCOVERY_PAGES_PROJECT)
 bootstrap_env_require_vars "${required_vars[@]}"
 
@@ -84,10 +104,21 @@ sys.exit(0 if payload.get("success") is True else 1)
 cloudflare_get_exists() {
   local action="$1"
   local url="$2"
-  local response_file status response
+  local response_file status response curl_status
 
   response_file="$(mktemp)"
-  status="$(curl -sS -o "${response_file}" -w '%{http_code}' "${cloudflare_headers[@]}" "${url}")" || status="$?"
+  if capture_stdout_quiet status curl -sS -o "${response_file}" -w '%{http_code}' "${cloudflare_headers[@]}" "${url}"; then
+    :
+  else
+    curl_status=$?
+    response="$(<"${response_file}")"
+    rm -f "${response_file}"
+    printf 'Cloudflare API request failed: %s\n' "${action}" >&2
+    if [[ -n "${response}" ]]; then
+      printf '%s\n' "${response}" >&2
+    fi
+    exit "${curl_status}"
+  fi
   response="$(<"${response_file}")"
   rm -f "${response_file}"
 
@@ -131,10 +162,21 @@ cloudflare_post() {
   local action="$1"
   local url="$2"
   local payload="$3"
-  local response_file status response
+  local response_file status response curl_status
 
   response_file="$(mktemp)"
-  status="$(curl -sS -o "${response_file}" -w '%{http_code}' -X POST "${cloudflare_headers[@]}" "${url}" --data "${payload}")" || status="$?"
+  if capture_stdout_quiet status curl -sS -o "${response_file}" -w '%{http_code}' -X POST "${cloudflare_headers[@]}" "${url}" --data "${payload}"; then
+    :
+  else
+    curl_status=$?
+    response="$(<"${response_file}")"
+    rm -f "${response_file}"
+    printf 'Cloudflare API request failed: %s\n' "${action}" >&2
+    if [[ -n "${response}" ]]; then
+      printf '%s\n' "${response}" >&2
+    fi
+    exit "${curl_status}"
+  fi
   response="$(<"${response_file}")"
   rm -f "${response_file}"
 
@@ -152,10 +194,21 @@ cloudflare_post() {
 cloudflare_get_json() {
   local action="$1"
   local url="$2"
-  local response_file status response
+  local response_file status response curl_status
 
   response_file="$(mktemp)"
-  status="$(curl -sS -o "${response_file}" -w '%{http_code}' "${cloudflare_headers[@]}" "${url}")" || status="$?"
+  if capture_stdout_quiet status curl -sS -o "${response_file}" -w '%{http_code}' "${cloudflare_headers[@]}" "${url}"; then
+    :
+  else
+    curl_status=$?
+    response="$(<"${response_file}")"
+    rm -f "${response_file}"
+    printf 'Cloudflare API request failed: %s\n' "${action}" >&2
+    if [[ -n "${response}" ]]; then
+      printf '%s\n' "${response}" >&2
+    fi
+    exit "${curl_status}"
+  fi
   response="$(<"${response_file}")"
   rm -f "${response_file}"
 
@@ -174,7 +227,7 @@ cloudflare_get_json() {
 ensure_oidc_discovery_dns_record() {
   local dns_lookup_response record_state
 
-  dns_lookup_response="$(cloudflare_get_json "get DNS CNAME" "${dns_lookup_url}")"
+  dns_lookup_response="$(cloudflare_get_json "get DNS records" "${dns_lookup_url}")"
   record_state="$(printf '%s' "${dns_lookup_response}" | python3 -c '
 import json
 import sys
@@ -182,26 +235,28 @@ import sys
 name = sys.argv[1]
 target = sys.argv[2]
 payload = json.load(sys.stdin)
-records = payload.get("result") or []
+records = [record for record in (payload.get("result") or []) if (record.get("name") or "") == name]
 
 if not records:
     print("missing")
     sys.exit(0)
 
-record = records[0]
-record_type = (record.get("type") or "").upper()
-record_name = record.get("name") or ""
-record_content = record.get("content") or ""
+for record in records:
+    record_type = (record.get("type") or "").upper()
+    record_content = record.get("content") or ""
 
-if record_type != "CNAME":
-    print(f"conflict_type:{record_type}")
-    sys.exit(0)
+    if record_type != "CNAME":
+        print(f"conflict_type:{record_type}")
+        sys.exit(0)
 
-if record_name != name or record_content != target:
+    if record_content == target:
+        print("matching")
+        sys.exit(0)
+
     print(f"conflict_target:{record_content}")
     sys.exit(0)
 
-print("matching")
+print("missing")
 ' "${OIDC_DISCOVERY_DOMAIN}" "${oidc_pages_target}")"
 
   case "${record_state}" in
@@ -245,12 +300,18 @@ pages_domain_url="https://api.cloudflare.com/client/v4/accounts/${CLOUDFLARE_ACC
 pages_domains_url="https://api.cloudflare.com/client/v4/accounts/${CLOUDFLARE_ACCOUNT_ID}/pages/projects/${OIDC_DISCOVERY_PAGES_PROJECT}/domains"
 oidc_pages_target="${OIDC_DISCOVERY_PAGES_PROJECT}.pages.dev"
 dns_records_url="https://api.cloudflare.com/client/v4/zones/${CLOUDFLARE_ZONE_ID}/dns_records"
-dns_lookup_url="${dns_records_url}?type=CNAME&name=${OIDC_DISCOVERY_DOMAIN}"
+dns_lookup_url="${dns_records_url}?name=${OIDC_DISCOVERY_DOMAIN}"
 
+bootstrap_env_info "Ensuring OIDC discovery repository: ${OIDC_DISCOVERY_REPO}"
 repo_view_output=""
-if ! repo_view_output="$(gh repo view "${OIDC_DISCOVERY_REPO}" 2>&1)"; then
+repo_view_error_file="$(mktemp)"
+if gh repo view "${OIDC_DISCOVERY_REPO}" >/dev/null 2>"${repo_view_error_file}"; then
+  rm -f "${repo_view_error_file}"
+else
+  repo_view_output="$(<"${repo_view_error_file}")"
+  rm -f "${repo_view_error_file}"
   if github_repo_missing "${repo_view_output}"; then
-    gh repo create "${OIDC_DISCOVERY_REPO}" --template "${OIDC_DISCOVERY_TEMPLATE_REPO}" ${visibility_flag} --description "LTBase OIDC discovery companion for ${DEPLOYMENT_REPO_NAME}" --clone=false
+    bootstrap_env_run_quiet gh repo create "${OIDC_DISCOVERY_REPO}" --template "${OIDC_DISCOVERY_TEMPLATE_REPO}" "${visibility_flag}" --description "LTBase OIDC discovery companion for ${DEPLOYMENT_REPO_NAME}" --clone=false
   else
     printf 'GitHub repo lookup failed: %s\n' "${OIDC_DISCOVERY_REPO}" >&2
     printf '%s\n' "${repo_view_output}" >&2
@@ -258,10 +319,11 @@ if ! repo_view_output="$(gh repo view "${OIDC_DISCOVERY_REPO}" 2>&1)"; then
   fi
 fi
 
-repo_metadata="$(gh api "repos/${OIDC_DISCOVERY_REPO}")"
+capture_stdout_quiet repo_metadata gh api "repos/${OIDC_DISCOVERY_REPO}"
 default_branch="$(python3 -c 'import json, sys; data = json.load(sys.stdin); print(data.get("default_branch", "main"))' <<<"${repo_metadata}"
 )"
 
+bootstrap_env_info "Ensuring Pages project: ${OIDC_DISCOVERY_PAGES_PROJECT}"
 if ! cloudflare_get_exists "get Pages project" "${pages_project_url}"; then
   project_payload="$(python3 - "${OIDC_DISCOVERY_PAGES_PROJECT}" "${GITHUB_OWNER}" "${OIDC_DISCOVERY_REPO_NAME}" "${default_branch}" <<'PY'
 import json
@@ -286,6 +348,7 @@ PY
   cloudflare_post "create Pages project" "${pages_projects_url}" "${project_payload}"
 fi
 
+bootstrap_env_info "Ensuring Pages domain: ${OIDC_DISCOVERY_DOMAIN}"
 if ! cloudflare_get_exists "get Pages custom domain" "${pages_domain_url}"; then
   domain_payload="$(python3 - "${OIDC_DISCOVERY_DOMAIN}" <<'PY'
 import json
@@ -297,13 +360,15 @@ PY
   cloudflare_post "create Pages custom domain" "${pages_domains_url}" "${domain_payload}"
 fi
 
+bootstrap_env_info "Reconciling DNS for OIDC discovery domain: ${OIDC_DISCOVERY_DOMAIN}"
 ensure_oidc_discovery_dns_record
 
-gh variable set OIDC_DISCOVERY_DOMAIN --repo "${OIDC_DISCOVERY_REPO}" --body "${OIDC_DISCOVERY_DOMAIN}"
-gh variable set OIDC_DISCOVERY_STACK_CONFIG --repo "${OIDC_DISCOVERY_REPO}" --body "${oidc_stack_config}"
-gh variable set CLOUDFLARE_ACCOUNT_ID --repo "${OIDC_DISCOVERY_REPO}" --body "${CLOUDFLARE_ACCOUNT_ID}"
-gh variable set OIDC_DISCOVERY_PAGES_PROJECT --repo "${OIDC_DISCOVERY_REPO}" --body "${OIDC_DISCOVERY_PAGES_PROJECT}"
-gh secret set CLOUDFLARE_API_TOKEN --repo "${OIDC_DISCOVERY_REPO}" --body "${CLOUDFLARE_API_TOKEN}"
+bootstrap_env_info "Configuring companion repository variables and secrets"
+bootstrap_env_run_quiet gh variable set OIDC_DISCOVERY_DOMAIN --repo "${OIDC_DISCOVERY_REPO}" --body "${OIDC_DISCOVERY_DOMAIN}"
+bootstrap_env_run_quiet gh variable set OIDC_DISCOVERY_STACK_CONFIG --repo "${OIDC_DISCOVERY_REPO}" --body "${oidc_stack_config}"
+bootstrap_env_run_quiet gh variable set CLOUDFLARE_ACCOUNT_ID --repo "${OIDC_DISCOVERY_REPO}" --body "${CLOUDFLARE_ACCOUNT_ID}"
+bootstrap_env_run_quiet gh variable set OIDC_DISCOVERY_PAGES_PROJECT --repo "${OIDC_DISCOVERY_REPO}" --body "${OIDC_DISCOVERY_PAGES_PROJECT}"
+bootstrap_env_run_quiet gh secret set CLOUDFLARE_API_TOKEN --repo "${OIDC_DISCOVERY_REPO}" --body "${CLOUDFLARE_API_TOKEN}"
 
 create_or_update_discovery_role() {
   local stack="$1"
@@ -362,16 +427,17 @@ EOF
 }
 EOF
 
+  bootstrap_env_info "Reconciling OIDC discovery IAM role for stack: ${stack}"
   if ! bootstrap_env_aws_command_for_stack "${stack}" iam get-open-id-connect-provider --open-id-connect-provider-arn "${provider_arn}" >/dev/null 2>&1; then
-    bootstrap_env_aws_command_for_stack "${stack}" iam create-open-id-connect-provider --url https://token.actions.githubusercontent.com --client-id-list sts.amazonaws.com >/dev/null
+    bootstrap_env_run_quiet bootstrap_env_aws_command_for_stack "${stack}" iam create-open-id-connect-provider --url https://token.actions.githubusercontent.com --client-id-list sts.amazonaws.com
   fi
 
   if ! bootstrap_env_aws_command_for_stack "${stack}" iam get-role --role-name "${role_name}" >/dev/null 2>&1; then
-    bootstrap_env_aws_command_for_stack "${stack}" iam create-role --role-name "${role_name}" --assume-role-policy-document "file://${trust_policy_path}" >/dev/null
+    bootstrap_env_run_quiet bootstrap_env_aws_command_for_stack "${stack}" iam create-role --role-name "${role_name}" --assume-role-policy-document "file://${trust_policy_path}"
   fi
 
-  bootstrap_env_aws_command_for_stack "${stack}" iam update-assume-role-policy --role-name "${role_name}" --policy-document "file://${trust_policy_path}" >/dev/null
-  bootstrap_env_aws_command_for_stack "${stack}" iam put-role-policy --role-name "${role_name}" --policy-name LTBaseOIDCDiscoveryAccess --policy-document "file://${role_policy_path}" >/dev/null
+  bootstrap_env_run_quiet bootstrap_env_aws_command_for_stack "${stack}" iam update-assume-role-policy --role-name "${role_name}" --policy-document "file://${trust_policy_path}"
+  bootstrap_env_run_quiet bootstrap_env_aws_command_for_stack "${stack}" iam put-role-policy --role-name "${role_name}" --policy-name LTBaseOIDCDiscoveryAccess --policy-document "file://${role_policy_path}"
 
   cat >>"${companion_summary}" <<EOF
 OIDC_DISCOVERY_AWS_ROLE_ARN_${upper_name}=${role_arn}

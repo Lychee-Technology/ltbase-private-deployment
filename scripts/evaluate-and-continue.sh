@@ -82,6 +82,49 @@ run_logged() {
   "$@"
 }
 
+run_logged_quiet() {
+  printf '%s\n' "$*" >>"${actions_log}"
+  bootstrap_env_run_quiet "$@"
+}
+
+capture_stdout_quiet() {
+  local destination_var="$1"
+  local output command_status stderr_file
+  shift
+
+  stderr_file="$(mktemp)"
+  if output="$("$@" 2>"${stderr_file}")"; then
+    rm -f "${stderr_file}"
+    printf -v "${destination_var}" '%s' "${output}"
+    return 0
+  fi
+
+  command_status=$?
+  if [[ -s "${stderr_file}" ]]; then
+    cat "${stderr_file}" >&2
+  fi
+  rm -f "${stderr_file}"
+  return "${command_status}"
+}
+
+capture_stdout_probe() {
+  local destination_var="$1"
+  local output command_status stderr_file
+  shift
+
+  stderr_file="$(mktemp)"
+  if output="$("$@" 2>"${stderr_file}")"; then
+    rm -f "${stderr_file}"
+    printf -v "${destination_var}" '%s' "${output}"
+    return 0
+  fi
+
+  command_status=$?
+  rm -f "${stderr_file}"
+  printf -v "${destination_var}" '%s' "${output}"
+  return "${command_status}"
+}
+
 json_name_list_contains() {
   local json_input="$1"
   local needle="$2"
@@ -114,7 +157,7 @@ foundation_present_for_stack() {
   if ! bootstrap_env_aws_command_for_stack "${stack}" iam get-role --role-name "${role_name}" >/dev/null 2>&1; then
     return 1
   fi
-  alias_json="$(bootstrap_env_aws_command_for_stack "${stack}" kms list-aliases --region "${region}" --output json)"
+  capture_stdout_quiet alias_json bootstrap_env_aws_command_for_stack "${stack}" kms list-aliases --region "${region}" --output json
   python3 - "${PULUMI_KMS_ALIAS}" <<'PY' <<<"${alias_json}"
 import json
 import sys
@@ -131,15 +174,15 @@ shared_foundation_present() {
   if [[ -z "${first_stack}" ]]; then
     return 1
   fi
-  bootstrap_env_aws_command_for_stack "${first_stack}" s3api head-bucket --bucket "${PULUMI_STATE_BUCKET}" >/dev/null 2>&1
+  bootstrap_env_run_quiet bootstrap_env_aws_command_for_stack "${first_stack}" s3api head-bucket --bucket "${PULUMI_STATE_BUCKET}" >/dev/null 2>&1
 }
 
 repo_exists() {
-  gh repo view "${DEPLOYMENT_REPO}" >/dev/null 2>&1
+  bootstrap_env_run_quiet gh repo view "${DEPLOYMENT_REPO}" >/dev/null 2>&1
 }
 
 oidc_companion_repo_exists() {
-  gh repo view "${OIDC_DISCOVERY_REPO}" >/dev/null 2>&1
+  bootstrap_env_run_quiet gh repo view "${OIDC_DISCOVERY_REPO}" >/dev/null 2>&1
 }
 
 promotion_environments_present() {
@@ -147,7 +190,7 @@ promotion_environments_present() {
   local stack
   while IFS= read -r stack; do
     if [[ "${promotion_index}" -gt 0 ]]; then
-      if ! gh api "repos/${DEPLOYMENT_REPO}/environments/${stack}" >/dev/null 2>&1; then
+      if ! bootstrap_env_run_quiet gh api "repos/${DEPLOYMENT_REPO}/environments/${stack}" >/dev/null 2>&1; then
         return 1
       fi
     fi
@@ -163,8 +206,8 @@ repo_config_present() {
     return 1
   fi
 
-  variable_json="$(gh variable list --repo "${DEPLOYMENT_REPO}" --json name)"
-  secret_json="$(gh secret list --repo "${DEPLOYMENT_REPO}" --json name)"
+  capture_stdout_quiet variable_json gh variable list --repo "${DEPLOYMENT_REPO}" --json name
+  capture_stdout_quiet secret_json gh secret list --repo "${DEPLOYMENT_REPO}" --json name
 
   for required_var in PULUMI_BACKEND_URL LTBASE_RELEASES_REPO LTBASE_RELEASE_ID STACKS PROMOTION_PATH PREVIEW_DEFAULT_STACK; do
     if ! json_name_list_contains "${variable_json}" "${required_var}"; then
@@ -205,7 +248,7 @@ oidc_companion_repo_config_present() {
     return 1
   fi
 
-  variable_json="$(gh variable list --repo "${OIDC_DISCOVERY_REPO}" --json name)"
+  capture_stdout_quiet variable_json gh variable list --repo "${OIDC_DISCOVERY_REPO}" --json name
   if ! json_name_list_contains "${variable_json}" "OIDC_DISCOVERY_DOMAIN"; then
     return 1
   fi
@@ -216,25 +259,60 @@ oidc_companion_repo_config_present() {
   return 0
 }
 
+cloudflare_json_success() {
+  local response="$1"
+
+  printf '%s' "${response}" | python3 -c '
+import json
+import sys
+
+try:
+    payload = json.load(sys.stdin)
+except json.JSONDecodeError:
+    sys.exit(1)
+
+sys.exit(0 if payload.get("success") is True else 1)
+'
+}
+
+cloudflare_get_success_json() {
+  local response_file status="" response
+
+  response_file="$(mktemp)"
+  capture_stdout_probe status curl -fsS -o "${response_file}" -w '%{http_code}' "$@" || {
+    rm -f "${response_file}"
+    return 1
+  }
+  response="$(<"${response_file}")"
+  rm -f "${response_file}"
+
+  if [[ ! "${status}" =~ ^2 ]]; then
+    return 1
+  fi
+
+  cloudflare_json_success "${response}" || return 1
+  printf '%s' "${response}"
+}
+
 cloudflare_pages_project_present() {
-  curl -fsS \
+  cloudflare_get_success_json \
     -H "Authorization: Bearer ${CLOUDFLARE_API_TOKEN}" \
     -H "Content-Type: application/json" \
-    "https://api.cloudflare.com/client/v4/accounts/${CLOUDFLARE_ACCOUNT_ID}/pages/projects/${OIDC_DISCOVERY_PAGES_PROJECT}" >/dev/null 2>&1
+    "https://api.cloudflare.com/client/v4/accounts/${CLOUDFLARE_ACCOUNT_ID}/pages/projects/${OIDC_DISCOVERY_PAGES_PROJECT}" >/dev/null
 }
 
 cloudflare_pages_domain_present() {
-  curl -fsS \
+  cloudflare_get_success_json \
     -H "Authorization: Bearer ${CLOUDFLARE_API_TOKEN}" \
     -H "Content-Type: application/json" \
-    "https://api.cloudflare.com/client/v4/accounts/${CLOUDFLARE_ACCOUNT_ID}/pages/projects/${OIDC_DISCOVERY_PAGES_PROJECT}/domains/${OIDC_DISCOVERY_DOMAIN}" >/dev/null 2>&1
+    "https://api.cloudflare.com/client/v4/accounts/${CLOUDFLARE_ACCOUNT_ID}/pages/projects/${OIDC_DISCOVERY_PAGES_PROJECT}/domains/${OIDC_DISCOVERY_DOMAIN}" >/dev/null
 }
 
 cloudflare_oidc_pages_dns_present() {
   local response expected_target
 
   expected_target="${OIDC_DISCOVERY_PAGES_PROJECT}.pages.dev"
-  response="$(curl -fsS \
+  response="$(cloudflare_get_success_json \
     -H "Authorization: Bearer ${CLOUDFLARE_API_TOKEN}" \
     -H "Content-Type: application/json" \
     "https://api.cloudflare.com/client/v4/zones/${CLOUDFLARE_ZONE_ID}/dns_records?type=CNAME&name=${OIDC_DISCOVERY_DOMAIN}")" || return 1
@@ -534,12 +612,15 @@ run_force_actions() {
   fi
 
   if [[ "${needs_foundation}" == "true" ]]; then
+    bootstrap_env_info "Rendering bootstrap IAM policies"
     run_logged "${script_dir}/render-bootstrap-policies.sh" --env-file "${ENV_FILE}"
+    bootstrap_env_info "Reconciling shared AWS foundation"
     run_logged "${script_dir}/bootstrap-aws-foundation.sh" --env-file "${ENV_FILE}"
   fi
 
   if [[ "${needs_repo}" == "true" ]]; then
     if ! repo_exists; then
+      bootstrap_env_info "Ensuring deployment repository bootstrap"
       run_logged "${script_dir}/create-deployment-repo.sh" --env-file "${ENV_FILE}"
     fi
 
@@ -547,7 +628,8 @@ run_force_actions() {
       case "${status}" in
         needs_foundation|needs_repo_config|needs_stack_bootstrap)
           if [[ "${SCOPE}" != "foundation" ]]; then
-            run_logged "${script_dir}/bootstrap-deployment-repo.sh" --env-file "${ENV_FILE}" --stack "${stack}" --infra-dir "${INFRA_DIR}"
+            bootstrap_env_info "Reconciling deployment repository stack bootstrap: ${stack}"
+            run_logged_quiet "${script_dir}/bootstrap-deployment-repo.sh" --env-file "${ENV_FILE}" --stack "${stack}" --infra-dir "${INFRA_DIR}"
           fi
           ;;
       esac
@@ -559,8 +641,9 @@ run_force_actions() {
     local promotion_index=0
     while IFS= read -r stack; do
       if [[ "${promotion_index}" -gt 0 ]]; then
-        if ! gh api "repos/${DEPLOYMENT_REPO}/environments/${stack}" >/dev/null 2>&1; then
-          run_logged gh api "repos/${DEPLOYMENT_REPO}/environments/${stack}" --method PUT
+        if ! bootstrap_env_run_quiet gh api "repos/${DEPLOYMENT_REPO}/environments/${stack}" >/dev/null 2>&1; then
+          bootstrap_env_info "Ensuring protected deployment environment: ${stack}"
+          run_logged_quiet gh api "repos/${DEPLOYMENT_REPO}/environments/${stack}" --method PUT
         fi
       fi
       promotion_index=$((promotion_index + 1))
@@ -568,6 +651,7 @@ run_force_actions() {
   fi
 
   if [[ "${needs_oidc_companion}" == "true" && "${SCOPE}" != "foundation" ]]; then
+    bootstrap_env_info "Reconciling OIDC discovery companion"
     run_logged "${script_dir}/bootstrap-oidc-discovery-companion.sh" --env-file "${ENV_FILE}"
   fi
 
@@ -575,19 +659,22 @@ run_force_actions() {
   if [[ "${has_dsql_reconcile}" == "true" && "${SCOPE}" != "foundation" ]]; then
     while IFS=$'\t' read -r stack status; do
       if [[ "${status}" == "needs_dsql_reconcile" ]]; then
-        run_logged "${script_dir}/reconcile-managed-dsql-endpoint.sh" --env-file "${ENV_FILE}" --stack "${stack}" --infra-dir "${INFRA_DIR}"
+        bootstrap_env_info "Reconciling managed DSQL endpoint: ${stack}"
+        run_logged_quiet "${script_dir}/reconcile-managed-dsql-endpoint.sh" --env-file "${ENV_FILE}" --stack "${stack}" --infra-dir "${INFRA_DIR}"
       fi
     done <"${state_file}"
   fi
 
   # Bug #20: resume rollout from the first incomplete stack instead of starting over
   if [[ "${has_needs_rollout}" == "true" && -n "${RELEASE_ID}" && "${SCOPE}" != "foundation" ]]; then
-    run_logged gh workflow run rollout-hop.yml --repo "${DEPLOYMENT_REPO}" \
+    bootstrap_env_info "Dispatching rollout workflow: rollout-hop.yml"
+    run_logged_quiet gh workflow run rollout-hop.yml --repo "${DEPLOYMENT_REPO}" \
       -f release_id="${RELEASE_ID}" \
       -f target_stack="${first_needs_rollout_stack}" \
       -f continue_chain=true
   elif [[ -n "${RELEASE_ID}" && "${SCOPE}" != "foundation" ]]; then
-    run_logged gh workflow run rollout.yml --repo "${DEPLOYMENT_REPO}" -f release_id="${RELEASE_ID}"
+    bootstrap_env_info "Dispatching rollout workflow: rollout.yml"
+    run_logged_quiet gh workflow run rollout.yml --repo "${DEPLOYMENT_REPO}" -f release_id="${RELEASE_ID}"
   fi
 }
 

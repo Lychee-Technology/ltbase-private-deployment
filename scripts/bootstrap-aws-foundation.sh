@@ -32,6 +32,26 @@ script_dir="$(cd "$(dirname "$0")" && pwd)"
 source "${script_dir}/lib/bootstrap-env.sh"
 bootstrap_env_load "${ENV_FILE}"
 
+capture_stdout_quiet() {
+  local destination_var="$1"
+  local output command_status stderr_file
+  shift
+
+  stderr_file="$(mktemp)"
+  if output="$("$@" 2>"${stderr_file}")"; then
+    rm -f "${stderr_file}"
+    printf -v "${destination_var}" '%s' "${output}"
+    return 0
+  fi
+
+  command_status=$?
+  if [[ -s "${stderr_file}" ]]; then
+    cat "${stderr_file}" >&2
+  fi
+  rm -f "${stderr_file}"
+  return "${command_status}"
+}
+
 required_vars=(DEPLOYMENT_REPO AWS_REGION_DEVO AWS_REGION_PROD AWS_ACCOUNT_ID_DEVO AWS_ACCOUNT_ID_PROD AWS_ROLE_NAME_DEVO AWS_ROLE_NAME_PROD PULUMI_STATE_BUCKET PULUMI_KMS_ALIAS)
 for name in "${required_vars[@]}"; do
   if [[ -z "${!name:-}" ]]; then
@@ -66,6 +86,7 @@ first_stack="$(bootstrap_env_csv_first "${PROMOTION_PATH:-${STACKS}}")"
 first_region="$(bootstrap_env_resolve_stack_value AWS_REGION "${first_stack}")"
 
 while IFS= read -r stack; do
+  bootstrap_env_info "Validating AWS credentials for stack: ${stack}"
   bootstrap_env_require_aws_credentials_for_stack "${stack}"
   stack_upper="$(bootstrap_env_stack_upper "${stack}")"
   stack_region="$(bootstrap_env_resolve_stack_value AWS_REGION "${stack}")"
@@ -148,37 +169,39 @@ EOF
 }
 EOF
 
+  bootstrap_env_info "Reconciling IAM and KMS resources for stack: ${stack}"
   if ! bootstrap_env_aws_command_for_stack "${stack}" iam get-open-id-connect-provider --open-id-connect-provider-arn "${provider_arn}" >/dev/null 2>&1; then
-    bootstrap_env_aws_command_for_stack "${stack}" iam create-open-id-connect-provider --url https://token.actions.githubusercontent.com --client-id-list sts.amazonaws.com >/dev/null
+    bootstrap_env_run_quiet bootstrap_env_aws_command_for_stack "${stack}" iam create-open-id-connect-provider --url https://token.actions.githubusercontent.com --client-id-list sts.amazonaws.com
   fi
 
   if ! bootstrap_env_aws_command_for_stack "${stack}" iam get-role --role-name "${stack_role_name}" >/dev/null 2>&1; then
-    bootstrap_env_aws_command_for_stack "${stack}" iam create-role --role-name "${stack_role_name}" --assume-role-policy-document "file://${trust_policy_path}" >/dev/null
+    bootstrap_env_run_quiet bootstrap_env_aws_command_for_stack "${stack}" iam create-role --role-name "${stack_role_name}" --assume-role-policy-document "file://${trust_policy_path}"
   fi
 
-  bootstrap_env_aws_command_for_stack "${stack}" iam update-assume-role-policy --role-name "${stack_role_name}" --policy-document "file://${trust_policy_path}" >/dev/null
-  bootstrap_env_aws_command_for_stack "${stack}" iam put-role-policy --role-name "${stack_role_name}" --policy-name LTBaseDeploymentAccess --policy-document "file://${role_policy_path}" >/dev/null
+  bootstrap_env_run_quiet bootstrap_env_aws_command_for_stack "${stack}" iam update-assume-role-policy --role-name "${stack_role_name}" --policy-document "file://${trust_policy_path}"
+  bootstrap_env_run_quiet bootstrap_env_aws_command_for_stack "${stack}" iam put-role-policy --role-name "${stack_role_name}" --policy-name LTBaseDeploymentAccess --policy-document "file://${role_policy_path}"
 
-  alias_json="$(bootstrap_env_aws_command_for_stack "${stack}" kms list-aliases --region "${stack_region}" --output json)"
+  capture_stdout_quiet alias_json bootstrap_env_aws_command_for_stack "${stack}" kms list-aliases --region "${stack_region}" --output json
   key_id="$(python3 -c 'import json,sys; aliases=json.load(sys.stdin).get("Aliases", []); target="'"${PULUMI_KMS_ALIAS}"'"; match=next((a for a in aliases if a.get("AliasName")==target and a.get("TargetKeyId")), None); print(match.get("TargetKeyId", "") if match else "")' <<<"${alias_json}")"
 
   if [[ -z "${key_id}" ]]; then
-    key_id="$(bootstrap_env_aws_command_for_stack "${stack}" kms create-key --region "${stack_region}" --description "Pulumi secrets for LTBase private deployment" --query 'KeyMetadata.KeyId' --output text)"
-    bootstrap_env_aws_command_for_stack "${stack}" kms create-alias --region "${stack_region}" --alias-name "${PULUMI_KMS_ALIAS}" --target-key-id "${key_id}" >/dev/null
+    capture_stdout_quiet key_id bootstrap_env_aws_command_for_stack "${stack}" kms create-key --region "${stack_region}" --description "Pulumi secrets for LTBase private deployment" --query 'KeyMetadata.KeyId' --output text
+    bootstrap_env_run_quiet bootstrap_env_aws_command_for_stack "${stack}" kms create-alias --region "${stack_region}" --alias-name "${PULUMI_KMS_ALIAS}" --target-key-id "${key_id}"
   fi
 
   printf 'AWS_ROLE_ARN_%s=%s\n' "${stack_upper}" "${stack_role_arn}" >>"${summary_path}"
   printf 'PULUMI_SECRETS_PROVIDER_%s=awskms://%s?region=%s\n' "${stack_upper}" "${PULUMI_KMS_ALIAS}" "${stack_region}" >>"${summary_path}"
 done < <(bootstrap_env_each_stack)
 
+bootstrap_env_info "Ensuring shared Pulumi state bucket: ${PULUMI_STATE_BUCKET}"
 if ! bootstrap_env_aws_command_for_stack "${first_stack}" s3api head-bucket --bucket "${PULUMI_STATE_BUCKET}" >/dev/null 2>&1; then
   if [[ "${first_region}" == "us-east-1" ]]; then
-    bootstrap_env_aws_command_for_stack "${first_stack}" s3api create-bucket --bucket "${PULUMI_STATE_BUCKET}" >/dev/null
+    bootstrap_env_run_quiet bootstrap_env_aws_command_for_stack "${first_stack}" s3api create-bucket --bucket "${PULUMI_STATE_BUCKET}"
   else
-    bootstrap_env_aws_command_for_stack "${first_stack}" s3api create-bucket --bucket "${PULUMI_STATE_BUCKET}" --region "${first_region}" --create-bucket-configuration "LocationConstraint=${first_region}" >/dev/null
+    bootstrap_env_run_quiet bootstrap_env_aws_command_for_stack "${first_stack}" s3api create-bucket --bucket "${PULUMI_STATE_BUCKET}" --region "${first_region}" --create-bucket-configuration "LocationConstraint=${first_region}"
   fi
 fi
 
-bootstrap_env_aws_command_for_stack "${first_stack}" s3api put-bucket-versioning --bucket "${PULUMI_STATE_BUCKET}" --versioning-configuration Status=Enabled >/dev/null
-bootstrap_env_aws_command_for_stack "${first_stack}" s3api put-bucket-encryption --bucket "${PULUMI_STATE_BUCKET}" --server-side-encryption-configuration '{"Rules":[{"ApplyServerSideEncryptionByDefault":{"SSEAlgorithm":"AES256"}}]}' >/dev/null
-bootstrap_env_aws_command_for_stack "${first_stack}" s3api put-public-access-block --bucket "${PULUMI_STATE_BUCKET}" --public-access-block-configuration BlockPublicAcls=true,IgnorePublicAcls=true,BlockPublicPolicy=true,RestrictPublicBuckets=true >/dev/null
+bootstrap_env_run_quiet bootstrap_env_aws_command_for_stack "${first_stack}" s3api put-bucket-versioning --bucket "${PULUMI_STATE_BUCKET}" --versioning-configuration Status=Enabled
+bootstrap_env_run_quiet bootstrap_env_aws_command_for_stack "${first_stack}" s3api put-bucket-encryption --bucket "${PULUMI_STATE_BUCKET}" --server-side-encryption-configuration '{"Rules":[{"ApplyServerSideEncryptionByDefault":{"SSEAlgorithm":"AES256"}}]}'
+bootstrap_env_run_quiet bootstrap_env_aws_command_for_stack "${first_stack}" s3api put-public-access-block --bucket "${PULUMI_STATE_BUCKET}" --public-access-block-configuration BlockPublicAcls=true,IgnorePublicAcls=true,BlockPublicPolicy=true,RestrictPublicBuckets=true
