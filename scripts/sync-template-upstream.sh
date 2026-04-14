@@ -2,9 +2,25 @@
 
 set -euo pipefail
 
-script_dir="$(cd "$(dirname "$0")" && pwd)"
-# shellcheck disable=SC1091
-source "${script_dir}/lib/bootstrap-env.sh"
+sync_template_info() {
+  printf '[info] %s\n' "$*"
+}
+
+sync_template_run_quiet() {
+  local output status
+
+  if output="$($@ 2>&1)"; then
+    return 0
+  else
+    status=$?
+  fi
+
+  if [[ -n "${output}" ]]; then
+    printf '%s\n' "${output}" >&2
+  fi
+
+  return "${status}"
+}
 
 capture_stdout_quiet() {
   local destination_var="$1"
@@ -125,19 +141,19 @@ if existing_url="$(git remote get-url "${UPSTREAM_NAME}" 2>/dev/null)"; then
     exit 1
   fi
 else
-  bootstrap_env_run_quiet git remote add "${UPSTREAM_NAME}" "${UPSTREAM_URL}"
+  sync_template_run_quiet git remote add "${UPSTREAM_NAME}" "${UPSTREAM_URL}"
 fi
 
-bootstrap_env_info "fetching upstream template from ${UPSTREAM_NAME}/${BRANCH}"
-bootstrap_env_run_quiet git fetch "${UPSTREAM_NAME}"
+sync_template_info "fetching upstream template from ${UPSTREAM_NAME}/${BRANCH}"
+sync_template_run_quiet git fetch "${UPSTREAM_NAME}"
 capture_stdout_quiet upstream_commit git rev-parse "${UPSTREAM_NAME}/${BRANCH}"
 
 temp_root="$(mktemp -d)"
 trap 'rm -rf "${temp_root}" "${ARCHIVE_PATH}"' EXIT
 
-bootstrap_env_run_quiet git archive --format=tar --output "${ARCHIVE_PATH}" "${UPSTREAM_NAME}/${BRANCH}"
+sync_template_run_quiet git archive --format=tar --output "${ARCHIVE_PATH}" "${UPSTREAM_NAME}/${BRANCH}"
 mkdir -p "${temp_root}"
-bootstrap_env_run_quiet tar -xf "${ARCHIVE_PATH}" -C "${temp_root}"
+sync_template_run_quiet tar -xf "${ARCHIVE_PATH}" -C "${temp_root}"
 
 for path in "${required_source_paths[@]}"; do
   if [[ ! -e "${temp_root}/${path}" ]]; then
@@ -149,7 +165,7 @@ done
 fingerprint="$(build_fingerprint "${temp_root}")"
 
 mkdir -p "${temp_root}/__ref__"
-bootstrap_env_info "refreshing provenance metadata"
+sync_template_info "refreshing provenance metadata"
 capture_stdout_quiet provenance_json jq -n \
   --arg template_repository "Lychee-Technology/ltbase-private-deployment" \
   --arg template_ref "${BRANCH}" \
@@ -160,8 +176,8 @@ capture_stdout_quiet provenance_json jq -n \
   '{template_repository:$template_repository,template_ref:$template_ref,template_commit:$template_commit,build_fingerprint:$build_fingerprint,generated_at:$generated_at,generator:$generator}'
 printf '%s\n' "${provenance_json}" > "${temp_root}/__ref__/template-provenance.json"
 
-bootstrap_env_info "syncing template-managed files"
-bootstrap_env_run_quiet rsync -a --delete \
+sync_template_info "syncing template-managed files"
+sync_template_run_quiet rsync -a --delete \
   --exclude '.git/' \
   --exclude 'dist/' \
   --exclude '.DS_Store' \
