@@ -27,7 +27,10 @@ assert_log_not_contains() {
 }
 
 temp_dir="$(mktemp -d)"
-trap 'rm -rf "${temp_dir}"' EXIT
+provenance_path="${ROOT_DIR}/__ref__/template-provenance.json"
+original_provenance="${temp_dir}/template-provenance.original.json"
+/bin/cp "${provenance_path}" "${original_provenance}"
+trap '/bin/cp "${original_provenance}" "${provenance_path}"; rm -rf "${temp_dir}"' EXIT
 log_file="${temp_dir}/commands.log"
 touch "${log_file}"
 

@@ -132,6 +132,10 @@ assert_log_contains "${log_file}" "go build -buildvcs=false -o .pulumi/bin/ltbas
 assert_log_contains "${log_file}" "pulumi up --stack devo"
 
 assert_file_contains "${ROOT_DIR}/README.md" "ltbase-private-deployment-binaries"
+assert_file_contains "${ROOT_DIR}/README.md" "template-provenance.json"
+assert_file_contains "${ROOT_DIR}/README.md" "build_fingerprint"
 assert_file_contains "${ROOT_DIR}/docs/BOOTSTRAP.md" "ltbase-private-deployment-binaries"
+assert_file_contains "${ROOT_DIR}/docs/BOOTSTRAP.md" "template-provenance.json"
+assert_file_contains "${ROOT_DIR}/docs/BOOTSTRAP.md" "build_fingerprint"
 
 printf 'PASS: prebuilt infra binary tests\n'
