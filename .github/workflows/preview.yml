@@ -63,3 +63,50 @@ jobs:
       aws_role_arn: ${{ secrets[format('AWS_ROLE_ARN_{0}', needs.prepare.outputs.target_stack_upper)] }}
       ltbase_releases_token: ${{ secrets.LTBASE_RELEASES_TOKEN }}
       cloudflare_api_token: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+
+  audit_mtls:
+    needs:
+      - prepare
+      - preview
+    if: ${{ needs.preview.result == 'success' }}
+    runs-on: ubuntu-24.04-arm
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets[format('AWS_ROLE_ARN_{0}', needs.prepare.outputs.target_stack_upper)] }}
+          aws-region: ${{ vars[format('AWS_REGION_{0}', needs.prepare.outputs.target_stack_upper)] }}
+
+      - name: Install jq
+        run: sudo apt-get update && sudo apt-get install -y jq
+
+      - name: Prepare mTLS audit env
+        env:
+          STACKS: ${{ vars.STACKS || 'devo,prod' }}
+          PROMOTION_PATH: ${{ vars.PROMOTION_PATH || vars.STACKS || 'devo,prod' }}
+          AWS_REGION: ${{ vars[format('AWS_REGION_{0}', needs.prepare.outputs.target_stack_upper)] }}
+          API_DOMAIN: ${{ vars[format('API_DOMAIN_{0}', needs.prepare.outputs.target_stack_upper)] }}
+          CONTROL_DOMAIN: ${{ vars[format('CONTROL_DOMAIN_{0}', needs.prepare.outputs.target_stack_upper)] }}
+          AUTH_DOMAIN: ${{ vars[format('AUTH_DOMAIN_{0}', needs.prepare.outputs.target_stack_upper)] }}
+          RUNTIME_BUCKET: ${{ vars[format('RUNTIME_BUCKET_{0}', needs.prepare.outputs.target_stack_upper)] }}
+          CLOUDFLARE_ZONE_ID: ${{ vars.CLOUDFLARE_ZONE_ID }}
+          MTLS_TRUSTSTORE_KEY: mtls/cloudflare-origin-pull-ca.pem
+        run: |
+          cat > .github/mTLS-audit.env <<EOF
+          STACKS=${STACKS}
+          PROMOTION_PATH=${PROMOTION_PATH}
+          AWS_REGION_${{ needs.prepare.outputs.target_stack_upper }}=${AWS_REGION}
+          API_DOMAIN_${{ needs.prepare.outputs.target_stack_upper }}=${API_DOMAIN}
+          CONTROL_DOMAIN_${{ needs.prepare.outputs.target_stack_upper }}=${CONTROL_DOMAIN}
+          AUTH_DOMAIN_${{ needs.prepare.outputs.target_stack_upper }}=${AUTH_DOMAIN}
+          RUNTIME_BUCKET_${{ needs.prepare.outputs.target_stack_upper }}=${RUNTIME_BUCKET}
+          CLOUDFLARE_ZONE_ID=${CLOUDFLARE_ZONE_ID}
+          MTLS_TRUSTSTORE_KEY=${MTLS_TRUSTSTORE_KEY}
+          EOF
+
+      - name: Audit Cloudflare mTLS
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        run: ./scripts/check-cloudflare-mtls.sh --env-file .github/mTLS-audit.env --stack ${{ needs.prepare.outputs.target_stack }}

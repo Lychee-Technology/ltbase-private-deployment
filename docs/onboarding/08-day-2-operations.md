@@ -10,6 +10,20 @@ Use this guide for normal follow-up operations after the first successful deploy
 
 ## Typical Operations
 
+### Audit Cloudflare mTLS wiring
+
+Run `./scripts/check-cloudflare-mtls.sh --env-file .env --stack <stack>` from the deployment repository when you need a read-only audit of the Cloudflare to API Gateway mTLS path.
+
+The preview workflow and the rollout hop workflow both run this audit automatically after a successful job and fail if the Cloudflare or API Gateway mTLS posture drifts.
+
+The script checks:
+
+- Cloudflare proxying for `api`, `auth`, and `control-plane`
+- Cloudflare SSL mode is `Full (strict)`
+- Cloudflare Authenticated Origin Pulls is enabled
+- the truststore object exists in the stack runtime bucket
+- each API Gateway custom domain reports mutual TLS with the expected truststore URI and version
+
 ### Upgrade to a new LTBase release
 
 1. If you want the latest template copy of the sync helper itself first, run `./scripts/update-sync-template-tooling.sh` from your deployment repository on a clean local `main` branch.
