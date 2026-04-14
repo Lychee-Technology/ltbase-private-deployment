@@ -76,6 +76,16 @@ jobs:
           release_tag="r$(date -u +"%Y%m%dT%H%M%SZ")"
           amd64_file="ltbase-infra-bin-linux-amd64.tar.gz"
           arm64_file="ltbase-infra-bin-linux-arm64.tar.gz"
+          build_fingerprint="$(
+            {
+              find infra -type f | LC_ALL=C sort
+              printf '%s\n' .github/workflows/build-infra-binary.yml
+            } | while read -r path; do
+              printf '== %s ==\n' "${path}"
+              cat "${path}"
+              printf '\n'
+            done | shasum -a 256 | awk '{print "sha256:" $1}'
+          )"
           amd64_sha="$(shasum -a 256 dist/release/release-linux-amd64/${amd64_file} | awk '{print $1}')"
           arm64_sha="$(shasum -a 256 dist/release/release-linux-arm64/${arm64_file} | awk '{print $1}')"
           amd64_go="$(cat dist/release/release-linux-amd64/go-version-linux-amd64.txt)"
@@ -85,6 +95,7 @@ jobs:
             --arg source_repository "${GITHUB_REPOSITORY}" \
             --arg source_commit "${GITHUB_SHA}" \
             --arg source_ref "${GITHUB_REF_NAME}" \
+            --arg build_fingerprint "${build_fingerprint}" \
             --arg release_tag "${release_tag}" \
             --arg amd64_file "${amd64_file}" \
             --arg amd64_sha "${amd64_sha}" \
@@ -93,7 +104,7 @@ jobs:
             --arg arm64_sha "${arm64_sha}" \
             --arg arm64_go "${arm64_go}" \
             --arg built_at "${built_at}" \
-            '{source_repository:$source_repository,source_commit:$source_commit,source_ref:$source_ref,release_tag:$release_tag,artifacts:[{file:$amd64_file,arch:"linux-amd64",sha256:$amd64_sha,go_version:$amd64_go,built_at:$built_at},{file:$arm64_file,arch:"linux-arm64",sha256:$arm64_sha,go_version:$arm64_go,built_at:$built_at}]}' \
+            '{source_repository:$source_repository,source_commit:$source_commit,source_ref:$source_ref,build_fingerprint:$build_fingerprint,release_tag:$release_tag,artifacts:[{file:$amd64_file,arch:"linux-amd64",sha256:$amd64_sha,go_version:$amd64_go,built_at:$built_at},{file:$arm64_file,arch:"linux-arm64",sha256:$arm64_sha,go_version:$arm64_go,built_at:$built_at}]}' \
             > dist/release/manifest.json
           printf 'release_tag=%s\n' "${release_tag}" >> "$GITHUB_ENV"
 

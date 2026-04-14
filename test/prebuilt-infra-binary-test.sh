@@ -62,6 +62,16 @@ assert_file_contains "${WORKFLOW_PATH}" "ltbase-infra-bin-linux-arm64.tar.gz"
 assert_file_contains "${WORKFLOW_PATH}" "manifest.json"
 assert_file_contains "${WORKFLOW_PATH}" "release_tag"
 assert_file_contains "${WORKFLOW_PATH}" "if: github.repository == 'Lychee-Technology/ltbase-private-deployment'"
+assert_file_contains "${WORKFLOW_PATH}" "build_fingerprint"
+assert_file_contains "${WORKFLOW_PATH}" "find infra -type f"
+assert_file_contains "${WORKFLOW_PATH}" ".github/workflows/build-infra-binary.yml"
+
+PROVENANCE_PATH="${ROOT_DIR}/__ref__/template-provenance.json"
+assert_file_contains "${PROVENANCE_PATH}" '"template_repository": "Lychee-Technology/ltbase-private-deployment"'
+assert_file_contains "${PROVENANCE_PATH}" '"template_ref": "main"'
+assert_file_contains "${PROVENANCE_PATH}" '"template_commit":'
+assert_file_contains "${PROVENANCE_PATH}" '"build_fingerprint":'
+assert_file_contains "${PROVENANCE_PATH}" '"generator": "scripts/sync-template-upstream.sh"'
 
 temp_dir="$(mktemp -d)"
 trap 'rm -rf "${temp_dir}"' EXIT

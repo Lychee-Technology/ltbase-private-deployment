@@ -197,6 +197,8 @@ The current repository version uses a bootstrap-safe flow:
 - local `.env` files contain secrets and must never be committed
 - the template repository does not auto-run preview on pull requests because it has no live customer credentials
 - generated customer deployment repositories do not publish prebuilt infra binaries; the copied `build-infra-binary.yml` workflow is expected to be skipped outside `Lychee-Technology/ltbase-private-deployment`
+- customer repositories now carry `__ref__/template-provenance.json`, which records the upstream template commit and `build_fingerprint` used for prebuilt infra binary lookup
+- official workflows only install a prebuilt infra binary when that provenance and `build_fingerprint` exactly match an upstream-published manifest; otherwise they intentionally fall back to source build
 - manual preview only supports the first stack in `PROMOTION_PATH`
 - protected promotions happen in your own repository through per-stack GitHub environment gates
 

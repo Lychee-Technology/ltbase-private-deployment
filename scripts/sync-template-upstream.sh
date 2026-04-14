@@ -7,6 +7,19 @@ UPSTREAM_URL="https://github.com/Lychee-Technology/ltbase-private-deployment.git
 BRANCH="main"
 ARCHIVE_PATH="sync-template-upstream.tar"
 
+build_fingerprint() {
+  local root="$1"
+
+  {
+    find "${root}/infra" -type f | LC_ALL=C sort
+    printf '%s\n' "${root}/.github/workflows/build-infra-binary.yml"
+  } | while read -r path; do
+    printf '== %s ==\n' "${path#${root}/}"
+    cat "${path}"
+    printf '\n'
+  done | shasum -a 256 | awk '{print "sha256:" $1}'
+}
+
 required_source_paths=(
   ".github/workflows"
   "docs"
@@ -65,6 +78,7 @@ else
 fi
 
 git fetch "${UPSTREAM_NAME}"
+upstream_commit="$(git rev-parse "${UPSTREAM_NAME}/${BRANCH}")"
 
 temp_root="$(mktemp -d)"
 trap 'rm -rf "${temp_root}" "${ARCHIVE_PATH}"' EXIT
@@ -79,6 +93,19 @@ for path in "${required_source_paths[@]}"; do
     exit 1
   fi
 done
+
+fingerprint="$(build_fingerprint "${temp_root}")"
+
+mkdir -p "${temp_root}/__ref__"
+jq -n \
+  --arg template_repository "Lychee-Technology/ltbase-private-deployment" \
+  --arg template_ref "${BRANCH}" \
+  --arg template_commit "${upstream_commit}" \
+  --arg build_fingerprint "${fingerprint}" \
+  --arg generated_at "$(date -u +"%Y-%m-%dT%H:%M:%SZ")" \
+  --arg generator "scripts/sync-template-upstream.sh" \
+  '{template_repository:$template_repository,template_ref:$template_ref,template_commit:$template_commit,build_fingerprint:$build_fingerprint,generated_at:$generated_at,generator:$generator}' \
+  > "${temp_root}/__ref__/template-provenance.json"
 
 rsync -a --delete \
   --exclude '.git/' \
