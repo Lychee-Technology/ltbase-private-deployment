@@ -66,6 +66,7 @@ At minimum, check:
 - the expected domain endpoints are reachable
 - your minimum health check, login path, or internal smoke test passes
 - the environment is running the same release ID used for the current rollout
+- the rollout workflow has already reconciled the authservice `project info` item in DynamoDB by using the deployed stack outputs and current AWS account id
 
 ### 5. Approve protected target environments
 
@@ -90,6 +91,30 @@ Important:
 
 - this workflow only allows adjacent hops in `PROMOTION_PATH`
 - invalid jumps fail immediately, for example if you skip an intermediate environment
+
+## Project Info Guidance
+
+In the current repository version, official deploy workflows automatically write the authservice-compatible `project info` record into DynamoDB after `pulumi up` and before deployment output capture.
+
+That record uses:
+
+- `PK=project#<projectId>`
+- `SK=info`
+- `account_id=<current aws account id>`
+- `api_id=<deployed data plane api id>`
+- `api_base_url=https://<api domain>`
+
+If you need to repair that record manually for a stack, run:
+
+```bash
+./scripts/reconcile-project-info.sh --env-file .env --stack <stack> --infra-dir infra
+```
+
+That script:
+
+- reads `projectId`, `apiId`, `apiBaseUrl`, and `tableName` from the target stack's Pulumi outputs
+- resolves the current AWS account id with `sts get-caller-identity`
+- writes the authoritative `project info` item back into DynamoDB
 
 ## Managed DSQL Guidance
 
