@@ -26,6 +26,10 @@ type APISet struct {
 	Certificate  *acm.CertificateValidation
 }
 
+func APIBaseURL(cfg config.StackConfig) string {
+	return "https://" + strings.TrimSpace(cfg.APIDomain)
+}
+
 type routeSpec struct {
 	RouteKey       string
 	AuthorizerName string

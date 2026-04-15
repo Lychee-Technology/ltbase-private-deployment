@@ -66,6 +66,7 @@
 - 目标域名可访问
 - 基础健康检查、登录链路或你内部定义的最小冒烟检查通过
 - 当前环境使用的 release ID 与你本次 rollout 的 release ID 一致
+- rollout 工作流已经通过部署后的 stack outputs 和当前 AWS account id 自动回写 authservice 所需的 DynamoDB `project info` 记录
 
 ### 5. 审批受保护目标环境
 
@@ -90,6 +91,30 @@
 
 - 这个工作流只允许 `PROMOTION_PATH` 中相邻的 hop
 - 非法跳转会直接失败，例如跨过中间环境的 promotion
+
+## Project Info 指引
+
+在当前仓库版本中，官方 deploy 工作流会在 `pulumi up` 之后、抓取 deployment outputs 之前，自动把 authservice 兼容的 `project info` 记录写入 DynamoDB。
+
+这条记录使用以下字段：
+
+- `PK=project#<projectId>`
+- `SK=info`
+- `account_id=<当前 aws account id>`
+- `api_id=<已部署 data plane api id>`
+- `api_base_url=https://<api domain>`
+
+如果你需要手动修复某个 stack 的这条记录，请执行：
+
+```bash
+./scripts/reconcile-project-info.sh --env-file .env --stack <stack> --infra-dir infra
+```
+
+这个脚本会：
+
+- 从目标 stack 的 Pulumi outputs 中读取 `projectId`、`apiId`、`apiBaseUrl` 和 `tableName`
+- 通过 `sts get-caller-identity` 解析当前 AWS account id
+- 将权威的 `project info` 记录重新写回 DynamoDB
 
 ## Managed DSQL 指引
 

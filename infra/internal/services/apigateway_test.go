@@ -223,3 +223,9 @@ func TestCertificateValidationDNSRecordIsNotProxied(t *testing.T) {
 	}
 	_ = dns.RecordArgs{}
 }
+
+func TestAPIBaseURLUsesAPIDomain(t *testing.T) {
+	if got := APIBaseURL(config.StackConfig{APIDomain: "api.example.com"}); got != "https://api.example.com" {
+		t.Fatalf("apiBaseURL() = %q", got)
+	}
+}

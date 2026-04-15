@@ -187,6 +187,7 @@ The current repository version uses a bootstrap-safe flow:
 
 - `bootstrap-all.sh` and `bootstrap-deployment-repo.sh` prepare configuration only
 - the first real infrastructure apply creates the managed DSQL cluster
+- official deploy workflows also reconcile the authservice `project info` DynamoDB record after `pulumi up` by using the deployed `projectId`, `apiId`, `apiBaseUrl`, and current AWS account id
 - `scripts/reconcile-managed-dsql-endpoint.sh` resolves the authoritative endpoint from AWS by using the Pulumi-exported `dsqlClusterIdentifier`
 - the reconcile step publishes the resolved endpoint into stack config as `dsqlEndpoint`
 - after reconciliation, run the next preview/deploy cycle so Lambda environment configuration picks up the managed endpoint

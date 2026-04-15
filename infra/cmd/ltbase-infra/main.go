@@ -42,7 +42,8 @@ func main() {
 			return err
 		}
 		ctx.Log.Info("ltbase-infra: declared lambda services", nil)
-		if _, err = services.NewAPIs(ctx, cfg, providers, runtime, lambdas); err != nil {
+		apis, err := services.NewAPIs(ctx, cfg, providers, runtime, lambdas)
+		if err != nil {
 			return err
 		}
 		ctx.Log.Info("ltbase-infra: declared API resources", nil)
@@ -57,6 +58,9 @@ func main() {
 		ctx.Log.Info("ltbase-infra: declared forma schedule", nil)
 		ctx.Export("runtimeBucket", runtime.RuntimeBucket.Bucket)
 		ctx.Export("tableName", runtime.Table.Name)
+		ctx.Export("projectId", pulumi.String(cfg.ProjectID))
+		ctx.Export("apiId", apis.API.ID())
+		ctx.Export("apiBaseUrl", pulumi.String(services.APIBaseURL(cfg)))
 		ctx.Export("dsqlClusterArn", runtime.DSQL.Cluster.Arn)
 		ctx.Export("dsqlClusterIdentifier", runtime.DSQL.Cluster.Identifier)
 		ctx.Export("dsqlVpcEndpointServiceName", runtime.DSQL.Cluster.VpcEndpointServiceName)
