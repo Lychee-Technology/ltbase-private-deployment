@@ -158,8 +158,19 @@ jobs:
             echo "run_canary=${run_canary}"
           } >> "${GITHUB_OUTPUT}"
 
-  approve:
+  validate_config:
     needs: prepare
+    runs-on: ubuntu-24.04-arm
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Validate Pulumi stack config
+        run: ./scripts/check-pulumi-stack-config.sh --stack ${{ needs.prepare.outputs.target_stack }}
+
+  approve:
+    needs:
+      - prepare
+      - validate_config
     if: ${{ needs.prepare.outputs.approval_required == 'true' }}
     runs-on: ubuntu-24.04-arm
     environment: ${{ needs.prepare.outputs.target_stack }}
@@ -169,6 +180,7 @@ jobs:
   rollout:
     needs:
       - prepare
+      - validate_config
       - approve
     if: ${{ always() && needs.prepare.result == 'success' && (needs.prepare.outputs.approval_required != 'true' || needs.approve.result == 'success') }}
     uses: Lychee-Technology/ltbase-deploy-workflows/.github/workflows/rollout-hop.yml@main

@@ -48,8 +48,19 @@ jobs:
             echo "target_stack_upper=$(printf '%s' "${target_stack}" | tr '[:lower:]-' '[:upper:]_')"
           } >> "${GITHUB_OUTPUT}"
 
-  preview:
+  validate_config:
     needs: prepare
+    runs-on: ubuntu-24.04-arm
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Validate Pulumi stack config
+        run: ./scripts/check-pulumi-stack-config.sh --stack ${{ needs.prepare.outputs.target_stack }}
+
+  preview:
+    needs:
+      - prepare
+      - validate_config
     uses: Lychee-Technology/ltbase-deploy-workflows/.github/workflows/preview-stack.yml@main
     with:
       pulumi_stack: ${{ needs.prepare.outputs.target_stack }}
