@@ -181,6 +181,7 @@ jobs:
       releases_repo: ${{ vars.LTBASE_RELEASES_REPO || 'Lychee-Technology/ltbase-releases' }}
       working_directory: infra
       run_canary: ${{ needs.prepare.outputs.run_canary == 'true' }}
+      reconcile_managed_dsql_endpoint: true
       refresh_after_apply: true
     secrets:
       aws_role_arn: ${{ secrets[format('AWS_ROLE_ARN_{0}', needs.prepare.outputs.target_stack_upper)] }}

@@ -122,9 +122,9 @@
 
 请将 managed DSQL 的具体连接信息视为由你当前仓库版本的基础设施与发布流程生成和维护的部署状态。
 
-在当前仓库版本中，当 managed DSQL 基础设施已经存在时，请按显式的部署后 reconcile 步骤执行，不要自行构造 endpoint 值。
+在当前仓库版本中，官方 deploy 工作流会自动 reconcile managed DSQL endpoint 状态，并在随后执行第二次 apply，让已部署的 Lambda 环境变量拿到解析出的 endpoint。
 
-如果第一次真实基础设施部署后，stack 已经有 `dsqlClusterIdentifier`，但还没有 `dsqlEndpoint`，请执行：
+如果你需要在官方 workflow 之外修复已有 stack，或者之前的部署在 managed DSQL reconcile/apply 序列完成前中断，请执行：
 
 ```bash
 ./scripts/reconcile-managed-dsql-endpoint.sh --env-file .env --stack <stack> --infra-dir infra
@@ -136,7 +136,7 @@
 - 调用 AWS 获取权威的 managed DSQL endpoint
 - 将该 endpoint 写回该 stack 的 Pulumi config `dsqlEndpoint`
 
-reconcile 完成后，请再执行下一轮 preview 或 deploy，让运行时配置拿到这个 endpoint。
+手动 reconcile 完成后，请再执行一次 preview 或 deploy，让运行时配置拿到这个 endpoint。
 
 对于 managed 部署，默认连接值为：
 
