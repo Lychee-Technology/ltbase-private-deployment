@@ -41,6 +41,8 @@ assert_file_contains "${preview_workflow}" "target_stack:"
 assert_file_contains "${preview_workflow}" "manual preview only supports the first promotion stack"
 assert_file_contains "${preview_workflow}" "runs-on: ubuntu-24.04-arm"
 assert_file_contains "${preview_workflow}" "Lychee-Technology/ltbase-deploy-workflows/.github/workflows/preview-stack.yml@main"
+assert_file_contains "${preview_workflow}" "name: Validate Pulumi stack config"
+assert_file_contains "${preview_workflow}" "./scripts/check-pulumi-stack-config.sh --stack \${{ needs.prepare.outputs.target_stack }}"
 assert_file_contains "${preview_workflow}" "name: Audit Cloudflare mTLS"
 assert_file_contains "${preview_workflow}" "./scripts/check-cloudflare-mtls.sh --env-file .github/mTLS-audit.env --stack"
 assert_file_contains "${preview_workflow}" 'CLOUDFLARE_ZONE_ID: ${{ vars.CLOUDFLARE_ZONE_ID }}'
@@ -69,6 +71,8 @@ assert_file_contains "${rollout_hop_workflow}" 'environment: ${{ needs.prepare.o
 assert_file_contains "${rollout_hop_workflow}" 'gh api repos/${{ github.repository }}/actions/workflows/rollout-hop.yml/dispatches'
 assert_file_contains "${rollout_hop_workflow}" "name: Audit Cloudflare mTLS"
 assert_file_contains "${rollout_hop_workflow}" "./scripts/check-cloudflare-mtls.sh --env-file .github/mTLS-audit.env --stack"
+assert_file_contains "${rollout_hop_workflow}" "name: Validate Pulumi stack config"
+assert_file_contains "${rollout_hop_workflow}" "./scripts/check-pulumi-stack-config.sh --stack \${{ needs.prepare.outputs.target_stack }}"
 assert_file_contains "${rollout_hop_workflow}" 'CLOUDFLARE_ZONE_ID: ${{ vars.CLOUDFLARE_ZONE_ID }}'
 assert_file_contains "${rollout_hop_workflow}" "MTLS_TRUSTSTORE_KEY: mtls/cloudflare-origin-pull-ca.pem"
 assert_file_contains "${rollout_hop_workflow}" "reconcile_managed_dsql_endpoint: true"
