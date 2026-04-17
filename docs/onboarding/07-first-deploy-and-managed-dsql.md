@@ -122,9 +122,9 @@ In this repository version, customers should not manually provide external `dsql
 
 Treat managed DSQL details as deployment-owned state produced by the infrastructure and release workflow of the repository version you are using.
 
-In the current repository version, follow the explicit post-deploy reconciliation step when managed DSQL infrastructure exists, and do not invent your own endpoint values.
+In the current repository version, official deploy workflows reconcile managed DSQL endpoint state automatically and then run a second apply so deployed Lambda environment variables receive the resolved endpoint.
 
-If the first real infrastructure deployment created a `dsqlClusterIdentifier` but the stack still does not have `dsqlEndpoint`, run:
+If you need to repair an existing stack outside the official workflow, or if a previous deployment stopped before the managed DSQL reconcile/apply sequence completed, run:
 
 ```bash
 ./scripts/reconcile-managed-dsql-endpoint.sh --env-file .env --stack <stack> --infra-dir infra
@@ -136,7 +136,7 @@ That script:
 - asks AWS for the authoritative managed DSQL endpoint
 - writes the resolved value back into Pulumi config as `dsqlEndpoint`
 
-After reconciliation, run the next preview or deploy cycle so runtime configuration picks up that endpoint.
+After manual reconciliation, run preview or deploy once so runtime configuration picks up that endpoint.
 
 For managed deployments, the default connection values are:
 

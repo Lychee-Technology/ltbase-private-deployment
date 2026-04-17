@@ -71,6 +71,7 @@ assert_file_contains "${rollout_hop_workflow}" "name: Audit Cloudflare mTLS"
 assert_file_contains "${rollout_hop_workflow}" "./scripts/check-cloudflare-mtls.sh --env-file .github/mTLS-audit.env --stack"
 assert_file_contains "${rollout_hop_workflow}" 'CLOUDFLARE_ZONE_ID: ${{ vars.CLOUDFLARE_ZONE_ID }}'
 assert_file_contains "${rollout_hop_workflow}" "MTLS_TRUSTSTORE_KEY: mtls/cloudflare-origin-pull-ca.pem"
+assert_file_contains "${rollout_hop_workflow}" "reconcile_managed_dsql_endpoint: true"
 assert_file_not_contains "${rollout_hop_workflow}" "pulumi_stack: devo"
 assert_file_not_contains "${rollout_hop_workflow}" "pulumi_stack: prod"
 
