@@ -162,6 +162,7 @@ if [[ -x "${SCRIPT_PATH}" ]]; then
   assert_log_contains "${log_file}" "pulumi config set projectId 33333333-3333-4333-8333-333333333333 --stack prod"
   assert_log_contains "${log_file}" "pulumi config set authProviderConfigFile infra/auth-providers.prod.json --stack prod"
   assert_log_contains "${log_file}" "pulumi config set oidcIssuerUrl https://issuer.example.com/prod --stack prod"
+  assert_log_contains "${log_file}" "pulumi config set deploymentAwsAccountId 123456789012 --stack prod"
   assert_log_contains "${log_file}" "pulumi config set githubOidcProviderArn arn:aws:iam::123456789012:oidc-provider/token.actions.githubusercontent.com --stack prod"
   assert_log_contains "${log_file}" "pulumi config set tableName ltbase-private-deployment-prod --stack prod"
   assert_log_contains "${log_file}" "pulumi config set mtlsTruststoreFile infra/certs/cloudflare-origin-pull-ca.pem --stack prod"

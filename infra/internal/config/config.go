@@ -15,6 +15,7 @@ type StackConfig struct {
 	Project                  string
 	Stack                    string
 	AWSRegion                string
+	DeploymentAWSAccountID   string
 	ReleaseAssetDir          string
 	RuntimeBucket            string
 	TableName                string
@@ -24,6 +25,7 @@ type StackConfig struct {
 	ControlPlaneDomain       string
 	AuthDomain               string
 	ProjectID                string
+	DeploymentProjectName    string
 	AuthProviderConfigFile   string
 	CloudflareZoneID         string
 	CloudflareZoneName       string
@@ -53,6 +55,7 @@ func Load(ctx *pulumi.Context) (StackConfig, error) {
 		Project:                  ctx.Project(),
 		Stack:                    stack,
 		AWSRegion:                valueOrDefault(cfg.Get("awsRegion"), "ap-northeast-1"),
+		DeploymentAWSAccountID:   cfg.Require("deploymentAwsAccountId"),
 		ReleaseAssetDir:          valueOrDefault(cfg.Get("releaseAssetDir"), defaultReleaseAssetDir),
 		RuntimeBucket:            cfg.Require("runtimeBucket"),
 		TableName:                cfg.Require("tableName"),
@@ -62,6 +65,7 @@ func Load(ctx *pulumi.Context) (StackConfig, error) {
 		ControlPlaneDomain:       cfg.Require("controlPlaneDomain"),
 		AuthDomain:               cfg.Require("authDomain"),
 		ProjectID:                cfg.Require("projectId"),
+		DeploymentProjectName:    valueOrDefault(cfg.Get("deploymentProjectName"), humanizeProjectName(ctx.Project())),
 		AuthProviderConfigFile:   cfg.Require("authProviderConfigFile"),
 		CloudflareZoneID:         cfg.Require("cloudflareZoneId"),
 		CloudflareZoneName:       strings.TrimSpace(cfg.Get("cloudflareZoneName")),
@@ -115,4 +119,26 @@ func splitCSV(raw string) []string {
 		}
 	}
 	return out
+}
+
+func humanizeProjectName(project string) string {
+	trimmed := strings.TrimSpace(project)
+	if trimmed == "" {
+		return "LTBase Private Deployment"
+	}
+	replacer := strings.NewReplacer("-", " ", "_", " ")
+	parts := strings.Fields(replacer.Replace(trimmed))
+	for i, part := range parts {
+		lower := strings.ToLower(part)
+		switch lower {
+		case "ltbase":
+			parts[i] = "LTBase"
+		default:
+			parts[i] = strings.ToUpper(lower[:1]) + lower[1:]
+		}
+	}
+	if len(parts) == 0 {
+		return "LTBase Private Deployment"
+	}
+	return strings.Join(parts, " ")
 }

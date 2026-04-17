@@ -37,6 +37,10 @@ assert_contains "${ROOT_DIR}/infra/cmd/ltbase-infra/main.go" "ctx.Export(\"proje
 assert_contains "${ROOT_DIR}/infra/cmd/ltbase-infra/main.go" "ctx.Export(\"apiId\""
 assert_contains "${ROOT_DIR}/infra/cmd/ltbase-infra/main.go" "ctx.Export(\"apiBaseUrl\""
 assert_contains "${ROOT_DIR}/infra/internal/services/lambda.go" "\"DSQL_ENDPOINT\""
+assert_contains "${ROOT_DIR}/infra/internal/services/lambda.go" "\"PROJECT_ID\""
+assert_contains "${ROOT_DIR}/infra/internal/services/lambda.go" "\"PROJECT_NAME\""
+assert_contains "${ROOT_DIR}/infra/internal/services/lambda.go" "\"ACCOUNT_ID\""
+assert_contains "${ROOT_DIR}/infra/internal/services/lambda.go" "\"API_BASE_URL\""
 assert_not_contains "${ROOT_DIR}/infra/internal/services/lambda.go" "VpcEndpointServiceName"
 assert_contains "${ROOT_DIR}/infra/internal/services/apigateway.go" "func APIBaseURL"
 
