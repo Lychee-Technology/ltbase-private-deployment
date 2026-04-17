@@ -132,6 +132,7 @@ bootstrap_env_run_quiet "${stack_env[@]}" pulumi config set authProviderConfigFi
 bootstrap_env_run_quiet "${stack_env[@]}" pulumi config set cloudflareZoneId "${CLOUDFLARE_ZONE_ID}" --stack "${STACK}"
 bootstrap_env_run_quiet "${stack_env[@]}" pulumi config set oidcIssuerUrl "${selected_oidc_issuer_url}" --stack "${STACK}"
 bootstrap_env_run_quiet "${stack_env[@]}" pulumi config set jwksUrl "${selected_jwks_url}" --stack "${STACK}"
+bootstrap_env_run_quiet "${stack_env[@]}" pulumi config set deploymentAwsAccountId "${selected_account_id}" --stack "${STACK}"
 bootstrap_env_run_quiet "${stack_env[@]}" pulumi config set githubOidcProviderArn "${selected_github_oidc_provider_arn}" --stack "${STACK}"
 bootstrap_env_run_quiet "${stack_env[@]}" pulumi config set githubOrg "${GITHUB_ORG}" --stack "${STACK}"
 bootstrap_env_run_quiet "${stack_env[@]}" pulumi config set githubRepo "${GITHUB_REPO}" --stack "${STACK}"

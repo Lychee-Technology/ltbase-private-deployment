@@ -131,7 +131,7 @@ func NewLambdaServices(ctx *pulumi.Context, cfg config.StackConfig, runtime *Run
 		Memory:       512,
 		Timeout:      30,
 		AliasName:    naming.AliasName(cfg.Stack),
-		Env:          commonEnv,
+		Env:          controlPlaneLambdaEnv(cfg, runtime.Table.Name, runtime.RuntimeBucket.Bucket),
 		AllowKMS:     false,
 	}, runtime)
 	if err != nil {
@@ -176,6 +176,15 @@ func authLambdaEnv(cfg config.StackConfig, providerNames []string, authKeyID pul
 		"AUTH_JWKS_FILE_PATH":       pulumi.String("/var/task/jwt/jwks.json"),
 		"AUTH_DEFAULT_API_BASE_URL": pulumi.String("https://" + cfg.APIDomain),
 		"AUTH_PROVIDERS":            pulumi.String(strings.Join(providerNames, ",")),
+	})
+}
+
+func controlPlaneLambdaEnv(cfg config.StackConfig, tableName pulumi.StringInput, bucketName pulumi.StringInput) pulumi.StringMap {
+	return mergeEnv(commonLambdaEnv(cfg, tableName, bucketName), pulumi.StringMap{
+		"PROJECT_ID":   pulumi.String(cfg.ProjectID),
+		"PROJECT_NAME": pulumi.String(cfg.DeploymentProjectName),
+		"ACCOUNT_ID":   pulumi.String(cfg.DeploymentAWSAccountID),
+		"API_BASE_URL": pulumi.String(APIBaseURL(cfg)),
 	})
 }
 

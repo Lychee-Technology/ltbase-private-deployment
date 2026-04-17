@@ -69,6 +69,27 @@ func TestAuthLambdaEnvIncludesProviderNames(t *testing.T) {
 	}
 }
 
+func TestControlPlaneLambdaEnvIncludesBootstrapProjectConfig(t *testing.T) {
+	env := controlPlaneLambdaEnv(config.StackConfig{
+		Stack:                  "devo",
+		Project:                "customer-ltbase",
+		APIDomain:              "api.devo.example.com",
+		ProjectID:              "33333333-3333-4333-8333-333333333333",
+		DeploymentProjectName:  "Customer Ltbase",
+		DeploymentAWSAccountID: "123456789012",
+		DSQLPort:               "5432",
+		DSQLDB:                 "postgres",
+		DSQLUser:               "admin",
+		DSQLProjectSchema:      "ltbase",
+	}, pulumi.String("table-name"), pulumi.String("bucket-name"))
+
+	for _, key := range []string{"PROJECT_ID", "PROJECT_NAME", "ACCOUNT_ID", "API_BASE_URL"} {
+		if _, ok := env[key]; !ok {
+			t.Fatalf("controlPlaneLambdaEnv() missing %s", key)
+		}
+	}
+}
+
 func TestRuntimeResourcesCanCarryBucketVersioningHandle(t *testing.T) {
 	runtime := RuntimeResources{}
 	if runtime.RuntimeBucketVersioning != nil {
