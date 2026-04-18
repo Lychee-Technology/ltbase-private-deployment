@@ -17,6 +17,7 @@ Use this guide to run the first preview and rollout workflows after bootstrap, a
 
 - confirm `PROMOTION_PATH` is the deployment order you actually want
 - confirm `LTBASE_RELEASE_ID` is final, or decide that you will override it in the workflow input
+- confirm your customer-owned Forma schemas in `customer-owned/schemas/*.json` are the exact bundle you want to publish
 - remember that manual preview only supports the first stack in `PROMOTION_PATH`
 - be ready to validate each deployed environment before approving the next one
 
@@ -36,6 +37,8 @@ Important:
 ### 2. Review the preview output
 
 Confirm that the Pulumi preview matches your expected infrastructure changes.
+
+The preview workflow also runs schema validation in dry-run mode against `customer-owned/schemas/*.json`. It does not upload anything to the stack schema bucket during preview.
 
 At minimum, confirm:
 
@@ -60,6 +63,20 @@ Additional guidance:
 
 Confirm the first deployed environment works before approving the next protected target stack.
 
+During rollout, the workflow publishes the validated schema bundle into the stack schema bucket with this layout:
+
+- `schemas/releases/<version>/manifest.json`
+- `schemas/releases/<version>/*.json`
+- `schemas/published/manifest.json`
+
+The published manifest points at immutable release objects under `schemas/releases/<version>/...`.
+
+The runtime-consumed pointer is separate:
+
+- `schemas/applied/manifest.json`
+
+After publication, the workflow directly invokes the control-plane Lambda with `{"action":"ensure-project"}`. Deployment stops if that explicit apply step fails.
+
 At minimum, check:
 
 - the workflow run completed successfully
@@ -67,8 +84,19 @@ At minimum, check:
 - your minimum health check, login path, or internal smoke test passes
 - the environment is running the same release ID used for the current rollout
 - the rollout workflow has already reconciled the authservice `project info` item in DynamoDB by using the deployed stack outputs and current AWS account id
+- the schema bucket shows the new release bundle under `schemas/releases/<version>/`
+- `schemas/published/manifest.json` points at the version that rollout just published
+- `schemas/applied/manifest.json` only advances after `ensure-project` succeeds
 
-### 5. Approve protected target environments
+### 5. Understand the publish/apply boundary
+
+Schema publication and schema application are intentionally separate.
+
+- if schema publication fails, `schemas/published/manifest.json` is not updated and `ensure-project` is not called
+- if schema publication succeeds but `ensure-project` fails, the new bundle remains visible in S3, but deployment stops and the previously applied schema version remains authoritative
+- only a successful explicit `ensure-project` call advances `schemas/applied/manifest.json` and the deployed project to the published schema version
+
+### 6. Approve protected target environments
 
 When GitHub requests approval for a protected target stack, approve it from the matching GitHub environment gate in your repository.
 
@@ -78,7 +106,7 @@ Recommended approval rhythm:
 - keep the same release ID across the entire promotion path
 - if one hop has a problem, stop approvals and investigate before continuing
 
-### 6. Optional manual single-hop promotion
+### 7. Optional manual single-hop promotion
 
 If you need to recover or replay only one hop, use `Promote LTBase Between Stacks` and provide `from_stack`, `to_stack`, and the same release tag. Invalid jumps fail fast.
 

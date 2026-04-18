@@ -38,6 +38,7 @@ fi
 required_keys=(
   "ltbase-infra:deploymentAwsAccountId"
   "ltbase-infra:runtimeBucket"
+  "ltbase-infra:schemaBucket"
   "ltbase-infra:tableName"
   "ltbase-infra:mtlsTruststoreFile"
   "ltbase-infra:mtlsTruststoreKey"

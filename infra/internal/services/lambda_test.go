@@ -43,10 +43,33 @@ func TestCommonLambdaEnvOmitsReservedAWSRegion(t *testing.T) {
 	if _, ok := env["AWS_REGION"]; ok {
 		t.Fatal("commonLambdaEnv() unexpectedly sets reserved AWS_REGION")
 	}
+	if _, ok := env["FORMA_SCHEMA_DIR"]; ok {
+		t.Fatal("commonLambdaEnv() unexpectedly sets packaged FORMA_SCHEMA_DIR")
+	}
+	if _, ok := env["FORMA_SCHEMA_SOURCE"]; ok {
+		t.Fatal("commonLambdaEnv() unexpectedly sets schema source contract")
+	}
 
-	for _, key := range []string{"DSQL_PORT", "DSQL_DB", "DSQL_USER", "DSQL_PROJECT_SCHEMA", "FORMA_SCHEMA_DIR"} {
+	for _, key := range []string{"DSQL_PORT", "DSQL_DB", "DSQL_USER", "DSQL_PROJECT_SCHEMA"} {
 		if _, ok := env[key]; !ok {
 			t.Fatalf("commonLambdaEnv() missing %s", key)
+		}
+	}
+}
+
+func TestDataPlaneLambdaEnvIncludesSchemaSourceContract(t *testing.T) {
+	env := dataPlaneLambdaEnv(config.StackConfig{
+		APIDomain:         "api.devo.example.com",
+		GeminiModel:       "gemini-3-flash-preview",
+		DSQLPort:          "5432",
+		DSQLDB:            "postgres",
+		DSQLUser:          "admin",
+		DSQLProjectSchema: "ltbase",
+	}, pulumi.String("table-name"), pulumi.String("runtime-bucket"), pulumi.String("schema-bucket"), pulumi.String("gemini-key"))
+
+	for _, key := range []string{"FORMA_SCHEMA_SOURCE", "FORMA_SCHEMA_BUCKET", "FORMA_SCHEMA_PREFIX", "FORMA_SCHEMA_PUBLISHED_PREFIX", "FORMA_SCHEMA_CACHE_DIR"} {
+		if _, ok := env[key]; !ok {
+			t.Fatalf("dataPlaneLambdaEnv() missing %s", key)
 		}
 	}
 }
@@ -81,9 +104,9 @@ func TestControlPlaneLambdaEnvIncludesBootstrapProjectConfig(t *testing.T) {
 		DSQLDB:                 "postgres",
 		DSQLUser:               "admin",
 		DSQLProjectSchema:      "ltbase",
-	}, pulumi.String("table-name"), pulumi.String("bucket-name"))
+	}, pulumi.String("table-name"), pulumi.String("bucket-name"), pulumi.String("schema-bucket"))
 
-	for _, key := range []string{"PROJECT_ID", "PROJECT_NAME", "ACCOUNT_ID", "API_BASE_URL"} {
+	for _, key := range []string{"PROJECT_ID", "PROJECT_NAME", "ACCOUNT_ID", "API_BASE_URL", "FORMA_SCHEMA_SOURCE", "FORMA_SCHEMA_BUCKET", "FORMA_SCHEMA_PREFIX", "FORMA_SCHEMA_PUBLISHED_PREFIX", "FORMA_SCHEMA_CACHE_DIR"} {
 		if _, ok := env[key]; !ok {
 			t.Fatalf("controlPlaneLambdaEnv() missing %s", key)
 		}

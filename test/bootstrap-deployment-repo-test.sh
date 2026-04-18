@@ -149,6 +149,9 @@ if [[ -x "${SCRIPT_PATH}" ]]; then
   assert_log_contains "${log_file}" "gh variable set AWS_REGION_DEVO --repo Lychee-Technology/ltbase-private-deployment --body ap-northeast-1"
   assert_log_contains "${log_file}" "gh variable set AWS_REGION_STAGING --repo Lychee-Technology/ltbase-private-deployment --body us-east-1"
   assert_log_contains "${log_file}" "gh variable set AWS_REGION_PROD --repo Lychee-Technology/ltbase-private-deployment --body us-west-2"
+  assert_log_contains "${log_file}" "gh variable set SCHEMA_BUCKET_DEVO --repo Lychee-Technology/ltbase-private-deployment --body ltbase-private-deployment-schema-devo"
+  assert_log_contains "${log_file}" "gh variable set SCHEMA_BUCKET_STAGING --repo Lychee-Technology/ltbase-private-deployment --body ltbase-private-deployment-schema-staging"
+  assert_log_contains "${log_file}" "gh variable set SCHEMA_BUCKET_PROD --repo Lychee-Technology/ltbase-private-deployment --body ltbase-private-deployment-schema-prod"
   assert_log_contains "${log_file}" "gh variable set STACKS --repo Lychee-Technology/ltbase-private-deployment --body devo,staging,prod"
   assert_log_contains "${log_file}" "gh variable set PROMOTION_PATH --repo Lychee-Technology/ltbase-private-deployment --body devo,staging,prod"
   assert_log_contains "${log_file}" "gh variable set PREVIEW_DEFAULT_STACK --repo Lychee-Technology/ltbase-private-deployment --body devo"
@@ -158,6 +161,7 @@ if [[ -x "${SCRIPT_PATH}" ]]; then
   assert_log_contains "${log_file}" "AWS_REGION=ap-northeast-1 AWS_DEFAULT_REGION=ap-northeast-1 AWS_PROFILE=devo-profile pulumi login s3://test-pulumi-state"
   assert_log_contains "${log_file}" "PWD=${temp_dir}/infra AWS_REGION=us-west-2 AWS_DEFAULT_REGION=us-west-2 AWS_PROFILE=prod-profile pulumi stack init prod --secrets-provider awskms://alias/test-pulumi-secrets?region=us-west-2"
   assert_log_contains "${log_file}" "pulumi config set runtimeBucket ltbase-private-deployment-runtime-prod --stack prod"
+  assert_log_contains "${log_file}" "pulumi config set schemaBucket ltbase-private-deployment-schema-prod --stack prod"
   assert_log_contains "${log_file}" "pulumi config set apiDomain api.example.com --stack prod"
   assert_log_contains "${log_file}" "pulumi config set projectId 33333333-3333-4333-8333-333333333333 --stack prod"
   assert_log_contains "${log_file}" "pulumi config set authProviderConfigFile infra/auth-providers.prod.json --stack prod"
@@ -185,14 +189,14 @@ if [[ -x "${SCRIPT_PATH}" ]]; then
   assert_log_contains <(printf '%s' "${output}") "NOISY GH STDOUT variable set AWS_REGION_DEVO --repo Lychee-Technology/ltbase-private-deployment --body ap-northeast-1"
   assert_log_contains <(printf '%s' "${output}") "NOISY GH STDERR variable set AWS_REGION_DEVO --repo Lychee-Technology/ltbase-private-deployment --body ap-northeast-1"
 
-  if output="$(PULUMI_FAIL_COMMAND="config set runtimeBucket ltbase-private-deployment-runtime-prod --stack prod" PATH="${fake_bin}:$PATH" "${SCRIPT_PATH}" --env-file "${temp_dir}/.env" --stack prod --infra-dir "${temp_dir}/infra" 2>&1)"; then
+  if output="$(PULUMI_FAIL_COMMAND="config set schemaBucket ltbase-private-deployment-schema-prod --stack prod" PATH="${fake_bin}:$PATH" "${SCRIPT_PATH}" --env-file "${temp_dir}/.env" --stack prod --infra-dir "${temp_dir}/infra" 2>&1)"; then
     rm -rf "${temp_dir}"
     fail "expected script to fail when pulumi fails"
   fi
 
   assert_log_contains <(printf '%s' "${output}") "[info] configuring Pulumi stack prod"
-  assert_log_contains <(printf '%s' "${output}") "NOISY PULUMI STDOUT config set runtimeBucket ltbase-private-deployment-runtime-prod --stack prod"
-  assert_log_contains <(printf '%s' "${output}") "NOISY PULUMI STDERR config set runtimeBucket ltbase-private-deployment-runtime-prod --stack prod"
+  assert_log_contains <(printf '%s' "${output}") "NOISY PULUMI STDOUT config set schemaBucket ltbase-private-deployment-schema-prod --stack prod"
+  assert_log_contains <(printf '%s' "${output}") "NOISY PULUMI STDERR config set schemaBucket ltbase-private-deployment-schema-prod --stack prod"
 
   : >"${log_file}"
   if ! output="$(PULUMI_STACK_SELECT_MODE=existing PATH="${fake_bin}:$PATH" "${SCRIPT_PATH}" --env-file "${temp_dir}/.env" --stack prod --infra-dir "${temp_dir}/infra" 2>&1)"; then

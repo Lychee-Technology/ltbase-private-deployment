@@ -130,7 +130,8 @@ Example order:
 After each stack, confirm:
 
 - the matching `infra/Pulumi.<stack>.yaml` file exists, or the stack can be selected successfully while working from `infra/`
-- GitHub repository values for that stack were written: `AWS_REGION_<STACK>`, `PULUMI_SECRETS_PROVIDER_<STACK>`, and `AWS_ROLE_ARN_<STACK>`
+- GitHub repository values for that stack were written: `AWS_REGION_<STACK>`, `PULUMI_SECRETS_PROVIDER_<STACK>`, and `SCHEMA_BUCKET_<STACK>`
+- GitHub repository secret `AWS_ROLE_ARN_<STACK>` was written for that stack
 - shared repository configuration such as `PULUMI_BACKEND_URL`, `LTBASE_RELEASE_ID`, `LTBASE_RELEASES_TOKEN`, and `CLOUDFLARE_API_TOKEN` is present
 
 ### 6. Bootstrap OIDC discovery companion

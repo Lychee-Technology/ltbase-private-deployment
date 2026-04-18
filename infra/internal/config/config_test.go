@@ -82,3 +82,30 @@ func TestValidateAllowsProjectIDAndAuthProviderConfigFile(t *testing.T) {
 		t.Fatal("MTLSTruststoreKey should be preserved")
 	}
 }
+
+func TestDefaultSchemaBucketUsesCanonicalRepoBasedName(t *testing.T) {
+	devo := defaultSchemaBucket("customer-ltbase", "devo")
+	prod := defaultSchemaBucket("customer-ltbase", "prod")
+
+	if devo != "customer-ltbase-schema-devo" {
+		t.Fatalf("defaultSchemaBucket() devo = %q", devo)
+	}
+	if prod != "customer-ltbase-schema-prod" {
+		t.Fatalf("defaultSchemaBucket() prod = %q", prod)
+	}
+	if devo == prod {
+		t.Fatal("defaultSchemaBucket() should vary per stack")
+	}
+}
+
+func TestValidateRejectsSchemaBucketMatchingRuntimeBucket(t *testing.T) {
+	cfg := StackConfig{
+		ManageGitHubOIDCProvider: true,
+		RuntimeBucket:            "customer-ltbase-runtime-devo",
+		SchemaBucket:             "customer-ltbase-runtime-devo",
+	}
+
+	if err := cfg.Validate(); err == nil {
+		t.Fatal("Validate() expected error when schemaBucket matches runtimeBucket")
+	}
+}

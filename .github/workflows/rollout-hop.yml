@@ -200,11 +200,136 @@ jobs:
       ltbase_releases_token: ${{ secrets.LTBASE_RELEASES_TOKEN }}
       cloudflare_api_token: ${{ secrets.CLOUDFLARE_API_TOKEN }}
 
-  audit_mtls:
+  publish_schemas:
     needs:
       - prepare
       - rollout
     if: ${{ needs.rollout.result == 'success' }}
+    runs-on: ubuntu-24.04-arm
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets[format('AWS_ROLE_ARN_{0}', needs.prepare.outputs.target_stack_upper)] }}
+          aws-region: ${{ vars[format('AWS_REGION_{0}', needs.prepare.outputs.target_stack_upper)] }}
+
+      - name: Publish customer schemas
+        env:
+          SCHEMA_BUCKET: ${{ vars[format('SCHEMA_BUCKET_{0}', needs.prepare.outputs.target_stack_upper)] }}
+        run: ./scripts/publish-schemas.sh --schema-bucket ${{ vars[format('SCHEMA_BUCKET_{0}', needs.prepare.outputs.target_stack_upper)] }}
+
+  ensure_project:
+    needs:
+      - prepare
+      - rollout
+      - publish_schemas
+    if: ${{ needs.rollout.result == 'success' && needs.publish_schemas.result == 'success' }}
+    runs-on: ubuntu-24.04-arm
+    steps:
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets[format('AWS_ROLE_ARN_{0}', needs.prepare.outputs.target_stack_upper)] }}
+          aws-region: ${{ vars[format('AWS_REGION_{0}', needs.prepare.outputs.target_stack_upper)] }}
+
+      - name: Validate schema bucket contract
+        env:
+          DEPLOYMENT_OUTPUTS_JSON: ${{ needs.rollout.outputs.deployment_outputs_json }}
+          SCHEMA_BUCKET: ${{ vars[format('SCHEMA_BUCKET_{0}', needs.prepare.outputs.target_stack_upper)] }}
+        run: |
+          python3 - <<'PY'
+          import json
+          import os
+
+          outputs = json.loads(os.environ['DEPLOYMENT_OUTPUTS_JSON'])
+          output_bucket = outputs.get('schemaBucket')
+          expected_bucket = os.environ['SCHEMA_BUCKET']
+          if not output_bucket:
+              raise SystemExit('deployment outputs missing schemaBucket')
+          if output_bucket != expected_bucket:
+              raise SystemExit(f'deployment outputs schemaBucket does not match workflow SCHEMA_BUCKET: {output_bucket} != {expected_bucket}')
+          PY
+
+      - name: Ensure project
+        env:
+          DEPLOYMENT_OUTPUTS_JSON: ${{ needs.rollout.outputs.deployment_outputs_json }}
+        run: |
+          python3 - <<'PY' > "${RUNNER_TEMP}/control-plane-target.json"
+          import json
+          import os
+
+          outputs = json.loads(os.environ['DEPLOYMENT_OUTPUTS_JSON'])
+          target = {
+              'function_name': outputs.get('controlPlaneFunctionName'),
+              'qualifier': outputs.get('controlPlaneAliasName'),
+          }
+          missing = [key for key, value in target.items() if not value]
+          if missing:
+              raise SystemExit(f"deployment outputs missing {', '.join(missing)}")
+          print(json.dumps(target))
+          PY
+
+          function_name="$(python3 - <<'PY' "${RUNNER_TEMP}/control-plane-target.json"
+          import json
+          import sys
+
+          with open(sys.argv[1], 'r', encoding='utf-8') as handle:
+              target = json.load(handle)
+
+          print(target['function_name'])
+          PY
+          )"
+          qualifier="$(python3 - <<'PY' "${RUNNER_TEMP}/control-plane-target.json"
+          import json
+          import sys
+
+          with open(sys.argv[1], 'r', encoding='utf-8') as handle:
+              target = json.load(handle)
+
+          print(target['qualifier'])
+          PY
+          )"
+
+          aws lambda invoke \
+            --function-name "${function_name}" \
+            --qualifier "${qualifier}" \
+            --cli-binary-format raw-in-base64-out \
+            --payload '{"action":"ensure-project"}' \
+            "${RUNNER_TEMP}/ensure-project-response.json" \
+            > "${RUNNER_TEMP}/ensure-project-invoke.json"
+
+          python3 - <<'PY' "${RUNNER_TEMP}/ensure-project-invoke.json" "${RUNNER_TEMP}/ensure-project-response.json"
+          import json
+          import sys
+
+          with open(sys.argv[1], 'r', encoding='utf-8') as handle:
+              invoke = json.load(handle)
+          with open(sys.argv[2], 'r', encoding='utf-8') as handle:
+              response = json.load(handle)
+
+          if invoke.get('FunctionError'):
+              raise SystemExit(f"ensure-project invocation failed: {invoke['FunctionError']}: {response}")
+          if response.get('status') != 'success':
+              raise SystemExit(f"ensure-project returned {response.get('status')}: {response.get('error', response)}")
+
+          print(json.dumps(response))
+          PY
+
+      - name: Advance applied schema pointer
+        env:
+          SCHEMA_BUCKET: ${{ vars[format('SCHEMA_BUCKET_{0}', needs.prepare.outputs.target_stack_upper)] }}
+        run: |
+          aws s3 cp \
+            "s3://${SCHEMA_BUCKET}/schemas/published/manifest.json" \
+            "s3://${SCHEMA_BUCKET}/schemas/applied/manifest.json"
+
+  audit_mtls:
+    needs:
+      - prepare
+      - ensure_project
+    if: ${{ needs.ensure_project.result == 'success' }}
     runs-on: ubuntu-24.04-arm
     steps:
       - uses: actions/checkout@v4
@@ -250,9 +375,8 @@ jobs:
   dispatch_next:
     needs:
       - prepare
-      - rollout
       - audit_mtls
-    if: ${{ needs.rollout.result == 'success' && needs.prepare.outputs.continue_chain == 'true' && needs.prepare.outputs.next_stack != '' }}
+    if: ${{ needs.ensure_project.result == 'success' && needs.prepare.outputs.continue_chain == 'true' && needs.prepare.outputs.next_stack != '' }}
     runs-on: ubuntu-24.04-arm
     steps:
       - name: Continue rollout chain

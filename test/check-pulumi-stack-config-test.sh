@@ -26,6 +26,7 @@ cat >"${temp_dir}/infra/Pulumi.devo.yaml" <<'EOF'
 config:
   ltbase-infra:deploymentAwsAccountId: "123456789012"
   ltbase-infra:runtimeBucket: example-runtime
+  ltbase-infra:schemaBucket: example-schema
   ltbase-infra:tableName: example-table
   ltbase-infra:mtlsTruststoreFile: infra/certs/cloudflare-origin-pull-ca.pem
   ltbase-infra:mtlsTruststoreKey: mtls/cloudflare-origin-pull-ca.pem
@@ -48,6 +49,31 @@ EOF
 if ! output="$(${SCRIPT_PATH} --stack devo --infra-dir "${temp_dir}/infra" 2>&1)"; then
   fail "expected success for complete config, got: ${output}"
 fi
+
+python3 - <<'PY' "${temp_dir}/infra/Pulumi.devo.yaml"
+from pathlib import Path
+import sys
+
+path = Path(sys.argv[1])
+path.write_text(path.read_text().replace('  ltbase-infra:schemaBucket: example-schema\n', ''))
+PY
+
+if output="$(${SCRIPT_PATH} --stack devo --infra-dir "${temp_dir}/infra" 2>&1)"; then
+  fail "expected failure when schemaBucket is missing"
+fi
+
+assert_contains "${output}" "Missing required Pulumi config key 'ltbase-infra:schemaBucket'"
+assert_contains "${output}" "infra/Pulumi.devo.yaml"
+
+python3 - <<'PY' "${temp_dir}/infra/Pulumi.devo.yaml"
+from pathlib import Path
+import sys
+
+path = Path(sys.argv[1])
+text = path.read_text()
+marker = '  ltbase-infra:runtimeBucket: example-runtime\n'
+path.write_text(text.replace(marker, marker + '  ltbase-infra:schemaBucket: example-schema\n'))
+PY
 
 python3 - <<'PY' "${temp_dir}/infra/Pulumi.devo.yaml"
 from pathlib import Path

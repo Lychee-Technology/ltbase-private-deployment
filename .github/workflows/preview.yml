@@ -57,6 +57,10 @@ jobs:
       - name: Validate Pulumi stack config
         run: ./scripts/check-pulumi-stack-config.sh --stack ${{ needs.prepare.outputs.target_stack }}
 
+      - name: Validate customer schemas
+        env:
+          SCHEMA_BUCKET: ${{ vars[format('SCHEMA_BUCKET_{0}', needs.prepare.outputs.target_stack_upper)] }}
+        run: ./scripts/publish-schemas.sh --dry-run --schema-bucket ${{ vars[format('SCHEMA_BUCKET_{0}', needs.prepare.outputs.target_stack_upper)] }}
   preview:
     needs:
       - prepare

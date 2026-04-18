@@ -21,6 +21,8 @@ import (
 type RuntimeResources struct {
 	RuntimeBucket           *s3.BucketV2
 	RuntimeBucketVersioning *s3.BucketVersioningV2
+	SchemaBucket            *s3.BucketV2
+	SchemaBucketVersioning  *s3.BucketVersioningV2
 	Table                   *dynamodb.Table
 	DSQL                    *DSQLResources
 	AuthKey                 *kms.Key
@@ -60,6 +62,10 @@ func NewRuntimeResources(ctx *pulumi.Context, cfg config.StackConfig, providers 
 	if err != nil {
 		return nil, err
 	}
+	schemaBucket, schemaBucketVersioning, err := newSchemaBucket(ctx, cfg, providers)
+	if err != nil {
+		return nil, err
+	}
 	table, err := dynamodb.NewTable(ctx, naming.ResourceName(cfg.Project, cfg.Stack, "table"), &dynamodb.TableArgs{
 		Name:                pulumi.String(cfg.TableName),
 		BillingMode:         pulumi.String("PAY_PER_REQUEST"),
@@ -91,6 +97,8 @@ func NewRuntimeResources(ctx *pulumi.Context, cfg config.StackConfig, providers 
 	return &RuntimeResources{
 		RuntimeBucket:           runtimeBucket,
 		RuntimeBucketVersioning: bucketVersioning,
+		SchemaBucket:            schemaBucket,
+		SchemaBucketVersioning:  schemaBucketVersioning,
 		Table:                   table,
 		DSQL:                    dsqlResources,
 		AuthKey:                 authKey,
@@ -110,29 +118,27 @@ func NewLambdaServices(ctx *pulumi.Context, cfg config.StackConfig, runtime *Run
 	}
 	providerNames := authProviderNames(providerCfg)
 	dataPlane, err := newLambdaService(ctx, cfg, providers, lambdaSpec{
-		Name:         "data-plane",
-		ArtifactPath: release.DataPlaneZip,
-		Memory:       1024,
-		Timeout:      30,
-		AliasName:    naming.AliasName(cfg.Stack),
-		Env: mergeEnv(commonEnv, pulumi.StringMap{
-			"LTBASE_API_BASE_URL": pulumi.String("https://" + cfg.APIDomain),
-			"GEMINI_API_KEY":      cfg.GeminiAPIKey,
-			"GEMINI_MODEL":        pulumi.String(cfg.GeminiModel),
-		}),
-		AllowKMS: false,
+		Name:            "data-plane",
+		ArtifactPath:    release.DataPlaneZip,
+		Memory:          1024,
+		Timeout:         30,
+		AliasName:       naming.AliasName(cfg.Stack),
+		Env:             dataPlaneLambdaEnv(cfg, runtime.Table.Name, runtime.RuntimeBucket.Bucket, runtime.SchemaBucket.Bucket, cfg.GeminiAPIKey),
+		AllowKMS:        false,
+		AllowSchemaRead: true,
 	}, runtime)
 	if err != nil {
 		return nil, err
 	}
 	controlPlane, err := newLambdaService(ctx, cfg, providers, lambdaSpec{
-		Name:         "control-plane",
-		ArtifactPath: release.ControlPlaneZip,
-		Memory:       512,
-		Timeout:      30,
-		AliasName:    naming.AliasName(cfg.Stack),
-		Env:          controlPlaneLambdaEnv(cfg, runtime.Table.Name, runtime.RuntimeBucket.Bucket),
-		AllowKMS:     false,
+		Name:            "control-plane",
+		ArtifactPath:    release.ControlPlaneZip,
+		Memory:          512,
+		Timeout:         30,
+		AliasName:       naming.AliasName(cfg.Stack),
+		Env:             controlPlaneLambdaEnv(cfg, runtime.Table.Name, runtime.RuntimeBucket.Bucket, runtime.SchemaBucket.Bucket),
+		AllowKMS:        false,
+		AllowSchemaRead: true,
 	}, runtime)
 	if err != nil {
 		return nil, err
@@ -179,8 +185,16 @@ func authLambdaEnv(cfg config.StackConfig, providerNames []string, authKeyID pul
 	})
 }
 
-func controlPlaneLambdaEnv(cfg config.StackConfig, tableName pulumi.StringInput, bucketName pulumi.StringInput) pulumi.StringMap {
-	return mergeEnv(commonLambdaEnv(cfg, tableName, bucketName), pulumi.StringMap{
+func dataPlaneLambdaEnv(cfg config.StackConfig, tableName pulumi.StringInput, bucketName pulumi.StringInput, schemaBucket pulumi.StringInput, geminiAPIKey pulumi.StringInput) pulumi.StringMap {
+	return mergeEnv(commonLambdaEnv(cfg, tableName, bucketName), schemaLambdaEnv(schemaBucket, pulumi.String(schemaAppliedPrefix)), pulumi.StringMap{
+		"LTBASE_API_BASE_URL": pulumi.String("https://" + cfg.APIDomain),
+		"GEMINI_API_KEY":      geminiAPIKey,
+		"GEMINI_MODEL":        pulumi.String(cfg.GeminiModel),
+	})
+}
+
+func controlPlaneLambdaEnv(cfg config.StackConfig, tableName pulumi.StringInput, bucketName pulumi.StringInput, schemaBucket pulumi.StringInput) pulumi.StringMap {
+	return mergeEnv(commonLambdaEnv(cfg, tableName, bucketName), schemaLambdaEnv(schemaBucket, pulumi.String(schemaPublishedPrefix)), pulumi.StringMap{
 		"PROJECT_ID":   pulumi.String(cfg.ProjectID),
 		"PROJECT_NAME": pulumi.String(cfg.DeploymentProjectName),
 		"ACCOUNT_ID":   pulumi.String(cfg.DeploymentAWSAccountID),
@@ -189,13 +203,14 @@ func controlPlaneLambdaEnv(cfg config.StackConfig, tableName pulumi.StringInput,
 }
 
 type lambdaSpec struct {
-	Name         string
-	ArtifactPath string
-	Memory       int
-	Timeout      int
-	AliasName    string
-	Env          pulumi.StringMap
-	AllowKMS     bool
+	Name            string
+	ArtifactPath    string
+	Memory          int
+	Timeout         int
+	AliasName       string
+	Env             pulumi.StringMap
+	AllowKMS        bool
+	AllowSchemaRead bool
 }
 
 func newLambdaService(ctx *pulumi.Context, cfg config.StackConfig, providers Providers, spec lambdaSpec, runtime *RuntimeResources) (*LambdaService, error) {
@@ -274,7 +289,7 @@ func newLambdaRole(ctx *pulumi.Context, cfg config.StackConfig, providers Provid
 	if err != nil {
 		return nil, err
 	}
-	policyJSON := lambdaPolicyDocument(runtime, spec.AllowKMS)
+	policyJSON := lambdaPolicyDocument(runtime, spec.AllowKMS, spec.AllowSchemaRead)
 	_, err = iam.NewRolePolicy(ctx, naming.ResourceName(cfg.Project, cfg.Stack, spec.Name+"-inline"), &iam.RolePolicyArgs{
 		Role:   role.ID(),
 		Policy: policyJSON,
@@ -285,7 +300,7 @@ func newLambdaRole(ctx *pulumi.Context, cfg config.StackConfig, providers Provid
 	return role, nil
 }
 
-func lambdaPolicyDocument(runtime *RuntimeResources, allowKMS bool) pulumi.StringOutput {
+func lambdaPolicyDocument(runtime *RuntimeResources, allowKMS bool, allowSchemaRead bool) pulumi.StringOutput {
 	statements := pulumi.Array{
 		pulumi.Map{
 			"Effect": pulumi.String("Allow"),
@@ -334,6 +349,24 @@ func lambdaPolicyDocument(runtime *RuntimeResources, allowKMS bool) pulumi.Strin
 				pulumi.String("*"),
 			},
 		},
+	}
+	if allowSchemaRead {
+		statements = append(statements,
+			pulumi.Map{
+				"Effect": pulumi.String("Allow"),
+				"Action": pulumi.StringArray{pulumi.String("s3:GetObject")},
+				"Resource": pulumi.Array{
+					pulumi.Sprintf("arn:aws:s3:::%s/*", runtime.SchemaBucket.Bucket),
+				},
+			},
+			pulumi.Map{
+				"Effect": pulumi.String("Allow"),
+				"Action": pulumi.StringArray{pulumi.String("s3:ListBucket")},
+				"Resource": pulumi.Array{
+					pulumi.Sprintf("arn:aws:s3:::%s", runtime.SchemaBucket.Bucket),
+				},
+			},
+		)
 	}
 	if allowKMS {
 		statements = append(statements, pulumi.Map{
@@ -407,7 +440,6 @@ func commonLambdaEnv(cfg config.StackConfig, tableName pulumi.StringInput, bucke
 		"DSQL_DB":             pulumi.String(cfg.DSQLDB),
 		"DSQL_USER":           pulumi.String(cfg.DSQLUser),
 		"DSQL_PROJECT_SCHEMA": pulumi.String(cfg.DSQLProjectSchema),
-		"FORMA_SCHEMA_DIR":    pulumi.String("/var/task/schemas"),
 		"S3_BUCKET_NAME":      bucketName,
 	}
 	for key, value := range optionalDSQLEnv(cfg) {
