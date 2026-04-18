@@ -109,4 +109,5 @@ Manual path:
 - the template now assumes `api`, `auth`, and `control-plane` are served through Cloudflare-proxied custom domains
 - set Cloudflare SSL mode to `Full (strict)` before enabling production traffic
 - enable Cloudflare Authenticated Origin Pulls before expecting API Gateway mTLS to succeed
+- make sure `CLOUDFLARE_API_TOKEN` can also read Cloudflare zone settings if you want preview and rollout mTLS audits to verify those checks
 - direct `execute-api` access is expected to fail once the mTLS rollout is applied

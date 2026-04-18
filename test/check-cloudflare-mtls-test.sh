@@ -91,18 +91,28 @@ body='{"success":true,"result":{}}'
 
 case "${url}" in
   *"/zones/zone-123/settings/ssl")
-    ssl_value="strict"
-    if [[ "${SCENARIO}" == "failure" ]]; then
-      ssl_value="full"
+    if [[ "${SCENARIO}" == "forbidden-settings" ]]; then
+      status="403"
+      body='{"success":false,"errors":[{"code":9109,"message":"Unauthorized to access requested resource"}],"messages":[],"result":null}'
+    else
+      ssl_value="strict"
+      if [[ "${SCENARIO}" == "failure" ]]; then
+        ssl_value="full"
+      fi
+      body="{\"success\":true,\"result\":{\"id\":\"ssl\",\"value\":\"${ssl_value}\"}}"
     fi
-    body="{\"success\":true,\"result\":{\"id\":\"ssl\",\"value\":\"${ssl_value}\"}}"
     ;;
   *"/zones/zone-123/settings/tls_client_auth")
-    aop_value="on"
-    if [[ "${SCENARIO}" == "failure" ]]; then
-      aop_value="off"
+    if [[ "${SCENARIO}" == "forbidden-settings" ]]; then
+      status="403"
+      body='{"success":false,"errors":[{"code":10000,"message":"Authentication error"}],"messages":[],"result":null}'
+    else
+      aop_value="on"
+      if [[ "${SCENARIO}" == "failure" ]]; then
+        aop_value="off"
+      fi
+      body="{\"success\":true,\"result\":{\"id\":\"tls_client_auth\",\"value\":\"${aop_value}\"}}"
     fi
-    body="{\"success\":true,\"result\":{\"id\":\"tls_client_auth\",\"value\":\"${aop_value}\"}}"
     ;;
   *"/zones/zone-123/origin_tls_client_auth")
     result='[]'
@@ -225,6 +235,15 @@ assert_log_contains <(printf '%s' "${output}") "FAIL Cloudflare SSL mode is Full
 assert_log_contains <(printf '%s' "${output}") "FAIL Cloudflare Authenticated Origin Pulls is enabled: got off"
 assert_log_contains <(printf '%s' "${output}") "FAIL AWS truststore object exists: s3://customer-ltbase-runtime-prod/mtls/cloudflare-origin-pull-ca.pem"
 assert_log_contains <(printf '%s' "${output}") "FAIL API Gateway domain control.example.com mutual TLS truststore matches: got s3://customer-ltbase-runtime-prod/mtls/unexpected.pem"
+
+if output="$(PATH="${fake_bin}:$PATH" COMMAND_LOG="${log_file}" SCENARIO=forbidden-settings "${SCRIPT_PATH}" --env-file "${env_file}" --stack prod 2>&1)"; then
+  rm -rf "${temp_dir}"
+  fail "expected forbidden-settings scenario to exit non-zero"
+fi
+
+assert_log_contains <(printf '%s' "${output}") "Cloudflare token may be missing zone settings read permissions required for mTLS audit."
+assert_log_contains <(printf '%s' "${output}") "FAIL Cloudflare SSL mode is Full (strict): lookup failed"
+assert_log_contains <(printf '%s' "${output}") "FAIL Cloudflare Authenticated Origin Pulls is enabled: lookup failed"
 
 rm -rf "${temp_dir}"
 printf 'PASS: check-cloudflare-mtls tests\n'

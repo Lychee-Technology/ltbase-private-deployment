@@ -73,7 +73,7 @@ fail_check() {
 cloudflare_get_json() {
   local url="$1"
   local action="$2"
-  local response_file status response success
+  local response_file status response success error_codes
 
   response_file="$(mktemp)"
   if ! status="$(curl -sS -o "${response_file}" -w '%{http_code}' "${cloudflare_headers[@]}" "${url}")"; then
@@ -88,6 +88,14 @@ cloudflare_get_json() {
   if [[ "${status}" != "200" ]]; then
     printf 'Cloudflare API request failed: %s (HTTP %s)\n' "${action}" "${status}" >&2
     printf '%s\n' "${response}" >&2
+    if [[ "${status}" == "403" ]]; then
+      error_codes="$(printf '%s' "${response}" | jq -r '[.errors[]?.code // empty] | join(",")' 2>/dev/null || true)"
+      case ",${error_codes}," in
+        *,9109,*|*,10000,*)
+          printf 'Cloudflare token may be missing zone settings read permissions required for mTLS audit.\n' >&2
+          ;;
+      esac
+    fi
     return 1
   fi
 

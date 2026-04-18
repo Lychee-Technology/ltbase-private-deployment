@@ -152,6 +152,8 @@ bootstrap 使用的 `CLOUDFLARE_API_TOKEN` 至少需要能够：
 - 读取和创建 OIDC discovery Pages 项目的自定义域名绑定
 - 管理 `OIDC_DISCOVERY_DOMAIN` 所在的目标 zone
 
+如果你希望 preview 与 rollout 的 mTLS audit 能成功检查 Cloudflare SSL 模式和 Authenticated Origin Pulls，这个 token 还必须具备读取 `CLOUDFLARE_ZONE_ID` 对应 zone settings 的权限。
+
 这样 bootstrap 才能先检查 Pages project 和 domain binding 是否已存在，并在缺失时创建它们。
 
 ### 4. 确认本地工具

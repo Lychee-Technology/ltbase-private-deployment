@@ -152,6 +152,8 @@ The `CLOUDFLARE_API_TOKEN` used for bootstrap must be able to:
 - read and create custom domain bindings for the OIDC discovery Pages project
 - read and create the `CNAME` record for `OIDC_DISCOVERY_DOMAIN` in `CLOUDFLARE_ZONE_ID`
 
+If you want preview and rollout mTLS audits to check Cloudflare SSL mode and Authenticated Origin Pulls successfully, that token must also be able to read zone settings for `CLOUDFLARE_ZONE_ID`.
+
 This is enough for bootstrap to check whether the Pages project, domain binding, and required Pages `CNAME` already exist, then create them if needed.
 
 ### 4. Confirm local tools
