@@ -78,7 +78,7 @@ restore_customer_owned_files() {
   for path in "${preserved_customer_owned_paths[@]}"; do
     if [[ -d "${backup_root}/${path}" ]]; then
       mkdir -p "./$(dirname "${path}")"
-      cp -R "${backup_root}/${path}" "./${path}"
+      cp -R "${backup_root}/${path}" "./$(dirname "${path}")"
     elif [[ -f "${backup_root}/${path}" ]]; then
       mkdir -p "./$(dirname "${path}")"
       cp "${backup_root}/${path}" "./${path}"
