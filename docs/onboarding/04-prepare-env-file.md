@@ -67,10 +67,14 @@ Use this guide to create the local `.env` file that drives the bootstrap scripts
     - `DSQL_PORT`, `DSQL_DB`, `DSQL_USER`, `DSQL_PROJECT_SCHEMA`
     - Source: LTBase application defaults and any approved customer-specific override
 11. Fill in secret values:
-    - `GEMINI_API_KEY`
-    - `CLOUDFLARE_API_TOKEN`
-    - `LTBASE_RELEASES_TOKEN`
-12. Save the file locally and confirm it is not committed.
+     - `GEMINI_API_KEY`
+     - `CLOUDFLARE_API_TOKEN`
+     - `LTBASE_RELEASES_TOKEN`
+12. Decide whether you will accept the default per-stack schema bucket names or set explicit overrides:
+    - `SCHEMA_BUCKET_<STACK>`
+    - Source: the stack-specific S3 bucket that preview and rollout use for schema validation/publication
+    - Important: preview and rollout now depend on the GitHub repository variable `SCHEMA_BUCKET_<STACK>` for every deployed stack. If you do not want the default `<DEPLOYMENT_REPO_NAME>-schema-<stack>` naming, set the override explicitly in `.env` before bootstrap.
+13. Save the file locally and confirm it is not committed.
 
 ## Values You Normally Fill Manually
 
@@ -82,6 +86,7 @@ These values are customer-controlled inputs and should usually be set explicitly
 - `AWS_REGION_<STACK>`, `AWS_ACCOUNT_ID_<STACK>`, `AWS_ROLE_NAME_<STACK>`
 - `AWS_PROFILE_<STACK>` when multiple stacks use different AWS credentials locally
 - `PULUMI_STATE_BUCKET`, `PULUMI_KMS_ALIAS`
+- `SCHEMA_BUCKET_<STACK>` when you do not want the default `<DEPLOYMENT_REPO_NAME>-schema-<stack>` bucket names used by preview and rollout
 - `LTBASE_RELEASES_REPO`, `LTBASE_RELEASE_ID`
 - `MTLS_TRUSTSTORE_FILE`, `MTLS_TRUSTSTORE_KEY` with the template defaults intact
 - `API_DOMAIN_<STACK>`, `CONTROL_DOMAIN_<STACK>`, `AUTH_DOMAIN_<STACK>`, `PROJECT_ID`, `AUTH_PROVIDER_CONFIG_FILE_<STACK>`, `CLOUDFLARE_ZONE_ID`
@@ -108,7 +113,7 @@ Leave these unset unless you intentionally need an override:
   - default: derived from deployment repository name and target AWS account ID
 - `OIDC_ISSUER_URL_<STACK>`, `JWKS_URL_<STACK>`
   - default: derived from `OIDC_DISCOVERY_DOMAIN`
-- `RUNTIME_BUCKET_<STACK>`, `TABLE_NAME_<STACK>`
+- `RUNTIME_BUCKET_<STACK>`, `SCHEMA_BUCKET_<STACK>`, `TABLE_NAME_<STACK>`
   - default: derived from `DEPLOYMENT_REPO_NAME`
 - `PREVIEW_DEFAULT_STACK`
   - default: first stack in `PROMOTION_PATH`
@@ -127,6 +132,7 @@ Only fill these when the defaults are wrong for your customer environment:
 - `OIDC_ISSUER_URL_<STACK>`
 - `JWKS_URL_<STACK>`
 - `RUNTIME_BUCKET_<STACK>`
+- `SCHEMA_BUCKET_<STACK>`
 - `TABLE_NAME_<STACK>`
 - `OIDC_DISCOVERY_AWS_ROLE_NAME_<STACK>`
 
@@ -140,7 +146,8 @@ Only fill these when the defaults are wrong for your customer environment:
 - do not set `DSQL_ENDPOINT` manually for managed deployments; bootstrap and later reconciliation publish the authoritative value
 - keep `MTLS_TRUSTSTORE_FILE=infra/certs/cloudflare-origin-pull-ca.pem` and `MTLS_TRUSTSTORE_KEY=mtls/cloudflare-origin-pull-ca.pem` unless the LTBase template itself changes; bootstrap requires both values
 - expect `api`, `auth`, and `control-plane` to be reachable only through Cloudflare-proxied custom domains once the mTLS rollout tasks are applied
-- the following variables are auto-derived by `scripts/lib/bootstrap-env.sh` and normally do not need manual filling: `DEPLOYMENT_REPO`, `PULUMI_BACKEND_URL`, `PULUMI_SECRETS_PROVIDER_*`, `AWS_ROLE_ARN_*`, `OIDC_ISSUER_URL_*`, `JWKS_URL_*`, `RUNTIME_BUCKET_*`, `TABLE_NAME_*`, `GITHUB_ORG`, `GITHUB_REPO`, `OIDC_DISCOVERY_TEMPLATE_REPO`, `OIDC_DISCOVERY_REPO_NAME`, `OIDC_DISCOVERY_REPO`, `OIDC_DISCOVERY_PAGES_PROJECT`, `OIDC_DISCOVERY_AWS_ROLE_NAME_*`, `OIDC_DISCOVERY_AWS_ROLE_ARN_*`, `PREVIEW_DEFAULT_STACK`
+- preview and rollout require a valid `SCHEMA_BUCKET_<STACK>` repository variable for each stack; bootstrap writes it from `.env` or the derived default
+- the following variables are auto-derived by `scripts/lib/bootstrap-env.sh` and normally do not need manual filling: `DEPLOYMENT_REPO`, `PULUMI_BACKEND_URL`, `PULUMI_SECRETS_PROVIDER_*`, `AWS_ROLE_ARN_*`, `OIDC_ISSUER_URL_*`, `JWKS_URL_*`, `RUNTIME_BUCKET_*`, `SCHEMA_BUCKET_*`, `TABLE_NAME_*`, `GITHUB_ORG`, `GITHUB_REPO`, `OIDC_DISCOVERY_TEMPLATE_REPO`, `OIDC_DISCOVERY_REPO_NAME`, `OIDC_DISCOVERY_REPO`, `OIDC_DISCOVERY_PAGES_PROJECT`, `OIDC_DISCOVERY_AWS_ROLE_NAME_*`, `OIDC_DISCOVERY_AWS_ROLE_ARN_*`, `PREVIEW_DEFAULT_STACK`
 
 ## Expected Result
 

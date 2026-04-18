@@ -57,6 +57,7 @@ func main() {
 		}
 		ctx.Log.Info("ltbase-infra: declared forma schedule", nil)
 		ctx.Export("runtimeBucket", runtime.RuntimeBucket.Bucket)
+		ctx.Export("schemaBucket", runtime.SchemaBucket.Bucket)
 		ctx.Export("tableName", runtime.Table.Name)
 		ctx.Export("projectId", pulumi.String(cfg.ProjectID))
 		ctx.Export("apiId", apis.API.ID())

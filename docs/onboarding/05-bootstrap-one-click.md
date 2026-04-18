@@ -49,6 +49,7 @@ gh auth status
 3. `.env` contains final customer-controlled values for:
    - repository identity
    - stack/account/region mapping
+   - schema bucket overrides when you do not want the default `SCHEMA_BUCKET_<STACK>=<DEPLOYMENT_REPO_NAME>-schema-<stack>` naming
    - domains
    - Cloudflare IDs and token
    - release ID and releases token
@@ -108,6 +109,7 @@ If you also want bootstrap to trigger the first rollout automatically, include t
 6. Wait for the script to complete.
 7. Review generated files in `dist/`, especially the recovery report and any rendered policy artifacts.
 8. Confirm GitHub variables and secrets were created in the deployment repository.
+   - for schema publication, confirm each stack has `SCHEMA_BUCKET_<STACK>` and that the value matches the bucket you intend preview/rollout to use
 9. Confirm every stack in `STACKS` was initialized.
 
 ## What This Command Does

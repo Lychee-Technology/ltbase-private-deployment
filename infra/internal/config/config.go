@@ -18,6 +18,7 @@ type StackConfig struct {
 	DeploymentAWSAccountID   string
 	ReleaseAssetDir          string
 	RuntimeBucket            string
+	SchemaBucket             string
 	TableName                string
 	MTLSTruststoreFile       string
 	MTLSTruststoreKey        string
@@ -51,6 +52,7 @@ type StackConfig struct {
 func Load(ctx *pulumi.Context) (StackConfig, error) {
 	cfg := pcfg.New(ctx, "")
 	stack := ctx.Stack()
+	githubRepo := cfg.Require("githubRepo")
 	out := StackConfig{
 		Project:                  ctx.Project(),
 		Stack:                    stack,
@@ -58,6 +60,7 @@ func Load(ctx *pulumi.Context) (StackConfig, error) {
 		DeploymentAWSAccountID:   cfg.Require("deploymentAwsAccountId"),
 		ReleaseAssetDir:          valueOrDefault(cfg.Get("releaseAssetDir"), defaultReleaseAssetDir),
 		RuntimeBucket:            cfg.Require("runtimeBucket"),
+		SchemaBucket:             valueOrDefault(cfg.Get("schemaBucket"), defaultSchemaBucket(githubRepo, stack)),
 		TableName:                cfg.Require("tableName"),
 		MTLSTruststoreFile:       cfg.Require("mtlsTruststoreFile"),
 		MTLSTruststoreKey:        cfg.Require("mtlsTruststoreKey"),
@@ -81,7 +84,7 @@ func Load(ctx *pulumi.Context) (StackConfig, error) {
 		GeminiAPIKey:             cfg.RequireSecret("geminiApiKey"),
 		GeminiModel:              valueOrDefault(cfg.Get("geminiModel"), "gemini-3-flash-preview"),
 		GitHubOrg:                cfg.Require("githubOrg"),
-		GitHubRepo:               cfg.Require("githubRepo"),
+		GitHubRepo:               githubRepo,
 		ManageGitHubOIDCProvider: cfg.GetBool("manageGithubOidcProvider"),
 		GitHubOIDCProviderArn:    strings.TrimSpace(cfg.Get("githubOidcProviderArn")),
 		GitHubThumbprints:        []string{githubThumbprint},
@@ -100,7 +103,14 @@ func (c StackConfig) Validate() error {
 	if !c.ManageGitHubOIDCProvider && c.GitHubOIDCProviderArn == "" {
 		return fmt.Errorf("githubOidcProviderArn is required when manageGithubOidcProvider is false")
 	}
+	if c.RuntimeBucket != "" && c.SchemaBucket != "" && c.RuntimeBucket == c.SchemaBucket {
+		return fmt.Errorf("schemaBucket must differ from runtimeBucket")
+	}
 	return nil
+}
+
+func defaultSchemaBucket(repoName, stack string) string {
+	return strings.ToLower(strings.TrimSpace(repoName)) + "-schema-" + strings.ToLower(strings.TrimSpace(stack))
 }
 
 func valueOrDefault(value, fallback string) string {

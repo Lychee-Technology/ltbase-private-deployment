@@ -50,7 +50,7 @@ for name in "${required_vars[@]}"; do
   fi
 done
 
-if ! bootstrap_env_require_stack_values "${STACK}" AWS_REGION AWS_ROLE_ARN PULUMI_SECRETS_PROVIDER API_DOMAIN CONTROL_DOMAIN AUTH_DOMAIN PROJECT_ID AUTH_PROVIDER_CONFIG_FILE OIDC_ISSUER_URL JWKS_URL RUNTIME_BUCKET TABLE_NAME; then
+if ! bootstrap_env_require_stack_values "${STACK}" AWS_REGION AWS_ROLE_ARN PULUMI_SECRETS_PROVIDER API_DOMAIN CONTROL_DOMAIN AUTH_DOMAIN PROJECT_ID AUTH_PROVIDER_CONFIG_FILE OIDC_ISSUER_URL JWKS_URL RUNTIME_BUCKET SCHEMA_BUCKET TABLE_NAME; then
   exit 1
 fi
 
@@ -59,10 +59,12 @@ while IFS= read -r target_stack; do
   target_upper="$(bootstrap_env_stack_upper "${target_stack}")"
   target_region="$(bootstrap_env_resolve_stack_value AWS_REGION "${target_stack}")"
   target_secrets_provider="$(bootstrap_env_resolve_stack_value PULUMI_SECRETS_PROVIDER "${target_stack}")"
+  target_schema_bucket="$(bootstrap_env_resolve_stack_value SCHEMA_BUCKET "${target_stack}")"
   target_role_arn="$(bootstrap_env_resolve_stack_value AWS_ROLE_ARN "${target_stack}")"
 
   bootstrap_env_run_quiet gh variable set "AWS_REGION_${target_upper}" --repo "${DEPLOYMENT_REPO}" --body "${target_region}"
   bootstrap_env_run_quiet gh variable set "PULUMI_SECRETS_PROVIDER_${target_upper}" --repo "${DEPLOYMENT_REPO}" --body "${target_secrets_provider}"
+  bootstrap_env_run_quiet gh variable set "SCHEMA_BUCKET_${target_upper}" --repo "${DEPLOYMENT_REPO}" --body "${target_schema_bucket}"
   bootstrap_env_run_quiet gh secret set "AWS_ROLE_ARN_${target_upper}" --repo "${DEPLOYMENT_REPO}" --body "${target_role_arn}"
 done < <(bootstrap_env_each_stack)
 
@@ -81,6 +83,7 @@ backend_stack="$(bootstrap_env_csv_first "${PROMOTION_PATH:-${STACKS}}")"
 backend_region="$(bootstrap_env_resolve_stack_value AWS_REGION "${backend_stack}")"
 selected_secrets_provider="$(bootstrap_env_resolve_stack_value PULUMI_SECRETS_PROVIDER "${STACK}")"
 selected_runtime_bucket="$(bootstrap_env_resolve_stack_value RUNTIME_BUCKET "${STACK}")"
+selected_schema_bucket="$(bootstrap_env_resolve_stack_value SCHEMA_BUCKET "${STACK}")"
 selected_table_name="$(bootstrap_env_resolve_stack_value TABLE_NAME "${STACK}")"
 selected_api_domain="$(bootstrap_env_resolve_stack_value API_DOMAIN "${STACK}")"
 selected_control_domain="$(bootstrap_env_resolve_stack_value CONTROL_DOMAIN "${STACK}")"
@@ -121,6 +124,7 @@ else
 fi
 bootstrap_env_run_quiet "${stack_env[@]}" pulumi config set awsRegion "${selected_region}" --stack "${STACK}"
 bootstrap_env_run_quiet "${stack_env[@]}" pulumi config set runtimeBucket "${selected_runtime_bucket}" --stack "${STACK}"
+bootstrap_env_run_quiet "${stack_env[@]}" pulumi config set schemaBucket "${selected_schema_bucket}" --stack "${STACK}"
 bootstrap_env_run_quiet "${stack_env[@]}" pulumi config set tableName "${selected_table_name}" --stack "${STACK}"
 bootstrap_env_run_quiet "${stack_env[@]}" pulumi config set mtlsTruststoreFile "${MTLS_TRUSTSTORE_FILE}" --stack "${STACK}"
 bootstrap_env_run_quiet "${stack_env[@]}" pulumi config set mtlsTruststoreKey "${MTLS_TRUSTSTORE_KEY}" --stack "${STACK}"

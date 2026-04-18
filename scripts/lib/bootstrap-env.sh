@@ -198,7 +198,7 @@ bootstrap_env_require_stack_values() {
 
 bootstrap_env_apply_derivations() {
   local stack upper_name region account_id role_name
-  local role_arn_var provider_var runtime_bucket_var table_name_var
+  local role_arn_var provider_var runtime_bucket_var schema_bucket_var table_name_var
   local discovery_role_name_var discovery_role_arn_var issuer_var jwks_var
 
   if [[ -z "${DEPLOYMENT_REPO:-}" && -n "${GITHUB_OWNER:-}" && -n "${DEPLOYMENT_REPO_NAME:-}" ]]; then
@@ -256,6 +256,12 @@ bootstrap_env_apply_derivations() {
     if [[ -z "${!runtime_bucket_var:-}" && -z "${RUNTIME_BUCKET:-}" && -n "${DEPLOYMENT_REPO_NAME:-}" ]]; then
       printf -v "${runtime_bucket_var}" '%s-runtime-%s' "${DEPLOYMENT_REPO_NAME}" "${stack}"
       export "${runtime_bucket_var}"
+    fi
+
+    schema_bucket_var="SCHEMA_BUCKET_${upper_name}"
+    if [[ -z "${!schema_bucket_var:-}" && -z "${SCHEMA_BUCKET:-}" && -n "${DEPLOYMENT_REPO_NAME:-}" ]]; then
+      printf -v "${schema_bucket_var}" '%s-schema-%s' "${DEPLOYMENT_REPO_NAME}" "${stack}"
+      export "${schema_bucket_var}"
     fi
 
     table_name_var="TABLE_NAME_${upper_name}"

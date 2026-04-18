@@ -19,6 +19,7 @@ It is not the LTBase application source repository.
 - a Pulumi program wrapper at `infra/scripts/pulumi-wrapper.sh` that uses a prebuilt binary when available and falls back to local source build when it is not
 - example deployment inputs such as `env.template`
 - customer onboarding and bootstrap documentation
+- customer-owned production schema files under `customer-owned/schemas/`
 
 ## Start Here
 
@@ -101,6 +102,8 @@ This template repository only tracks `infra/auth-providers.*.json.example`. A ge
 - only the upstream template repository publishes those prebuilt infra binaries; generated customer deployment repositories consume them only
 - customers own the GitHub repository, AWS account resources, and deployment approvals
 - bootstrap scripts prepare repository state and deployment configuration
+- deployment workflows validate schemas in preview, then publish versioned bundles to each stack's dedicated schema bucket during rollout
+- schema publication and schema application are separate: publishing updates immutable `schemas/releases/<version>/` objects plus the published pointer at `schemas/published/manifest.json`, then an explicit control-plane `ensure-project` call applies that published version into the runtime-consumed `schemas/applied/` pointer
 - the shared Pulumi backend bucket is created once and lives in the AWS account for the first stack in `PROMOTION_PATH`
 - manual preview only targets the first stack in `PROMOTION_PATH`
 - automated rollout continues one hop at a time across `PROMOTION_PATH`, with customer-controlled approvals on protected target environments
@@ -110,6 +113,7 @@ This template repository only tracks `infra/auth-providers.*.json.example`. A ge
 
 - keep local `.env` files private and out of version control
 - use the documentation in `docs/` as the source of truth for customer onboarding
+- keep customer-specific Forma schemas in `customer-owned/schemas/*.json`; deployment workflows publish them to the stack `SCHEMA_BUCKET`
 - keep `infra/.pulumi/bin/ltbase-infra` out of version control; the wrapper can recreate it locally and official workflows may preinstall it temporarily
 - `__ref__/template-provenance.json` records the upstream template commit and `build_fingerprint` that official workflows use when looking up prebuilt infra binaries
 - publishing into `ltbase-private-deployment-binaries` requires a repo secret named `LTBASE_PRIVATE_DEPLOYMENT_BINARIES_TOKEN` in the upstream template repository
