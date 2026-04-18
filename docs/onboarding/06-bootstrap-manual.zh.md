@@ -137,7 +137,7 @@ source dist/foundation.env
 
 执行前确认：
 
-- `OIDC_DISCOVERY_DOMAIN`、`CLOUDFLARE_ACCOUNT_ID`、`CLOUDFLARE_API_TOKEN` 已确认无误
+- `.env` 中的 `OIDC_DISCOVERY_DOMAIN`、`CLOUDFLARE_ACCOUNT_ID`、`CLOUDFLARE_ZONE_ID`、`CLOUDFLARE_API_TOKEN` 已确认无误
 - 你已经准备好让脚本创建或更新 Cloudflare Pages 项目、自定义域名绑定和 companion 仓库
 
 执行：

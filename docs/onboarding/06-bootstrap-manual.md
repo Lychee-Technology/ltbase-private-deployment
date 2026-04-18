@@ -138,7 +138,7 @@ After each stack, confirm:
 
 Before you run this stage, confirm:
 
-- `OIDC_DISCOVERY_DOMAIN`, `CLOUDFLARE_ACCOUNT_ID`, `CLOUDFLARE_ZONE_ID`, and `CLOUDFLARE_API_TOKEN` are correct
+- `OIDC_DISCOVERY_DOMAIN`, `CLOUDFLARE_ACCOUNT_ID`, `CLOUDFLARE_ZONE_ID`, and `CLOUDFLARE_API_TOKEN` in `.env` are correct
 - you are ready for the script to create or update the companion repository, Pages project, custom domain binding, and required DNS `CNAME`
 
 Run:

@@ -16,6 +16,8 @@ Run `./scripts/check-cloudflare-mtls.sh --env-file .env --stack <stack>` from th
 
 The preview workflow and the rollout hop workflow both run this audit automatically after a successful job and fail if the Cloudflare or API Gateway mTLS posture drifts.
 
+For local runs, keep `.env` and `infra/Pulumi.<stack>.yaml` aligned. The workflow audit reads `ltbase-infra:awsRegion`, `ltbase-infra:apiDomain`, `ltbase-infra:controlPlaneDomain`, `ltbase-infra:authDomain`, `ltbase-infra:runtimeBucket`, and `ltbase-infra:cloudflareZoneId` from `infra/Pulumi.<stack>.yaml`, while the standalone script still expects those values in the env file you pass.
+
 The script checks:
 
 - Cloudflare proxying for `api`, `auth`, and `control-plane`
