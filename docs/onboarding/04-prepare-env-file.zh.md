@@ -56,12 +56,13 @@
      - `API_DOMAIN_<STACK>`
      - `CONTROL_DOMAIN_<STACK>`
      - `AUTH_DOMAIN_<STACK>`
-    - `PROJECT_ID`
-    - `AUTH_PROVIDER_CONFIG_FILE_<STACK>`
-    - `CLOUDFLARE_ZONE_ID`
-    - 来源：你在目标 Cloudflare zone 中规划好的最终域名
-    - `AUTH_PROVIDER_CONFIG_FILE_<STACK>` 应该指向一个已提交的 JSON 文件，该文件列出该 stack 启用的外部 JWT provider。
-    - 先把 `infra/auth-providers.<stack>.json.example` 复制成 `infra/auth-providers.<stack>.json`，再在生成出来的客户 deployment repo 中编辑这个真实文件。
+     - `PROJECT_ID`
+     - `AUTH_PROVIDER_CONFIG_FILE_<STACK>`
+     - `CLOUDFLARE_ZONE_ID`
+     - 来源：你在目标 Cloudflare zone 中规划好的最终域名
+     - bootstrap 会从 `.env` 里的 `CLOUDFLARE_ZONE_ID` 写入每个 `infra/Pulumi.<stack>.yaml` stack 配置；后续 preview 与 rollout 的 mTLS audit 会从该 stack 文件中读取 `ltbase-infra:awsRegion`、`ltbase-infra:apiDomain`、`ltbase-infra:controlPlaneDomain`、`ltbase-infra:authDomain`、`ltbase-infra:runtimeBucket` 和 `ltbase-infra:cloudflareZoneId`。
+     - `AUTH_PROVIDER_CONFIG_FILE_<STACK>` 应该指向一个已提交的 JSON 文件，该文件列出该 stack 启用的外部 JWT provider。
+     - 先把 `infra/auth-providers.<stack>.json.example` 复制成 `infra/auth-providers.<stack>.json`，再在生成出来的客户 deployment repo 中编辑这个真实文件。
 10. 填写应用默认值：
     - `GEMINI_MODEL`
     - `DSQL_PORT`、`DSQL_DB`、`DSQL_USER`、`DSQL_PROJECT_SCHEMA`
@@ -85,6 +86,7 @@
 - `LTBASE_RELEASES_REPO`、`LTBASE_RELEASE_ID`
 - 保持模板默认值不变的 `MTLS_TRUSTSTORE_FILE`、`MTLS_TRUSTSTORE_KEY`
 - `API_DOMAIN_<STACK>`、`CONTROL_DOMAIN_<STACK>`、`AUTH_DOMAIN_<STACK>`、`PROJECT_ID`、`AUTH_PROVIDER_CONFIG_FILE_<STACK>`、`CLOUDFLARE_ZONE_ID`
+  - `CLOUDFLARE_ZONE_ID` 仍然是 `.env` 中需要手动提供的 bootstrap 输入，但 preview 与 rollout 的 mTLS audit 实际读取的是 `infra/Pulumi.<stack>.yaml` 里保存的每个 stack 值，包括 `ltbase-infra:cloudflareZoneId`、域名、`awsRegion` 和 `runtimeBucket`。
 - `GEMINI_MODEL`、`DSQL_PORT`、`DSQL_DB`、`DSQL_USER`、`DSQL_PROJECT_SCHEMA`
 - `GEMINI_API_KEY`、`CLOUDFLARE_API_TOKEN`、`LTBASE_RELEASES_TOKEN`
 

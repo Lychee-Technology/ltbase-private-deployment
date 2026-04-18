@@ -10,6 +10,22 @@
 
 ## 常见操作
 
+### 审计 Cloudflare mTLS 连通性
+
+当你需要只读方式审计 Cloudflare 到 API Gateway 的 mTLS 链路时，请在 deployment repository 中运行 `./scripts/check-cloudflare-mtls.sh --env-file .env --stack <stack>`。
+
+preview workflow 与 rollout hop workflow 会在成功完成后自动运行这项审计；如果 Cloudflare 或 API Gateway 的 mTLS 配置发生漂移，工作流会直接失败。
+
+本地执行时，请保持 `.env` 与 `infra/Pulumi.<stack>.yaml` 一致。workflow 中的审计会从 `infra/Pulumi.<stack>.yaml` 读取 `ltbase-infra:awsRegion`、`ltbase-infra:apiDomain`、`ltbase-infra:controlPlaneDomain`、`ltbase-infra:authDomain`、`ltbase-infra:runtimeBucket` 和 `ltbase-infra:cloudflareZoneId`，而你手动执行脚本时，脚本仍然要求你传入的 env 文件中包含这些值。
+
+脚本会检查：
+
+- `api`、`auth`、`control-plane` 三个域名是否都通过 Cloudflare 代理
+- Cloudflare SSL 模式是否为 `Full (strict)`
+- Cloudflare Authenticated Origin Pulls 是否已启用
+- 该 stack 的 runtime bucket 中是否存在 truststore 对象
+- 每个 API Gateway 自定义域名是否报告了预期的 mutual TLS truststore URI 与版本
+
 ### 升级到新的 LTBase release
 
 1. 如果你想先拿到模板中的最新同步工具本身，请在部署仓库干净的本地 `main` 分支上运行 `./scripts/update-sync-template-tooling.sh`。

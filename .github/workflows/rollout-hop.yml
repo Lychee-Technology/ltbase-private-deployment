@@ -347,23 +347,57 @@ jobs:
         env:
           STACKS: ${{ vars.STACKS || 'devo,prod' }}
           PROMOTION_PATH: ${{ vars.PROMOTION_PATH || vars.STACKS || 'devo,prod' }}
-          AWS_REGION: ${{ vars[format('AWS_REGION_{0}', needs.prepare.outputs.target_stack_upper)] }}
-          API_DOMAIN: ${{ vars[format('API_DOMAIN_{0}', needs.prepare.outputs.target_stack_upper)] }}
-          CONTROL_DOMAIN: ${{ vars[format('CONTROL_DOMAIN_{0}', needs.prepare.outputs.target_stack_upper)] }}
-          AUTH_DOMAIN: ${{ vars[format('AUTH_DOMAIN_{0}', needs.prepare.outputs.target_stack_upper)] }}
-          RUNTIME_BUCKET: ${{ vars[format('RUNTIME_BUCKET_{0}', needs.prepare.outputs.target_stack_upper)] }}
-          CLOUDFLARE_ZONE_ID: ${{ vars.CLOUDFLARE_ZONE_ID }}
           MTLS_TRUSTSTORE_KEY: mtls/cloudflare-origin-pull-ca.pem
         run: |
+          stack_file="infra/Pulumi.${{ needs.prepare.outputs.target_stack }}.yaml"
+          if [[ ! -f "${stack_file}" ]]; then
+            echo "Missing Pulumi stack file ${stack_file}" >&2
+            exit 1
+          fi
+
+          extract_stack_value() {
+            local config_key="$1"
+            local raw_line value
+
+            raw_line="$(grep -E "^[[:space:]]*${config_key}:[[:space:]]*" "${stack_file}" | head -n 1 || true)"
+            if [[ -z "${raw_line}" ]]; then
+              return 0
+            fi
+
+            value="${raw_line#*: }"
+            value="${value#*:}"
+            value="${value# }"
+            value="${value%\"}"
+            value="${value#\"}"
+            printf '%s' "${value}"
+          }
+
+          aws_region="$(extract_stack_value "ltbase-infra:awsRegion")"
+          api_domain="$(extract_stack_value "ltbase-infra:apiDomain")"
+          control_domain="$(extract_stack_value "ltbase-infra:controlPlaneDomain")"
+          auth_domain="$(extract_stack_value "ltbase-infra:authDomain")"
+          runtime_bucket="$(extract_stack_value "ltbase-infra:runtimeBucket")"
+          cloudflare_zone_id="$(extract_stack_value "ltbase-infra:cloudflareZoneId")"
+
+          if [[ -z "${aws_region}" || -z "${api_domain}" || -z "${control_domain}" || -z "${auth_domain}" || -z "${runtime_bucket}" ]]; then
+            echo "Required mTLS audit values missing from ${stack_file}" >&2
+            exit 1
+          fi
+
+          if [[ -z "${cloudflare_zone_id}" ]]; then
+            echo "Cloudflare zone ID missing from ${stack_file}" >&2
+            exit 1
+          fi
+
           cat > .github/mTLS-audit.env <<EOF
           STACKS=${STACKS}
           PROMOTION_PATH=${PROMOTION_PATH}
-          AWS_REGION_${{ needs.prepare.outputs.target_stack_upper }}=${AWS_REGION}
-          API_DOMAIN_${{ needs.prepare.outputs.target_stack_upper }}=${API_DOMAIN}
-          CONTROL_DOMAIN_${{ needs.prepare.outputs.target_stack_upper }}=${CONTROL_DOMAIN}
-          AUTH_DOMAIN_${{ needs.prepare.outputs.target_stack_upper }}=${AUTH_DOMAIN}
-          RUNTIME_BUCKET_${{ needs.prepare.outputs.target_stack_upper }}=${RUNTIME_BUCKET}
-          CLOUDFLARE_ZONE_ID=${CLOUDFLARE_ZONE_ID}
+          AWS_REGION_${{ needs.prepare.outputs.target_stack_upper }}=${aws_region}
+          API_DOMAIN_${{ needs.prepare.outputs.target_stack_upper }}=${api_domain}
+          CONTROL_DOMAIN_${{ needs.prepare.outputs.target_stack_upper }}=${control_domain}
+          AUTH_DOMAIN_${{ needs.prepare.outputs.target_stack_upper }}=${auth_domain}
+          RUNTIME_BUCKET_${{ needs.prepare.outputs.target_stack_upper }}=${runtime_bucket}
+          CLOUDFLARE_ZONE_ID=${cloudflare_zone_id}
           MTLS_TRUSTSTORE_KEY=${MTLS_TRUSTSTORE_KEY}
           EOF
 
