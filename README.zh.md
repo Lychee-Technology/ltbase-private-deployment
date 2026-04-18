@@ -89,7 +89,7 @@ onboarding 文档支持通用多 stack 拓扑。文中出现 `devo`、`prod` 等
 - `./scripts/update-sync-template-tooling.sh`
 - `./scripts/sync-template-upstream.sh`
 
-当你希望先拿到模板中的最新同步工具和对应回归测试时，先运行 `./scripts/update-sync-template-tooling.sh`，再运行 `./scripts/sync-template-upstream.sh` 同步模板管理的文件。模板同步会保留本地 `.env`、`infra/Pulumi.*.yaml`、由 deployment repo 自行维护的 `infra/auth-providers.*.json`，以及同步工具自己的脚本与测试文件。
+当你希望先拿到模板中的最新同步工具和对应回归测试时，先运行 `./scripts/update-sync-template-tooling.sh`，再运行 `./scripts/sync-template-upstream.sh` 同步模板管理的文件。模板同步会保留本地 `.env`、`infra/Pulumi.*.yaml`、整个 `customer-owned/` 目录树、由 deployment repo 自行维护的 `infra/auth-providers.*.json`，以及同步工具自己的脚本与测试文件。
 
 此模板仓库只跟踪 `infra/auth-providers.*.json.example`。从模板生成出来的客户 deployment repo 需要自行创建并维护真实的 `infra/auth-providers.<stack>.json` 文件，并且可以在该客户仓库中提交这些客户专属文件。
 

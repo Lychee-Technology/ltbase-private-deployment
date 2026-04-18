@@ -28,7 +28,7 @@ The script checks:
 
 1. If you want the latest template copy of the sync helper itself first, run `./scripts/update-sync-template-tooling.sh` from your deployment repository on a clean local `main` branch.
 2. If you want to bring in newer template-managed files, run `./scripts/sync-template-upstream.sh` from the same clean local `main` branch.
-3. Review the synced template changes. The sync preserves local `.env` files, `infra/Pulumi.*.yaml`, customer-owned `infra/auth-providers.*.json`, and the sync helper's own script/test files.
+3. Review the synced template changes. The sync preserves local `.env` files, `infra/Pulumi.*.yaml`, the entire `customer-owned/` tree, customer-owned `infra/auth-providers.*.json`, and the sync helper's own script/test files.
 4. If the generated deployment repository does not yet have a real auth provider config file for a stack, copy the matching `infra/auth-providers.<stack>.json.example` file to `infra/auth-providers.<stack>.json` in that generated repository before the next bootstrap or preview run.
 5. Update `LTBASE_RELEASE_ID` in GitHub variables, or pass a new `release_id` directly to the workflow.
 6. Run the preview workflow.

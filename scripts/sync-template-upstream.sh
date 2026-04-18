@@ -50,7 +50,8 @@ UPSTREAM_URL="https://github.com/Lychee-Technology/ltbase-private-deployment.git
 BRANCH="main"
 ARCHIVE_PATH="sync-template-upstream.tar"
 
-customer_owned_paths=(
+preserved_customer_owned_paths=(
+  "customer-owned"
   "infra/auth-providers.devo.json"
   "infra/auth-providers.prod.json"
 )
@@ -59,8 +60,11 @@ preserve_customer_owned_files() {
   local backup_root="$1"
   local path
 
-  for path in "${customer_owned_paths[@]}"; do
-    if [[ -f "./${path}" ]]; then
+  for path in "${preserved_customer_owned_paths[@]}"; do
+    if [[ -d "./${path}" ]]; then
+      mkdir -p "${backup_root}/$(dirname "${path}")"
+      cp -R "./${path}" "${backup_root}/${path}"
+    elif [[ -f "./${path}" ]]; then
       mkdir -p "${backup_root}/$(dirname "${path}")"
       cp "./${path}" "${backup_root}/${path}"
     fi
@@ -71,8 +75,11 @@ restore_customer_owned_files() {
   local backup_root="$1"
   local path
 
-  for path in "${customer_owned_paths[@]}"; do
-    if [[ -f "${backup_root}/${path}" ]]; then
+  for path in "${preserved_customer_owned_paths[@]}"; do
+    if [[ -d "${backup_root}/${path}" ]]; then
+      mkdir -p "./$(dirname "${path}")"
+      cp -R "${backup_root}/${path}" "./${path}"
+    elif [[ -f "${backup_root}/${path}" ]]; then
       mkdir -p "./$(dirname "${path}")"
       cp "${backup_root}/${path}" "./${path}"
     fi
