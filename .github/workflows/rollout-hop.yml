@@ -204,7 +204,7 @@ jobs:
     needs:
       - prepare
       - rollout
-    if: ${{ needs.rollout.result == 'success' }}
+    if: ${{ always() && needs.rollout.result == 'success' }}
     runs-on: ubuntu-24.04-arm
     steps:
       - uses: actions/checkout@v4
@@ -225,7 +225,7 @@ jobs:
       - prepare
       - rollout
       - publish_schemas
-    if: ${{ needs.rollout.result == 'success' && needs.publish_schemas.result == 'success' }}
+    if: ${{ always() && needs.rollout.result == 'success' && needs.publish_schemas.result == 'success' }}
     runs-on: ubuntu-24.04-arm
     steps:
       - name: Configure AWS credentials
@@ -329,7 +329,7 @@ jobs:
     needs:
       - prepare
       - ensure_project
-    if: ${{ needs.ensure_project.result == 'success' }}
+    if: ${{ always() && needs.ensure_project.result == 'success' }}
     runs-on: ubuntu-24.04-arm
     steps:
       - uses: actions/checkout@v4
@@ -375,8 +375,9 @@ jobs:
   dispatch_next:
     needs:
       - prepare
+      - ensure_project
       - audit_mtls
-    if: ${{ needs.ensure_project.result == 'success' && needs.prepare.outputs.continue_chain == 'true' && needs.prepare.outputs.next_stack != '' }}
+    if: ${{ always() && needs.ensure_project.result == 'success' && needs.prepare.outputs.continue_chain == 'true' && needs.prepare.outputs.next_stack != '' }}
     runs-on: ubuntu-24.04-arm
     steps:
       - name: Continue rollout chain

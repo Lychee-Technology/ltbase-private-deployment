@@ -15,7 +15,7 @@ assert_file_contains() {
   if [[ ! -f "${path}" ]]; then
     fail "missing file: ${path}"
   fi
-  if ! grep -Fq "${needle}" "${path}"; then
+  if ! grep -Fq -- "${needle}" "${path}"; then
     fail "expected ${path} to contain: ${needle}"
   fi
 }
@@ -26,7 +26,7 @@ assert_file_not_contains() {
   if [[ ! -f "${path}" ]]; then
     fail "missing file: ${path}"
   fi
-  if grep -Fq "${needle}" "${path}"; then
+  if grep -Fq -- "${needle}" "${path}"; then
     fail "expected ${path} to not contain: ${needle}"
   fi
 }
@@ -77,6 +77,7 @@ assert_file_contains "${rollout_hop_workflow}" "name: Validate Pulumi stack conf
 assert_file_contains "${rollout_hop_workflow}" "./scripts/check-pulumi-stack-config.sh --stack \${{ needs.prepare.outputs.target_stack }}"
 assert_file_contains "${rollout_hop_workflow}" "name: Publish customer schemas"
 assert_file_contains "${rollout_hop_workflow}" "./scripts/publish-schemas.sh --schema-bucket"
+assert_file_contains "${rollout_hop_workflow}" 'if: ${{ always() && needs.rollout.result == '\''success'\'' }}'
 assert_file_contains "${rollout_hop_workflow}" "name: Validate schema bucket contract"
 assert_file_contains "${rollout_hop_workflow}" "deployment outputs schemaBucket does not match"
 assert_file_contains "${rollout_hop_workflow}" 'SCHEMA_BUCKET: ${{ vars[format('\''SCHEMA_BUCKET_{0}'\'', needs.prepare.outputs.target_stack_upper)] }}'
@@ -86,7 +87,11 @@ assert_file_contains "${rollout_hop_workflow}" "aws lambda invoke"
 assert_file_contains "${rollout_hop_workflow}" "name: Advance applied schema pointer"
 assert_file_contains "${rollout_hop_workflow}" "s3://\${SCHEMA_BUCKET}/schemas/published/manifest.json"
 assert_file_contains "${rollout_hop_workflow}" "s3://\${SCHEMA_BUCKET}/schemas/applied/manifest.json"
+assert_file_contains "${rollout_hop_workflow}" 'if: ${{ always() && needs.rollout.result == '\''success'\'' && needs.publish_schemas.result == '\''success'\'' }}'
 assert_file_contains "${rollout_hop_workflow}" "needs.publish_schemas.result == 'success'"
+assert_file_contains "${rollout_hop_workflow}" 'if: ${{ always() && needs.ensure_project.result == '\''success'\'' }}'
+assert_file_contains "${rollout_hop_workflow}" "- ensure_project"
+assert_file_contains "${rollout_hop_workflow}" "if: \${{ always() && needs.ensure_project.result == 'success' && needs.prepare.outputs.continue_chain == 'true' && needs.prepare.outputs.next_stack != '' }}"
 assert_file_contains "${rollout_hop_workflow}" 'CLOUDFLARE_ZONE_ID: ${{ vars.CLOUDFLARE_ZONE_ID }}'
 assert_file_contains "${rollout_hop_workflow}" "MTLS_TRUSTSTORE_KEY: mtls/cloudflare-origin-pull-ca.pem"
 assert_file_contains "${rollout_hop_workflow}" "reconcile_managed_dsql_endpoint: true"
