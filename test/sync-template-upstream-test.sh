@@ -205,6 +205,9 @@ printf 'RSYNC-NOISE\n'
 printf 'RSYNC-NOISE\n' >&2
 src="${@: -2:1}"
 dest="${@: -1}"
+if [[ "${SCENARIO:-success}" == "preserve_customer_owned_directory" ]]; then
+  rm -rf "${dest}/customer-owned"
+fi
 mkdir -p "${dest}/__ref__"
 if [[ -f "${src}/__ref__/template-provenance.json" ]]; then
   /bin/cp "${src}/__ref__/template-provenance.json" "${dest}/__ref__/template-provenance.json"
@@ -391,6 +394,29 @@ run_missing_customer_auth_provider_case() {
   fi
 }
 
+run_preserves_customer_owned_directory_case() {
+  local fake_bin="$1"
+  local schema_dir="${ROOT_DIR}/customer-owned/schemas"
+  local schema_path="${schema_dir}/customer-owned.json"
+  local original_content='{"schema":"customer-owned"}'
+
+  setup_fake_git "${fake_bin}"
+  mkdir -p "${schema_dir}"
+  printf '%s\n' "${original_content}" >"${schema_path}"
+
+  if ! output="$(PATH="${fake_bin}:$PATH" COMMAND_LOG="${log_file}" TEMP_ROOT="${temp_dir}" SCENARIO="preserve_customer_owned_directory" "${SCRIPT_PATH}" 2>&1)"; then
+    rm -f "${schema_path}"
+    fail "expected script to preserve customer-owned directory, got: ${output}"
+  fi
+
+  assert_text_contains "${output}" "synced upstream/main into main"
+  if [[ ! -f "${schema_path}" ]]; then
+    fail "expected sync to restore customer-owned schema file"
+  fi
+  assert_log_contains "${schema_path}" "${original_content}"
+  rm -f "${schema_path}"
+}
+
 run_without_bootstrap_env_case() {
   local fake_bin="$1"
   local backup_path="${ROOT_DIR}/scripts/lib/bootstrap-env.sh.test-backup"
@@ -423,6 +449,7 @@ empty_find_bin="${temp_dir}/empty-find-bin"
 self_contained_bin="${temp_dir}/self-contained-bin"
 preserve_auth_provider_bin="${temp_dir}/preserve-auth-provider-bin"
 missing_auth_provider_bin="${temp_dir}/missing-auth-provider-bin"
+preserve_customer_owned_directory_bin="${temp_dir}/preserve-customer-owned-directory-bin"
 
 run_success_case "${success_bin}" "${log_file}"
 run_dirty_tree_case "${dirty_bin}"
@@ -433,5 +460,6 @@ run_empty_find_case "${empty_find_bin}"
 run_without_bootstrap_env_case "${self_contained_bin}"
 run_preserves_customer_auth_provider_case "${preserve_auth_provider_bin}"
 run_missing_customer_auth_provider_case "${missing_auth_provider_bin}"
+run_preserves_customer_owned_directory_case "${preserve_customer_owned_directory_bin}"
 
 printf 'PASS: sync-template-upstream tests\n'

@@ -14,7 +14,7 @@
 
 1. 如果你想先拿到模板中的最新同步工具本身，请在部署仓库干净的本地 `main` 分支上运行 `./scripts/update-sync-template-tooling.sh`。
 2. 如果你还想同步较新的模板管理文件，再在同一个干净的本地 `main` 分支上运行 `./scripts/sync-template-upstream.sh`。
-3. 审查同步进来的模板变更。模板同步会保留本地 `.env`、`infra/Pulumi.*.yaml`、由 deployment repo 自行维护的 `infra/auth-providers.*.json`，以及同步工具自己的脚本与测试文件。
+3. 审查同步进来的模板变更。模板同步会保留本地 `.env`、`infra/Pulumi.*.yaml`、整个 `customer-owned/` 目录树、由 deployment repo 自行维护的 `infra/auth-providers.*.json`，以及同步工具自己的脚本与测试文件。
 4. 如果生成出来的 deployment repo 某个 stack 还没有真实的 auth provider 配置文件，请先把对应的 `infra/auth-providers.<stack>.json.example` 复制成 `infra/auth-providers.<stack>.json`，再进行下一次 bootstrap 或 preview。
 5. 更新 GitHub variables 中的 `LTBASE_RELEASE_ID`，或在工作流中直接传入新的 `release_id`。
 6. 运行 preview 工作流。
