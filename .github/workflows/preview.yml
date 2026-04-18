@@ -61,7 +61,6 @@ jobs:
         env:
           SCHEMA_BUCKET: ${{ vars[format('SCHEMA_BUCKET_{0}', needs.prepare.outputs.target_stack_upper)] }}
         run: ./scripts/publish-schemas.sh --dry-run --schema-bucket ${{ vars[format('SCHEMA_BUCKET_{0}', needs.prepare.outputs.target_stack_upper)] }}
-
   preview:
     needs:
       - prepare

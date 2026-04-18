@@ -87,9 +87,9 @@ assert_file_contains "${rollout_hop_workflow}" "name: Advance applied schema poi
 assert_file_contains "${rollout_hop_workflow}" "s3://\${SCHEMA_BUCKET}/schemas/published/manifest.json"
 assert_file_contains "${rollout_hop_workflow}" "s3://\${SCHEMA_BUCKET}/schemas/applied/manifest.json"
 assert_file_contains "${rollout_hop_workflow}" "needs.publish_schemas.result == 'success'"
-  assert_file_contains "${rollout_hop_workflow}" 'CLOUDFLARE_ZONE_ID: ${{ vars.CLOUDFLARE_ZONE_ID }}'
-  assert_file_contains "${rollout_hop_workflow}" "MTLS_TRUSTSTORE_KEY: mtls/cloudflare-origin-pull-ca.pem"
-  assert_file_contains "${rollout_hop_workflow}" "reconcile_managed_dsql_endpoint: true"
+assert_file_contains "${rollout_hop_workflow}" 'CLOUDFLARE_ZONE_ID: ${{ vars.CLOUDFLARE_ZONE_ID }}'
+assert_file_contains "${rollout_hop_workflow}" "MTLS_TRUSTSTORE_KEY: mtls/cloudflare-origin-pull-ca.pem"
+assert_file_contains "${rollout_hop_workflow}" "reconcile_managed_dsql_endpoint: true"
 assert_file_not_contains "${rollout_hop_workflow}" "pulumi_stack: devo"
 assert_file_not_contains "${rollout_hop_workflow}" "pulumi_stack: prod"
 

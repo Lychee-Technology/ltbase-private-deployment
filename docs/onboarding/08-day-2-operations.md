@@ -41,6 +41,17 @@ The script checks:
 
 Use preview whenever you change stack configuration, release selection, or deployment-related values.
 
+### Recover from Pulumi config drift
+
+Preview and deployment workflows now validate that `infra/Pulumi.<stack>.yaml` contains the required `ltbase-infra:*` config keys before invoking the shared deployment workflows.
+
+If a workflow fails with a missing-key error, repair the generated deployment repository by either:
+
+- rerunning `./scripts/bootstrap-deployment-repo.sh --env-file .env --stack <stack>`
+- restoring the missing key in `infra/Pulumi.<stack>.yaml`
+
+This validation is presence-only. It does not modify customer config automatically during preview or deploy.
+
 ### Maintain local bootstrap inputs
 
 Keep `.env` private, current, and outside version control.
