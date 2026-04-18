@@ -109,4 +109,5 @@
 - 当前模板默认假设 `api`、`auth`、`control-plane` 都通过 Cloudflare 代理的自定义域名对外提供访问
 - 在承载正式流量前，将 Cloudflare SSL 模式设置为 `Full (strict)`
 - 在期待 API Gateway mTLS 生效前，先启用 Cloudflare Authenticated Origin Pulls
+- 如果你希望 preview 与 rollout 的 mTLS audit 能验证这些检查项，确认 `CLOUDFLARE_API_TOKEN` 也具备读取 Cloudflare zone settings 的权限
 - 一旦应用 mTLS rollout，直接访问 `execute-api` endpoint 失败属于预期行为
