@@ -115,4 +115,5 @@ onboarding 文档支持通用多 stack 拓扑。文中出现 `devo`、`prod` 等
 - 只有当同步下来的 provenance 和 `build_fingerprint` 与上游已发布 manifest 完全匹配时，官方工作流才会安装预构建 binary；否则会回退到源码构建
 - 如果后续仓库版本调整了 managed DSQL 生命周期，请以该版本自带文档为准
 - 操作者需要将 Cloudflare SSL 模式保持为 `Full (strict)`，并为 API hostname 启用 Authenticated Origin Pulls
+- preview 与 rollout 的 mTLS audit 还要求 `CLOUDFLARE_API_TOKEN` 具备读取目标 zone 的 Cloudflare zone settings 权限，而不只是读取 DNS 记录
 - 一旦应用 mTLS rollout，直连 `execute-api` 失败属于设计预期

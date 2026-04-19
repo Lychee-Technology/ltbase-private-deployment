@@ -121,4 +121,5 @@ This template repository only tracks `infra/auth-providers.*.json.example`. A ge
 - official workflows only install a prebuilt infra binary when the synced template provenance and `build_fingerprint` exactly match an upstream published manifest; otherwise they fall back to source build
 - if a later repository version changes the managed DSQL lifecycle, follow the docs shipped with that version
 - operators must keep Cloudflare SSL mode on `Full (strict)` and enable Authenticated Origin Pulls for the API hostnames
+- preview and rollout mTLS audits also require `CLOUDFLARE_API_TOKEN` to read Cloudflare zone settings for the target zone, not just DNS records
 - once the mTLS rollout is applied, direct `execute-api` access is expected to fail by design
