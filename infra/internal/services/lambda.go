@@ -176,6 +176,7 @@ func NewLambdaServices(ctx *pulumi.Context, cfg config.StackConfig, runtime *Run
 
 func authLambdaEnv(cfg config.StackConfig, providerNames []string, authKeyID pulumi.StringInput, tableName pulumi.StringInput, bucketName pulumi.StringInput) pulumi.StringMap {
 	return mergeEnv(commonLambdaEnv(cfg, tableName, bucketName), pulumi.StringMap{
+		"PROJECT_ID":                pulumi.String(cfg.ProjectID),
 		"AUTH_SIGNER_MODE":          pulumi.String("kms"),
 		"AUTH_KMS_KEY_ID":           authKeyID,
 		"AUTH_STAGE":                pulumi.String(cfg.AuthStage),

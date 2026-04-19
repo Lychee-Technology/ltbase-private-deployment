@@ -92,6 +92,23 @@ func TestAuthLambdaEnvIncludesProviderNames(t *testing.T) {
 	}
 }
 
+func TestAuthLambdaEnvIncludesProjectID(t *testing.T) {
+	env := authLambdaEnv(config.StackConfig{
+		Stack:             "devo",
+		ProjectID:         "33333333-3333-4333-8333-333333333333",
+		APIDomain:         "api.devo.example.com",
+		AWSRegion:         "ap-northeast-1",
+		DSQLPort:          "5432",
+		DSQLDB:            "postgres",
+		DSQLUser:          "admin",
+		DSQLProjectSchema: "ltbase",
+	}, []string{"firebase"}, pulumi.String("kms-key-id"), pulumi.String("table-name"), pulumi.String("bucket-name"))
+
+	if _, ok := env["PROJECT_ID"]; !ok {
+		t.Fatal("authLambdaEnv() missing PROJECT_ID")
+	}
+}
+
 func TestControlPlaneLambdaEnvIncludesBootstrapProjectConfig(t *testing.T) {
 	env := controlPlaneLambdaEnv(config.StackConfig{
 		Stack:                  "devo",
