@@ -6,3 +6,4 @@ infra/auth-providers.*.json
 dist/
 infra/.pulumi/
 customer-owned/
+!customer-owned/schemas/**
