@@ -66,6 +66,13 @@ while IFS= read -r stack; do
 done < <(bootstrap_env_each_stack)
 
 mkdir -p "${OUTPUT_DIR}"
+
+local_code_dir="${OUTPUT_DIR}/${OIDC_DISCOVERY_REPO_NAME}"
+bootstrap_env_info "Syncing OIDC discovery template code into ${local_code_dir}"
+rm -rf "${local_code_dir}"
+bootstrap_env_run_quiet gh repo clone "${OIDC_DISCOVERY_TEMPLATE_REPO}" "${local_code_dir}" -- --depth 1
+rm -rf "${local_code_dir}/.git"
+
 companion_summary="${OUTPUT_DIR}/oidc-discovery-companion.env"
 oidc_stack_config="$(bootstrap_env_oidc_discovery_stack_config_json)"
 
@@ -307,6 +314,20 @@ repo_view_output=""
 repo_view_error_file="$(mktemp)"
 if gh repo view "${OIDC_DISCOVERY_REPO}" >/dev/null 2>"${repo_view_error_file}"; then
   rm -f "${repo_view_error_file}"
+  bootstrap_env_info "Companion repo exists, syncing latest template code from ${OIDC_DISCOVERY_TEMPLATE_REPO}"
+  sync_tmp="$(mktemp -d)"
+  bootstrap_env_run_quiet gh repo clone "${OIDC_DISCOVERY_REPO}" "${sync_tmp}/companion" -- --depth 1
+  bootstrap_env_run_quiet gh repo clone "${OIDC_DISCOVERY_TEMPLATE_REPO}" "${sync_tmp}/template" -- --depth 1
+  rsync -a --delete --exclude=.git "${sync_tmp}/template/" "${sync_tmp}/companion/"
+  if git -C "${sync_tmp}/companion" diff --quiet && git -C "${sync_tmp}/companion" diff --cached --quiet; then
+    bootstrap_env_info "Companion repo already up to date"
+  else
+    git -C "${sync_tmp}/companion" add -A
+    git -C "${sync_tmp}/companion" commit -m "Sync from template ${OIDC_DISCOVERY_TEMPLATE_REPO}"
+    git -C "${sync_tmp}/companion" push
+    bootstrap_env_info "Pushed latest template code to ${OIDC_DISCOVERY_REPO}"
+  fi
+  rm -rf "${sync_tmp}"
 else
   repo_view_output="$(<"${repo_view_error_file}")"
   rm -f "${repo_view_error_file}"
