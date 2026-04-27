@@ -180,6 +180,7 @@ func authLambdaEnv(cfg config.StackConfig, providerNames []string, authKeyID pul
 		"AUTH_SIGNER_MODE":          pulumi.String("kms"),
 		"AUTH_KMS_KEY_ID":           authKeyID,
 		"AUTH_STAGE":                pulumi.String(cfg.AuthStage),
+		"AUTH_ISSUER":               pulumi.String(cfg.OIDCIssuerURL),
 		"AUTH_JWKS_FILE_PATH":       pulumi.String("/var/task/jwt/jwks.json"),
 		"AUTH_DEFAULT_API_BASE_URL": pulumi.String("https://" + cfg.APIDomain),
 		"AUTH_PROVIDERS":            pulumi.String(strings.Join(providerNames, ",")),

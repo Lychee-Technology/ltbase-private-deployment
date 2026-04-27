@@ -83,12 +83,16 @@ func TestAuthLambdaEnvIncludesProviderNames(t *testing.T) {
 		DSQLDB:            "postgres",
 		DSQLUser:          "admin",
 		DSQLProjectSchema: "ltbase",
+		OIDCIssuerURL:     "https://oidc.example.com/devo",
 	}, []string{"firebase", "supabase"}, pulumi.String("kms-key-id"), pulumi.String("table-name"), pulumi.String("bucket-name"))
 
-	for _, key := range []string{"AUTH_PROVIDERS", "AUTH_SIGNER_MODE", "AUTH_KMS_KEY_ID"} {
+	for _, key := range []string{"AUTH_PROVIDERS", "AUTH_SIGNER_MODE", "AUTH_KMS_KEY_ID", "AUTH_ISSUER"} {
 		if _, ok := env[key]; !ok {
 			t.Fatalf("authLambdaEnv() missing %s", key)
 		}
+	}
+	if env["AUTH_ISSUER"] != pulumi.String("https://oidc.example.com/devo") {
+		t.Fatalf("authLambdaEnv() AUTH_ISSUER = %v, want https://oidc.example.com/devo", env["AUTH_ISSUER"])
 	}
 }
 
