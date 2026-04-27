@@ -318,7 +318,7 @@ if gh repo view "${OIDC_DISCOVERY_REPO}" >/dev/null 2>"${repo_view_error_file}";
   sync_tmp="$(mktemp -d)"
   bootstrap_env_run_quiet gh repo clone "${OIDC_DISCOVERY_REPO}" "${sync_tmp}/companion" -- --depth 1
   bootstrap_env_run_quiet gh repo clone "${OIDC_DISCOVERY_TEMPLATE_REPO}" "${sync_tmp}/template" -- --depth 1
-  rsync -a --delete --exclude=.git "${sync_tmp}/template/" "${sync_tmp}/companion/"
+  rsync -a --exclude=.git "${sync_tmp}/template/" "${sync_tmp}/companion/"
   if git -C "${sync_tmp}/companion" diff --quiet && git -C "${sync_tmp}/companion" diff --cached --quiet; then
     bootstrap_env_info "Companion repo already up to date"
   else
