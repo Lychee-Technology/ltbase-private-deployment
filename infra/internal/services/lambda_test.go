@@ -87,7 +87,7 @@ func TestAuthLambdaEnvIncludesProviderNames(t *testing.T) {
 		OIDCIssuerURL:     "https://oidc.example.com/devo",
 	}, []string{"firebase", "supabase"}, pulumi.String("kms-key-id"), pulumi.String("table-name"), pulumi.String("bucket-name"))
 
-	for _, key := range []string{"AUTH_PROVIDERS", "AUTH_SIGNER_MODE", "AUTH_KMS_KEY_ID", "AUTH_ISSUER", "AUTH_REFRESH_AUD"} {
+	for _, key := range []string{"AUTH_PROVIDERS", "AUTH_SIGNER_MODE", "AUTH_KMS_KEY_ID", "AUTH_ISSUER", "AUTH_REFRESH_AUD", "AUTH_JWKS_URL"} {
 		if _, ok := env[key]; !ok {
 			t.Fatalf("authLambdaEnv() missing %s", key)
 		}
