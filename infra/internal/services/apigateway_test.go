@@ -40,15 +40,18 @@ func TestBuildAuthProviderAuthorizerSpecs(t *testing.T) {
 			{Name: "firebase", Issuer: "https://issuer.example.com", Audiences: []string{"aud-1"}, EnableLogin: true, EnableIDBinding: true},
 		},
 	}
-	authorizers := buildAuthAuthorizerSpecs(config.StackConfig{OIDCIssuerURL: "https://oidc.example.com/devo", ProjectID: "11111111-1111-4111-8111-111111111111"}, providerCfg)
-	if len(authorizers) != 2 {
-		t.Fatalf("authorizer count = %d, want 2", len(authorizers))
+	authorizers := buildAuthAuthorizerSpecs(config.StackConfig{OIDCIssuerURL: "https://oidc.example.com/devo", ProjectID: "11111111-1111-4111-8111-111111111111", AuthDomain: "auth.example.com"}, providerCfg)
+	if len(authorizers) != 3 {
+		t.Fatalf("authorizer count = %d, want 3", len(authorizers))
 	}
 	if authorizers[0].Name != "LTBase" {
 		t.Fatalf("first authorizer = %q, want LTBase", authorizers[0].Name)
 	}
-	if authorizers[1].Name != "firebase" {
-		t.Fatalf("provider authorizer = %q, want firebase", authorizers[1].Name)
+	if authorizers[1].Name != "LTBaseRefresh" {
+		t.Fatalf("second authorizer = %q, want LTBaseRefresh", authorizers[1].Name)
+	}
+	if authorizers[2].Name != "firebase" {
+		t.Fatalf("provider authorizer = %q, want firebase", authorizers[2].Name)
 	}
 }
 
@@ -66,7 +69,7 @@ func TestBuildAuthRouteSpecs(t *testing.T) {
 	if routes[0].RouteKey != "GET /api/v1/auth/health" || routes[0].AuthorizerName != "" {
 		t.Fatalf("unexpected health route: %#v", routes[0])
 	}
-	if routes[1].RouteKey != "POST /api/v1/auth/refresh" || routes[1].AuthorizerName != "LTBase" {
+	if routes[1].RouteKey != "POST /api/v1/auth/refresh" || routes[1].AuthorizerName != "LTBaseRefresh" {
 		t.Fatalf("unexpected refresh route: %#v", routes[1])
 	}
 	if routes[4].RouteKey != "POST /api/v1/login/apple" {
@@ -194,6 +197,22 @@ func TestLTBaseAuthorizerSpecUsesIssuerAndProjectID(t *testing.T) {
 	}
 	if len(spec.Audiences) != 1 || spec.Audiences[0] != "11111111-1111-4111-8111-111111111111" {
 		t.Fatalf("ltbaseAuthorizerSpec() audiences = %#v", spec.Audiences)
+	}
+}
+
+func TestLTBaseRefreshAuthorizerSpecUsesAuthDomain(t *testing.T) {
+	spec := ltbaseRefreshAuthorizerSpec(config.StackConfig{
+		OIDCIssuerURL: "https://oidc.example.com/devo",
+		AuthDomain:    "auth.example.com",
+	})
+	if spec.Name != "LTBaseRefresh" {
+		t.Fatalf("ltbaseRefreshAuthorizerSpec() name = %q", spec.Name)
+	}
+	if spec.Issuer != "https://oidc.example.com/devo" {
+		t.Fatalf("ltbaseRefreshAuthorizerSpec() issuer = %q", spec.Issuer)
+	}
+	if len(spec.Audiences) != 1 || spec.Audiences[0] != "https://auth.example.com" {
+		t.Fatalf("ltbaseRefreshAuthorizerSpec() audiences = %#v", spec.Audiences)
 	}
 }
 

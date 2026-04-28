@@ -103,6 +103,14 @@ func ltbaseAuthorizerSpec(cfg config.StackConfig) authorizerSpec {
 	}
 }
 
+func ltbaseRefreshAuthorizerSpec(cfg config.StackConfig) authorizerSpec {
+	return authorizerSpec{
+		Name:      "LTBaseRefresh",
+		Issuer:    cfg.OIDCIssuerURL,
+		Audiences: []string{"https://" + cfg.AuthDomain},
+	}
+}
+
 func buildAPIRouteSpecs() []routeSpec {
 	return []routeSpec{
 		{RouteKey: "GET /api/ai/v1/notes", AuthorizerName: "LTBase"},
@@ -151,7 +159,7 @@ func routeAliases(cfg config.StackConfig, suffix string, spec routeSpec) []pulum
 }
 
 func buildAuthAuthorizerSpecs(cfg config.StackConfig, providerCfg AuthProviderConfig) []authorizerSpec {
-	specs := []authorizerSpec{ltbaseAuthorizerSpec(cfg)}
+	specs := []authorizerSpec{ltbaseAuthorizerSpec(cfg), ltbaseRefreshAuthorizerSpec(cfg)}
 	for _, provider := range providerCfg.Providers {
 		specs = append(specs, authorizerSpec{
 			Name:      provider.Name,
@@ -165,7 +173,7 @@ func buildAuthAuthorizerSpecs(cfg config.StackConfig, providerCfg AuthProviderCo
 func buildAuthRouteSpecs(providerCfg AuthProviderConfig) []routeSpec {
 	routes := []routeSpec{
 		{RouteKey: "GET /api/v1/auth/health"},
-		{RouteKey: "POST /api/v1/auth/refresh", AuthorizerName: "LTBase"},
+		{RouteKey: "POST /api/v1/auth/refresh", AuthorizerName: "LTBaseRefresh"},
 	}
 	for _, provider := range providerCfg.Providers {
 		if provider.EnableIDBinding {
