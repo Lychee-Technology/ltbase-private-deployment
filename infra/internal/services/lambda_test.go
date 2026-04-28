@@ -78,6 +78,7 @@ func TestAuthLambdaEnvIncludesProviderNames(t *testing.T) {
 	env := authLambdaEnv(config.StackConfig{
 		Stack:             "devo",
 		APIDomain:         "api.devo.example.com",
+		AuthDomain:        "auth.devo.example.com",
 		AWSRegion:         "ap-northeast-1",
 		DSQLPort:          "5432",
 		DSQLDB:            "postgres",
@@ -86,13 +87,16 @@ func TestAuthLambdaEnvIncludesProviderNames(t *testing.T) {
 		OIDCIssuerURL:     "https://oidc.example.com/devo",
 	}, []string{"firebase", "supabase"}, pulumi.String("kms-key-id"), pulumi.String("table-name"), pulumi.String("bucket-name"))
 
-	for _, key := range []string{"AUTH_PROVIDERS", "AUTH_SIGNER_MODE", "AUTH_KMS_KEY_ID", "AUTH_ISSUER"} {
+	for _, key := range []string{"AUTH_PROVIDERS", "AUTH_SIGNER_MODE", "AUTH_KMS_KEY_ID", "AUTH_ISSUER", "AUTH_REFRESH_AUD"} {
 		if _, ok := env[key]; !ok {
 			t.Fatalf("authLambdaEnv() missing %s", key)
 		}
 	}
 	if env["AUTH_ISSUER"] != pulumi.String("https://oidc.example.com/devo") {
 		t.Fatalf("authLambdaEnv() AUTH_ISSUER = %v, want https://oidc.example.com/devo", env["AUTH_ISSUER"])
+	}
+	if env["AUTH_REFRESH_AUD"] != pulumi.String("https://auth.devo.example.com") {
+		t.Fatalf("authLambdaEnv() AUTH_REFRESH_AUD = %v, want https://auth.devo.example.com", env["AUTH_REFRESH_AUD"])
 	}
 }
 
