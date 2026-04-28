@@ -95,11 +95,24 @@ type httpAPIDomainConfig struct {
 	Truststore mtlsTruststore
 }
 
+func ltbaseProjectAudiences(projectID string) []string {
+	upper := strings.ToUpper(projectID)
+	lower := strings.ToLower(projectID)
+	out := []string{projectID}
+	if upper != projectID {
+		out = append(out, upper)
+	}
+	if lower != projectID && lower != upper {
+		out = append(out, lower)
+	}
+	return out
+}
+
 func ltbaseAuthorizerSpec(cfg config.StackConfig) authorizerSpec {
 	return authorizerSpec{
 		Name:      "LTBase",
 		Issuer:    cfg.OIDCIssuerURL,
-		Audiences: []string{cfg.ProjectID},
+		Audiences: ltbaseProjectAudiences(cfg.ProjectID),
 	}
 }
 

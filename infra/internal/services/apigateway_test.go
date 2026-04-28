@@ -200,6 +200,61 @@ func TestLTBaseAuthorizerSpecUsesIssuerAndProjectID(t *testing.T) {
 	}
 }
 
+func TestLTBaseProjectAudiencesAllLower(t *testing.T) {
+	aud := ltbaseProjectAudiences("a1b2c3d4-e5f6-7890-abcd-ef1234567890")
+	if len(aud) != 2 {
+		t.Fatalf("ltbaseProjectAudiences(all-lower) len = %d, want 2; got %#v", len(aud), aud)
+	}
+	if aud[0] != "a1b2c3d4-e5f6-7890-abcd-ef1234567890" {
+		t.Fatalf("original = %q", aud[0])
+	}
+	if aud[1] != "A1B2C3D4-E5F6-7890-ABCD-EF1234567890" {
+		t.Fatalf("upper = %q", aud[1])
+	}
+}
+
+func TestLTBaseProjectAudiencesAllUpper(t *testing.T) {
+	aud := ltbaseProjectAudiences("A1B2C3D4-E5F6-7890-ABCD-EF1234567890")
+	if len(aud) != 2 {
+		t.Fatalf("ltbaseProjectAudiences(all-upper) len = %d, want 2; got %#v", len(aud), aud)
+	}
+	if aud[0] != "A1B2C3D4-E5F6-7890-ABCD-EF1234567890" {
+		t.Fatalf("original = %q", aud[0])
+	}
+	if aud[1] != "a1b2c3d4-e5f6-7890-abcd-ef1234567890" {
+		t.Fatalf("lower = %q", aud[1])
+	}
+}
+
+func TestLTBaseProjectAudiencesMixedCase(t *testing.T) {
+	aud := ltbaseProjectAudiences("A1b2C3d4-E5f6-7890-AbcD-Ef1234567890")
+	if len(aud) != 3 {
+		t.Fatalf("ltbaseProjectAudiences(mixed-case) len = %d, want 3; got %#v", len(aud), aud)
+	}
+	if aud[0] != "A1b2C3d4-E5f6-7890-AbcD-Ef1234567890" {
+		t.Fatalf("original = %q", aud[0])
+	}
+	if aud[1] != "A1B2C3D4-E5F6-7890-ABCD-EF1234567890" {
+		t.Fatalf("upper = %q", aud[1])
+	}
+	if aud[2] != "a1b2c3d4-e5f6-7890-abcd-ef1234567890" {
+		t.Fatalf("lower = %q", aud[2])
+	}
+}
+
+func TestLTBaseProjectAudiencesNoDuplicates(t *testing.T) {
+	aud := ltbaseProjectAudiences("aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee")
+	if len(aud) != 2 {
+		t.Fatalf("ltbaseProjectAudiences(all-lower) len = %d, want 2; got %#v", len(aud), aud)
+	}
+	if aud[0] != "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee" {
+		t.Fatalf("original = %q", aud[0])
+	}
+	if aud[1] != "AAAAAAAA-BBBB-CCCC-DDDD-EEEEEEEEEEEE" {
+		t.Fatalf("upper = %q", aud[1])
+	}
+}
+
 func TestLTBaseRefreshAuthorizerSpecUsesAuthDomain(t *testing.T) {
 	spec := ltbaseRefreshAuthorizerSpec(config.StackConfig{
 		OIDCIssuerURL: "https://oidc.example.com/devo",
