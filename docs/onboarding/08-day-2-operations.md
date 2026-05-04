@@ -58,6 +58,12 @@ This validation is presence-only. It does not modify customer config automatical
 
 Keep `.env` private, current, and outside version control.
 
+### Operate the Control Plane UI
+
+Use [`09-control-plane-ui.md`](09-control-plane-ui.md) when you need to configure the Cloudflare Pages-hosted customer admin UI.
+
+The UI is served from a separate repository and uses a non-secret runtime config file. Keep schema authoring output local: download or copy JSON from the editor, commit schema files under `customer-owned/schemas/`, and use the normal preview/rollout workflow to publish them.
+
 ## Operational Reminders
 
 - do not rebuild LTBase application binaries in the deployment repository

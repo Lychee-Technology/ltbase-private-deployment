@@ -47,6 +47,12 @@ preview workflow 与 rollout hop workflow 会在成功完成后自动运行这�
 
 保持 `.env` 私密、最新，并确保它不受版本控制。
 
+### 使用 Control Plane UI
+
+当你需要配置通过 Cloudflare Pages 托管的客户管理员 UI 时，请参考 [`09-control-plane-ui.zh.md`](09-control-plane-ui.zh.md)。
+
+UI 由独立仓库提供，并通过非 secret 的 runtime config 文件配置。Schema 编辑输出只应保存在本地：从 editor 下载或复制 JSON 后，将 schema 文件提交到 `customer-owned/schemas/`，再通过正常 preview/rollout workflow 发布。
+
 ## 运维提醒
 
 - 不要在部署仓库中自行重建 LTBase 应用二进制

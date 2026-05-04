@@ -55,6 +55,7 @@ Detailed onboarding guides:
 - manual bootstrap: [`docs/onboarding/06-bootstrap-manual.md`](docs/onboarding/06-bootstrap-manual.md)
 - first deploy and managed DSQL handling: [`docs/onboarding/07-first-deploy-and-managed-dsql.md`](docs/onboarding/07-first-deploy-and-managed-dsql.md)
 - day-2 operations: [`docs/onboarding/08-day-2-operations.md`](docs/onboarding/08-day-2-operations.md)
+- Control Plane UI setup: [`docs/onboarding/09-control-plane-ui.md`](docs/onboarding/09-control-plane-ui.md)
 
 If you are using the recovery-aware path, treat these as the key operator guides:
 
@@ -108,11 +109,13 @@ This template repository only tracks `infra/auth-providers.*.json.example`. A ge
 - manual preview only targets the first stack in `PROMOTION_PATH`
 - automated rollout continues one hop at a time across `PROMOTION_PATH`, with customer-controlled approvals on protected target environments
 - `api`, `auth`, and `control-plane` are expected to use Cloudflare-proxied custom domains with API Gateway mutual TLS enabled
+- the optional customer admin UI is hosted separately from this template through `Lychee-Technology/ltbase-controlplane-ui` and Cloudflare Pages
 
 ## Notes
 
 - keep local `.env` files private and out of version control
 - use the documentation in `docs/` as the source of truth for customer onboarding
+- configure the Control Plane UI through non-secret runtime config only; do not commit tokens or client secrets
 - keep customer-specific Forma schemas in `customer-owned/schemas/*.json`; deployment workflows publish them to the stack `SCHEMA_BUCKET`
 - keep `infra/.pulumi/bin/ltbase-infra` out of version control; the wrapper can recreate it locally and official workflows may preinstall it temporarily
 - `__ref__/template-provenance.json` records the upstream template commit and `build_fingerprint` that official workflows use when looking up prebuilt infra binaries

@@ -53,6 +53,7 @@ onboarding 文档支持通用多 stack 拓扑。文中出现 `devo`、`prod` 等
 - 手动 bootstrap：[`docs/onboarding/06-bootstrap-manual.zh.md`](docs/onboarding/06-bootstrap-manual.zh.md)
 - 首次部署与 managed DSQL 处理：[`docs/onboarding/07-first-deploy-and-managed-dsql.zh.md`](docs/onboarding/07-first-deploy-and-managed-dsql.zh.md)
 - 日常运维操作：[`docs/onboarding/08-day-2-operations.zh.md`](docs/onboarding/08-day-2-operations.zh.md)
+- Control Plane UI 设置：[`docs/onboarding/09-control-plane-ui.zh.md`](docs/onboarding/09-control-plane-ui.zh.md)
 
 如果你使用恢复感知的 bootstrap 路径，最关键的操作文档是：
 
@@ -104,11 +105,13 @@ onboarding 文档支持通用多 stack 拓扑。文中出现 `devo`、`prod` 等
 - 手动 preview 只针对 `PROMOTION_PATH` 的第一个环境
 - 自动 rollout 会按 `PROMOTION_PATH` 逐跳推进，受保护目标环境仍由客户自己审批
 - `api`、`auth`、`control-plane` 默认应通过 Cloudflare 代理的自定义域名访问，并在 API Gateway 上启用 mutual TLS
+- 可选的客户管理员 UI 通过 `Lychee-Technology/ltbase-controlplane-ui` 和 Cloudflare Pages 独立托管，不放在本模板仓库中
 
 ## 说明
 
 - 保持本地 `.env` 文件私密，不要纳入版本控制
 - 客户 onboarding 请以 `docs/` 下文档为准
+- Control Plane UI 只能通过非 secret 的 runtime config 配置；不要提交 token 或 client secret
 - `__ref__/template-provenance.json` 会记录上游模板 commit 和 `build_fingerprint`，官方工作流会用它来查找可用的预构建 infra binary
 - 向 `ltbase-private-deployment-binaries` 发布二进制只需要在上游模板仓库配置 `LTBASE_PRIVATE_DEPLOYMENT_BINARIES_TOKEN`
 - 从模板生成出的客户部署仓库也会带上 `.github/workflows/build-infra-binary.yml`，但该工作流带有 repo guard，在 `Lychee-Technology/ltbase-private-deployment` 之外会直接跳过
