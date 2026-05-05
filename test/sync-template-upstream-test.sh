@@ -42,6 +42,18 @@ assert_log_not_contains() {
   fi
 }
 
+restore_optional_file() {
+  local backup_path="$1"
+  local target_path="$2"
+
+  if [[ -f "${backup_path}" ]]; then
+    mkdir -p "$(dirname "${target_path}")"
+    /bin/cp "${backup_path}" "${target_path}"
+  else
+    rm -f "${target_path}"
+  fi
+}
+
 temp_dir="$(mktemp -d)"
 provenance_path="${ROOT_DIR}/__ref__/template-provenance.json"
 original_provenance="${temp_dir}/template-provenance.original.json"
@@ -210,6 +222,9 @@ if [[ "${SCENARIO:-success}" == "preserve_customer_owned_directory" ]]; then
 elif [[ "${SCENARIO:-success}" == "preserve_customer_owned_directory_contents_only" ]]; then
   rm -rf "${dest}/customer-owned"
   mkdir -p "${dest}/customer-owned"
+  if [[ -d "${src}/customer-owned" ]]; then
+    /bin/cp -R "${src}/customer-owned" "${dest}"
+  fi
 fi
 mkdir -p "${dest}/__ref__"
 if [[ -f "${src}/__ref__/template-provenance.json" ]]; then
@@ -361,40 +376,53 @@ run_empty_find_case() {
 run_preserves_customer_auth_provider_case() {
   local fake_bin="$1"
   local auth_provider_path="${ROOT_DIR}/infra/auth-providers.prod.json"
+  local auth_provider_backup="${temp_dir}/auth-providers.prod.json.preserve.backup"
   local original_content='{"providers":[{"name":"customer"}]}'
 
   setup_fake_git "${fake_bin}"
+  rm -f "${auth_provider_backup}"
+  if [[ -f "${auth_provider_path}" ]]; then
+    /bin/cp "${auth_provider_path}" "${auth_provider_backup}"
+  fi
   mkdir -p "${ROOT_DIR}/infra"
   printf '%s\n' "${original_content}" >"${auth_provider_path}"
 
   if ! output="$(PATH="${fake_bin}:$PATH" COMMAND_LOG="${log_file}" TEMP_ROOT="${temp_dir}" "${SCRIPT_PATH}" 2>&1)"; then
-    rm -f "${auth_provider_path}"
+    restore_optional_file "${auth_provider_backup}" "${auth_provider_path}"
     fail "expected script to preserve customer auth provider file, got: ${output}"
   fi
 
   assert_text_contains "${output}" "synced upstream/main into main"
   assert_log_contains "${auth_provider_path}" "${original_content}"
-  assert_log_contains "${log_file}" "cp ./infra/auth-providers.prod.json ${temp_dir}/upstream-checkout/customer-owned/infra/auth-providers.prod.json"
-  assert_log_contains "${log_file}" "cp ${temp_dir}/upstream-checkout/customer-owned/infra/auth-providers.prod.json ./infra/auth-providers.prod.json"
-  rm -f "${auth_provider_path}"
+  assert_log_contains "${log_file}" "cp ./infra/auth-providers.prod.json ${temp_dir}/upstream-checkout.customer-owned-backup/infra/auth-providers.prod.json"
+  assert_log_contains "${log_file}" "cp ${temp_dir}/upstream-checkout.customer-owned-backup/infra/auth-providers.prod.json ./infra/auth-providers.prod.json"
+  restore_optional_file "${auth_provider_backup}" "${auth_provider_path}"
 }
 
 run_missing_customer_auth_provider_case() {
   local fake_bin="$1"
   local auth_provider_path="${ROOT_DIR}/infra/auth-providers.prod.json"
+  local auth_provider_backup="${temp_dir}/auth-providers.prod.json.missing.backup"
 
   setup_fake_git "${fake_bin}"
+  rm -f "${auth_provider_backup}"
+  if [[ -f "${auth_provider_path}" ]]; then
+    /bin/cp "${auth_provider_path}" "${auth_provider_backup}"
+  fi
   rm -f "${auth_provider_path}"
 
   if ! output="$(PATH="${fake_bin}:$PATH" COMMAND_LOG="${log_file}" TEMP_ROOT="${temp_dir}" "${SCRIPT_PATH}" 2>&1)"; then
+    restore_optional_file "${auth_provider_backup}" "${auth_provider_path}"
     fail "expected script to succeed when customer auth provider file is absent, got: ${output}"
   fi
 
   assert_text_contains "${output}" "synced upstream/main into main"
   if [[ -e "${auth_provider_path}" ]]; then
     rm -f "${auth_provider_path}"
+    restore_optional_file "${auth_provider_backup}" "${auth_provider_path}"
     fail "expected sync to leave missing customer auth provider file absent"
   fi
+  restore_optional_file "${auth_provider_backup}" "${auth_provider_path}"
 }
 
 run_preserves_customer_owned_directory_case() {

@@ -9,7 +9,7 @@ sync_template_info() {
 sync_template_run_quiet() {
   local output status
 
-  if output="$($@ 2>&1)"; then
+  if output="$("$@" 2>&1)"; then
     return 0
   else
     status=$?
@@ -185,8 +185,8 @@ sync_template_run_quiet git fetch "${UPSTREAM_NAME}"
 capture_stdout_quiet upstream_commit git rev-parse "${UPSTREAM_NAME}/${BRANCH}"
 
 temp_root="$(mktemp -d)"
-trap 'rm -rf "${temp_root}" "${ARCHIVE_PATH}"' EXIT
-customer_owned_backup_root="${temp_root}/customer-owned"
+customer_owned_backup_root="${temp_root}.customer-owned-backup"
+trap 'rm -rf "${temp_root}" "${customer_owned_backup_root}" "${ARCHIVE_PATH}"' EXIT
 
 sync_template_run_quiet git archive --format=tar --output "${ARCHIVE_PATH}" "${UPSTREAM_NAME}/${BRANCH}"
 mkdir -p "${temp_root}"
