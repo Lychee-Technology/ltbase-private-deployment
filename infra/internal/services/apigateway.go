@@ -131,6 +131,8 @@ func buildAPIRouteSpecs() []routeSpec {
 		{RouteKey: "GET /api/ai/v1/notes/{note_id}", AuthorizerName: "LTBase"},
 		{RouteKey: "PUT /api/ai/v1/notes/{note_id}", AuthorizerName: "LTBase"},
 		{RouteKey: "DELETE /api/ai/v1/notes/{note_id}", AuthorizerName: "LTBase"},
+		{RouteKey: "GET /api/ai/v1/notes/{note_id}/model_sync", AuthorizerName: "LTBase"},
+		{RouteKey: "POST /api/ai/v1/notes/{note_id}/model_sync", AuthorizerName: "LTBase"},
 		{RouteKey: "GET /api/v1/deepping", AuthorizerName: "LTBase"},
 		{RouteKey: "GET /api/v1/{schema_name}", AuthorizerName: "LTBase"},
 		{RouteKey: "POST /api/v1/{schema_name}", AuthorizerName: "LTBase"},

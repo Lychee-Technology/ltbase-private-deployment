@@ -11,15 +11,27 @@ import (
 
 func TestBuildAPIRouteSpecs(t *testing.T) {
 	routes := buildAPIRouteSpecs()
-	if len(routes) != 11 {
-		t.Fatalf("route count = %d, want 11", len(routes))
+	if len(routes) != 13 {
+		t.Fatalf("route count = %d, want 13", len(routes))
 	}
 	if routes[0].RouteKey != "GET /api/ai/v1/notes" {
 		t.Fatalf("first route = %q", routes[0].RouteKey)
 	}
+	wantRoutes := map[string]bool{
+		"GET /api/ai/v1/notes/{note_id}/model_sync":  false,
+		"POST /api/ai/v1/notes/{note_id}/model_sync": false,
+	}
 	for _, route := range routes {
 		if route.AuthorizerName != "LTBase" {
 			t.Fatalf("route %q authorizer = %q, want LTBase", route.RouteKey, route.AuthorizerName)
+		}
+		if _, ok := wantRoutes[route.RouteKey]; ok {
+			wantRoutes[route.RouteKey] = true
+		}
+	}
+	for routeKey, found := range wantRoutes {
+		if !found {
+			t.Fatalf("missing API route %q", routeKey)
 		}
 	}
 }
