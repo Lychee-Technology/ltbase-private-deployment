@@ -15,11 +15,6 @@ type RecordArgs struct {
 	Proxied  bool
 }
 
-const (
-	originErrorPagePassThroughSettingID = "origin_error_page_pass_thru"
-	cloudflareSettingOn                 = "on"
-)
-
 func NewCNAME(ctx *pulumi.Context, logicalName string, args RecordArgs, opts ...pulumi.ResourceOption) (*cloudflare.DnsRecord, error) {
 	recordName := args.Name.ToStringPtrOutput().ApplyT(func(value *string) string {
 		if value == nil {
@@ -39,17 +34,4 @@ func NewCNAME(ctx *pulumi.Context, logicalName string, args RecordArgs, opts ...
 
 func recordProxied(args RecordArgs) bool {
 	return args.Proxied
-}
-
-func NewOriginErrorPagePassThrough(ctx *pulumi.Context, logicalName string, zoneID string, opts ...pulumi.ResourceOption) (*cloudflare.ZoneSetting, error) {
-	args := originErrorPagePassThroughSettingArgs(zoneID)
-	return cloudflare.NewZoneSetting(ctx, logicalName, &args, opts...)
-}
-
-func originErrorPagePassThroughSettingArgs(zoneID string) cloudflare.ZoneSettingArgs {
-	return cloudflare.ZoneSettingArgs{
-		ZoneId:    pulumi.String(zoneID),
-		SettingId: pulumi.String(originErrorPagePassThroughSettingID),
-		Value:     pulumi.String(cloudflareSettingOn),
-	}
 }

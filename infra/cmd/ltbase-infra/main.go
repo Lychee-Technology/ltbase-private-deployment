@@ -8,7 +8,6 @@ import (
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 
 	infraConfig "lychee.technology/ltbase/infra/internal/config"
-	"lychee.technology/ltbase/infra/internal/dns"
 	"lychee.technology/ltbase/infra/internal/naming"
 	"lychee.technology/ltbase/infra/internal/services"
 )
@@ -29,10 +28,6 @@ func main() {
 		}
 		ctx.Log.Info("ltbase-infra: created AWS provider", nil)
 		providers := services.Providers{AWS: awsProvider}
-		if _, err := dns.NewOriginErrorPagePassThrough(ctx, naming.ResourceName(cfg.Project, cfg.Stack, "cloudflare-origin-error-page-pass-through"), cfg.CloudflareZoneID); err != nil {
-			return err
-		}
-		ctx.Log.Info("ltbase-infra: declared Cloudflare origin error page pass-through setting", nil)
 		if err := ensureGitHubOIDC(ctx, cfg, providers); err != nil {
 			return err
 		}
