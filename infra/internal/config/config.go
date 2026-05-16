@@ -82,7 +82,7 @@ func Load(ctx *pulumi.Context) (StackConfig, error) {
 		DSQLUser:                 valueOrDefault(cfg.Get("dsqlUser"), "admin"),
 		DSQLProjectSchema:        valueOrDefault(cfg.Get("dsqlProjectSchema"), "ltbase"),
 		GeminiAPIKey:             cfg.RequireSecret("geminiApiKey"),
-		GeminiModel:              valueOrDefault(cfg.Get("geminiModel"), "gemini-3-flash-preview"),
+		GeminiModel:              valueOrDefault(cfg.Get("geminiModel"), "gemini-3.1-flash-lite"),
 		GitHubOrg:                cfg.Require("githubOrg"),
 		GitHubRepo:               githubRepo,
 		ManageGitHubOIDCProvider: cfg.GetBool("manageGithubOidcProvider"),

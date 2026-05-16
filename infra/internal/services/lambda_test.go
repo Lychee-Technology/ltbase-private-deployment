@@ -60,7 +60,7 @@ func TestCommonLambdaEnvOmitsReservedAWSRegion(t *testing.T) {
 func TestDataPlaneLambdaEnvIncludesSchemaSourceContract(t *testing.T) {
 	env := dataPlaneLambdaEnv(config.StackConfig{
 		APIDomain:         "api.devo.example.com",
-		GeminiModel:       "gemini-3-flash-preview",
+		GeminiModel:       "gemini-3.1-flash-lite",
 		DSQLPort:          "5432",
 		DSQLDB:            "postgres",
 		DSQLUser:          "admin",

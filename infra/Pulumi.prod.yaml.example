@@ -22,4 +22,4 @@ config:
   ltbase-infra:dsqlDB: postgres
   ltbase-infra:dsqlUser: admin
   ltbase-infra:dsqlProjectSchema: ltbase
-  ltbase-infra:geminiModel: gemini-3-flash-preview
+  ltbase-infra:geminiModel: gemini-3.1-flash-lite
