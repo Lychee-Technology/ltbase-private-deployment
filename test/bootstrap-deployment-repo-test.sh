@@ -73,6 +73,15 @@ CONTROL_DOMAIN_PROD=control.example.com
 AUTH_DOMAIN_DEVO=auth.devo.example.com
 AUTH_DOMAIN_STAGING=auth.staging.example.com
 AUTH_DOMAIN_PROD=auth.example.com
+API_CORS_ALLOW_ORIGINS_DEVO=https://app.devo.example.com
+API_CORS_ALLOW_ORIGINS_STAGING=https://app.staging.example.com
+API_CORS_ALLOW_ORIGINS_PROD=https://app.example.com,https://admin.example.com
+AUTH_CORS_ALLOW_ORIGINS_DEVO=*
+AUTH_CORS_ALLOW_ORIGINS_STAGING=https://auth-ui.staging.example.com
+AUTH_CORS_ALLOW_ORIGINS_PROD=https://auth-ui.example.com
+CONTROL_PLANE_CORS_ALLOW_ORIGINS_DEVO=https://control.devo.example.com
+CONTROL_PLANE_CORS_ALLOW_ORIGINS_STAGING=https://control.staging.example.com
+CONTROL_PLANE_CORS_ALLOW_ORIGINS_PROD=https://control.example.com
 PROJECT_ID=33333333-3333-4333-8333-333333333333
 AUTH_PROVIDER_CONFIG_FILE_DEVO=infra/auth-providers.devo.json
 AUTH_PROVIDER_CONFIG_FILE_STAGING=infra/auth-providers.staging.json
@@ -163,6 +172,9 @@ if [[ -x "${SCRIPT_PATH}" ]]; then
   assert_log_contains "${log_file}" "pulumi config set runtimeBucket ltbase-private-deployment-runtime-prod --stack prod"
   assert_log_contains "${log_file}" "pulumi config set schemaBucket ltbase-private-deployment-schema-prod --stack prod"
   assert_log_contains "${log_file}" "pulumi config set apiDomain api.example.com --stack prod"
+  assert_log_contains "${log_file}" "pulumi config set apiCorsAllowOrigins https://app.example.com,https://admin.example.com --stack prod"
+  assert_log_contains "${log_file}" "pulumi config set authCorsAllowOrigins https://auth-ui.example.com --stack prod"
+  assert_log_contains "${log_file}" "pulumi config set controlPlaneCorsAllowOrigins https://control.example.com --stack prod"
   assert_log_contains "${log_file}" "pulumi config set projectId 33333333-3333-4333-8333-333333333333 --stack prod"
   assert_log_contains "${log_file}" "pulumi config set authProviderConfigFile infra/auth-providers.prod.json --stack prod"
   assert_log_contains "${log_file}" "pulumi config set oidcIssuerUrl https://issuer.example.com/prod --stack prod"

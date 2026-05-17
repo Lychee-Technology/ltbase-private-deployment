@@ -15,6 +15,23 @@ func TestSplitCSV(t *testing.T) {
 	}
 }
 
+func TestCorsAllowOriginsOrDefaultUsesWildcardWhenUnset(t *testing.T) {
+	got := corsAllowOriginsOrDefault("")
+	if len(got) != 1 || got[0] != "*" {
+		t.Fatalf("corsAllowOriginsOrDefault(\"\") = %#v", got)
+	}
+}
+
+func TestCorsAllowOriginsOrDefaultSplitsCSV(t *testing.T) {
+	got := corsAllowOriginsOrDefault("https://api.example.com, https://admin.example.com")
+	if len(got) != 2 {
+		t.Fatalf("corsAllowOriginsOrDefault() length = %d", len(got))
+	}
+	if got[0] != "https://api.example.com" || got[1] != "https://admin.example.com" {
+		t.Fatalf("corsAllowOriginsOrDefault() = %#v", got)
+	}
+}
+
 func TestValidateRequiresOIDCProviderArnWhenNotManaged(t *testing.T) {
 	cfg := StackConfig{
 		ManageGitHubOIDCProvider: false,
