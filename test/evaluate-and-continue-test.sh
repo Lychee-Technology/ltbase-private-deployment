@@ -47,6 +47,7 @@ GITHUB_OWNER=customer-org
 DEPLOYMENT_REPO_NAME=customer-ltbase
 DEPLOYMENT_REPO_VISIBILITY=private
 DEPLOYMENT_REPO_DESCRIPTION="Customer LTBase deployment repo"
+CONTROLPLANE_UI_DOMAIN=admin.customer.example.com
 AWS_REGION_DEVO=ap-northeast-1
 AWS_REGION_STAGING=us-east-1
 AWS_REGION_PROD=us-west-2
@@ -78,6 +79,18 @@ AUTH_PROVIDER_CONFIG_FILE_DEVO=infra/auth-providers.devo.json
 AUTH_PROVIDER_CONFIG_FILE_STAGING=infra/auth-providers.staging.json
 AUTH_PROVIDER_CONFIG_FILE_PROD=infra/auth-providers.prod.json
 CLOUDFLARE_ZONE_ID=zone-123
+FIREBASE_API_KEY_DEVO=public-firebase-key-devo
+FIREBASE_API_KEY_STAGING=public-firebase-key-staging
+FIREBASE_API_KEY_PROD=public-firebase-key-prod
+FIREBASE_PROJECT_ID_DEVO=firebase-project-devo
+FIREBASE_PROJECT_ID_STAGING=firebase-project-staging
+FIREBASE_PROJECT_ID_PROD=firebase-project-prod
+SUPABASE_URL_DEVO=https://devo-project.supabase.co
+SUPABASE_URL_STAGING=https://staging-project.supabase.co
+SUPABASE_URL_PROD=https://prod-project.supabase.co
+SUPABASE_ANON_KEY_DEVO=public-supabase-key-devo
+SUPABASE_ANON_KEY_STAGING=public-supabase-key-staging
+SUPABASE_ANON_KEY_PROD=public-supabase-key-prod
 OIDC_ISSUER_URL_DEVO=https://issuer.example.com/devo
 OIDC_ISSUER_URL_STAGING=https://issuer.example.com/staging
 OIDC_ISSUER_URL_PROD=https://issuer.example.com/prod
@@ -109,6 +122,7 @@ GITHUB_OWNER=customer-org
 DEPLOYMENT_REPO_NAME=customer-ltbase
 DEPLOYMENT_REPO_VISIBILITY=private
 DEPLOYMENT_REPO_DESCRIPTION="Customer LTBase deployment repo"
+CONTROLPLANE_UI_DOMAIN=admin.customer.example.com
 AWS_REGION_DEVO=ap-northeast-1
 AWS_REGION_STAGING=us-east-1
 AWS_REGION_PROD=us-west-2
@@ -140,6 +154,18 @@ AUTH_PROVIDER_CONFIG_FILE_DEVO=infra/auth-providers.devo.json
 AUTH_PROVIDER_CONFIG_FILE_STAGING=infra/auth-providers.staging.json
 AUTH_PROVIDER_CONFIG_FILE_PROD=infra/auth-providers.prod.json
 CLOUDFLARE_ZONE_ID=zone-123
+FIREBASE_API_KEY_DEVO=public-firebase-key-devo
+FIREBASE_API_KEY_STAGING=public-firebase-key-staging
+FIREBASE_API_KEY_PROD=public-firebase-key-prod
+FIREBASE_PROJECT_ID_DEVO=firebase-project-devo
+FIREBASE_PROJECT_ID_STAGING=firebase-project-staging
+FIREBASE_PROJECT_ID_PROD=firebase-project-prod
+SUPABASE_URL_DEVO=https://devo-project.supabase.co
+SUPABASE_URL_STAGING=https://staging-project.supabase.co
+SUPABASE_URL_PROD=https://prod-project.supabase.co
+SUPABASE_ANON_KEY_DEVO=public-supabase-key-devo
+SUPABASE_ANON_KEY_STAGING=public-supabase-key-staging
+SUPABASE_ANON_KEY_PROD=public-supabase-key-prod
 OIDC_ISSUER_URL_DEVO=https://issuer.example.com/devo
 OIDC_ISSUER_URL_STAGING=https://issuer.example.com/staging
 OIDC_ISSUER_URL_PROD=https://issuer.example.com/prod
@@ -182,6 +208,17 @@ if [[ "${cmd} ${sub}" == "repo view" ]]; then
   fi
   exit 0
 fi
+if [[ "${cmd} ${sub}" == "repo clone" ]]; then
+  dest="${4:-}"
+  mkdir -p "${dest}"
+  if [[ "${dest}" == *"/companion" ]]; then
+    mkdir -p "${dest}/.git"
+    printf 'existing repo\n' >"${dest}/README.md"
+  else
+    printf 'template repo\n' >"${dest}/README.md"
+  fi
+  exit 0
+fi
 if [[ "${cmd}" == "api" ]]; then
   url="${2:-}"
   method="GET"
@@ -212,6 +249,10 @@ if [[ "${cmd}" == "api" ]]; then
     exit 0
   fi
   if [[ "${url}" == "repos/customer-org/customer-ltbase-oidc-discovery" ]]; then
+    printf '{"default_branch":"main","private":false}\n'
+    exit 0
+  fi
+  if [[ "${url}" == "repos/customer-org/customer-ltbase-controlplane-ui" ]]; then
     printf '{"default_branch":"main","private":false}\n'
     exit 0
   fi
@@ -429,6 +470,38 @@ printf 'NOISY_CURL_STDOUT generic success\n'
 printf 'NOISY_CURL_STDERR generic success\n' >&2
 EOF
   chmod +x "${fake_bin}/curl"
+
+  cat >"${fake_bin}/git" <<'EOF'
+#!/usr/bin/env bash
+set -euo pipefail
+printf 'git %s\n' "$*" >>"${COMMAND_LOG}"
+repo_dir=""
+args=("$@")
+if [[ "${args[0]:-}" == "-C" ]]; then
+  repo_dir="${args[1]}"
+  args=("${args[@]:2}")
+fi
+if [[ "${args[0]:-}" == "diff" && "${args[1]:-}" == "--quiet" ]]; then
+  exit 0
+fi
+if [[ "${args[0]:-}" == "add" || "${args[0]:-}" == "commit" || "${args[0]:-}" == "push" ]]; then
+  exit 0
+fi
+printf 'repo:%s\n' "${repo_dir}" >>"${COMMAND_LOG}"
+exit 0
+EOF
+  chmod +x "${fake_bin}/git"
+
+  cat >"${fake_bin}/rsync" <<'EOF'
+#!/usr/bin/env bash
+set -euo pipefail
+printf 'rsync %s\n' "$*" >>"${COMMAND_LOG}"
+src="${@: -2:1}"
+dest="${@: -1}"
+cp -R "${src}/." "${dest}/"
+exit 0
+EOF
+  chmod +x "${fake_bin}/rsync"
 
   cat >"${fake_bin}/pulumi" <<'EOF'
 #!/usr/bin/env bash
@@ -688,6 +761,7 @@ assert_log_contains "${temp_dir}/commands.log" "gh repo create customer-org/cust
 assert_log_contains "${temp_dir}/commands.log" "aws --profile devo-profile iam create-open-id-connect-provider"
 assert_log_contains "${temp_dir}/commands.log" "aws --profile prod-profile iam create-open-id-connect-provider"
 assert_log_contains "${temp_dir}/commands.log" "gh repo create customer-org/customer-ltbase-oidc-discovery"
+assert_log_contains "${temp_dir}/report-force/actions.log" "${ROOT_DIR}/scripts/bootstrap-controlplane-ui-companion.sh --env-file ${temp_dir}/.env"
 assert_log_contains "${temp_dir}/commands.log" "https://api.cloudflare.com/client/v4/accounts/cf-account-123/pages/projects"
 assert_log_contains "${temp_dir}/commands.log" "pulumi stack init devo --secrets-provider awskms://alias/test-pulumi-secrets?region=ap-northeast-1"
 assert_log_contains "${temp_dir}/commands.log" "pulumi stack init staging --secrets-provider awskms://alias/test-pulumi-secrets?region=us-east-1"

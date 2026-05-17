@@ -38,6 +38,7 @@ When onboarding is complete, you should have:
 - GitHub repository secrets and variables configured
 - a first promotion stack ready for preview and deployment
 - each later stack in `PROMOTION_PATH` ready for protected promotion after the previous hop is validated
+- one control-plane UI admin domain that is allowed by control-plane CORS and matched to the operator identity-provider redirect setup
 
 ## Before You Start
 
@@ -96,13 +97,15 @@ Before you run any bootstrap automation, confirm all of the following:
   - Remember that the shared Pulumi backend bucket is created in the AWS account for the first stack in `PROMOTION_PATH`, so the credentials for that stack must be able to create and manage the bucket.
 - Cloudflare inputs are ready.
   - Confirm `CLOUDFLARE_ACCOUNT_ID`, `CLOUDFLARE_ZONE_ID`, `CLOUDFLARE_API_TOKEN`, and `OIDC_DISCOVERY_DOMAIN` are final in `.env` before bootstrap.
-  - Confirm bootstrap has written the expected per-stack mTLS audit inputs into `infra/Pulumi.<stack>.yaml`, including `ltbase-infra:awsRegion`, domains, `ltbase-infra:runtimeBucket`, and `ltbase-infra:cloudflareZoneId`, because preview and rollout mTLS audits read those stored stack config values.
   - Confirm the token can manage the Pages project and custom domain that bootstrap creates for OIDC discovery.
   - If the operator account or token does not meet the minimum permission matrix, use the manual path instead of one-click bootstrap.
   - Confirm the zone can proxy the `api`, `auth`, and `control-plane` hostnames through Cloudflare.
   - Plan to keep Cloudflare SSL mode on `Full (strict)` and enable Authenticated Origin Pulls before sending production traffic.
 - Release and application inputs are ready.
   - Confirm `LTBASE_RELEASES_REPO`, `LTBASE_RELEASE_ID`, `LTBASE_RELEASES_TOKEN`, and `GEMINI_API_KEY` are available before you continue.
+  - Confirm the control-plane UI companion inputs are final before bootstrap: `CONTROLPLANE_UI_DOMAIN`, `FIREBASE_API_KEY_<STACK>`, `FIREBASE_PROJECT_ID_<STACK>`, `SUPABASE_URL_<STACK>`, and `SUPABASE_ANON_KEY_<STACK>`.
+  - Confirm the provider names in each `infra/auth-providers.<stack>.json` file line up with the control-plane UI companion browser providers you expect operators to use. The companion runtime config now reuses matching deployment-owned provider names when it publishes `public/ltbase-controlplane.config.json`.
+  - Confirm admin login prerequisites are ready in the identity provider before first use, including the control-plane UI redirect URI `https://<CONTROLPLANE_UI_DOMAIN>/auth/callback` that the companion runtime config publishes into `public/ltbase-controlplane.config.json`, plus any required admin-user or group binding for the target LTBase project.
 - `.env` is clean.
   - Fill customer-controlled values yourself.
   - Leave derived values such as `PULUMI_BACKEND_URL`, `PULUMI_SECRETS_PROVIDER_<STACK>`, `AWS_ROLE_ARN_<STACK>`, `OIDC_ISSUER_URL_<STACK>`, and `JWKS_URL_<STACK>` unset unless you intentionally need an override.

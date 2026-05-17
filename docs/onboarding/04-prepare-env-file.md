@@ -28,9 +28,11 @@ Use this guide to create the local `.env` file that drives the bootstrap scripts
    - `DEPLOYMENT_REPO_DESCRIPTION`
    - Source: your target GitHub owner and customer deployment repository naming decision
 4. Fill in OIDC discovery values:
-   - `OIDC_DISCOVERY_DOMAIN`
-   - `CLOUDFLARE_ACCOUNT_ID`
-   - Source: your Cloudflare account and the custom domain you want to use for OIDC discovery
+    - `OIDC_DISCOVERY_DOMAIN`
+    - `CONTROLPLANE_UI_DOMAIN`
+    - `CLOUDFLARE_ACCOUNT_ID`
+    - Source: your Cloudflare account and the custom domains you want to use for OIDC discovery and the control-plane UI admin site
+    - One-click bootstrap uses `CONTROLPLANE_UI_DOMAIN` when it provisions the control-plane UI companion and when it later writes `ltbase-infra:controlPlaneCorsOrigins=https://<CONTROLPLANE_UI_DOMAIN>` into each Pulumi stack.
 5. Fill in AWS environment values (one pair per stack):
    - `AWS_REGION_<STACK>`
    - `AWS_ACCOUNT_ID_<STACK>`
@@ -64,22 +66,31 @@ Use this guide to create the local `.env` file that drives the bootstrap scripts
       - `CLOUDFLARE_ZONE_ID`
       - Source: your final DNS plan in the target Cloudflare zone
       - Bootstrap uses `CLOUDFLARE_ZONE_ID` from `.env` when it writes each `infra/Pulumi.<stack>.yaml` stack config. Preview and rollout mTLS audits then read `ltbase-infra:awsRegion`, `ltbase-infra:apiDomain`, `ltbase-infra:controlPlaneDomain`, `ltbase-infra:authDomain`, `ltbase-infra:runtimeBucket`, and `ltbase-infra:cloudflareZoneId` from that stack file.
-      - The `*_CORS_ALLOW_ORIGINS_<STACK>` values are optional comma-separated allowlists for API Gateway CORS. Leave them unset to default to `*`, or set different values per service when browser access policies differ between `api`, `auth`, and `control-plane`.
+      - The `API_CORS_ALLOW_ORIGINS_<STACK>` and `AUTH_CORS_ALLOW_ORIGINS_<STACK>` values are optional comma-separated allowlists for API Gateway CORS. Leave them unset to default to `*`.
+      - `CONTROL_PLANE_CORS_ALLOW_ORIGINS_<STACK>` is also optional, but its default behavior is different: when unset, bootstrap uses `https://<CONTROLPLANE_UI_DOMAIN>`; when set to a concrete CSV allowlist, bootstrap appends `https://<CONTROLPLANE_UI_DOMAIN>` automatically; when set to `*`, bootstrap keeps `*` unchanged.
       - For `AUTH_PROVIDER_CONFIG_FILE_<STACK>`, point to a checked-in JSON file that lists the external JWT providers enabled for that stack.
       - Start by copying `infra/auth-providers.<stack>.json.example` to `infra/auth-providers.<stack>.json`, then edit the real file in the generated customer deployment repository.
-10. Fill in application defaults:
-    - `GEMINI_MODEL`
-    - `DSQL_PORT`, `DSQL_DB`, `DSQL_USER`, `DSQL_PROJECT_SCHEMA`
-    - Source: LTBase application defaults and any approved customer-specific override
-11. Fill in secret values:
-     - `GEMINI_API_KEY`
-     - `CLOUDFLARE_API_TOKEN`
-     - `LTBASE_RELEASES_TOKEN`
-12. Decide whether you will accept the default per-stack schema bucket names or set explicit overrides:
-    - `SCHEMA_BUCKET_<STACK>`
-    - Source: the stack-specific S3 bucket that preview and rollout use for schema validation/publication
-    - Important: preview and rollout now depend on the GitHub repository variable `SCHEMA_BUCKET_<STACK>` for every deployed stack. If you do not want the default `<DEPLOYMENT_REPO_NAME>-schema-<stack>` naming, set the override explicitly in `.env` before bootstrap.
-13. Save the file locally and confirm it is not committed.
+      - Keep the provider names in `infra/auth-providers.<stack>.json` aligned with the public browser config you are publishing for the control-plane UI. The companion bootstrap reuses matching deployment-owned provider names when it renders `public/ltbase-controlplane.config.json`.
+      - Bootstrap also writes `ltbase-infra:controlPlaneCorsOrigins=https://<CONTROLPLANE_UI_DOMAIN>` into each stack file so the deployed control-plane API accepts browser requests from the admin UI domain.
+10. Fill in required public browser auth values for every stack:
+    - `FIREBASE_API_KEY_<STACK>`, `FIREBASE_PROJECT_ID_<STACK>`
+    - `SUPABASE_URL_<STACK>`, `SUPABASE_ANON_KEY_<STACK>`
+    - Source: the public Firebase/Supabase application settings that the control-plane UI companion publishes to browsers
+    - Important: these values are intentionally public. Do not put server-side Firebase admin credentials or Supabase service-role keys here.
+    - One-click bootstrap uses these values when it publishes the control-plane UI companion runtime config for each stack.
+11. Fill in application defaults:
+     - `GEMINI_MODEL`
+     - `DSQL_PORT`, `DSQL_DB`, `DSQL_USER`, `DSQL_PROJECT_SCHEMA`
+     - Source: LTBase application defaults and any approved customer-specific override
+12. Fill in secret values:
+      - `GEMINI_API_KEY`
+      - `CLOUDFLARE_API_TOKEN`
+      - `LTBASE_RELEASES_TOKEN`
+13. Decide whether you will accept the default per-stack schema bucket names or set explicit overrides:
+     - `SCHEMA_BUCKET_<STACK>`
+     - Source: the stack-specific S3 bucket that preview and rollout use for schema validation/publication
+     - Important: preview and rollout now depend on the GitHub repository variable `SCHEMA_BUCKET_<STACK>` for every deployed stack. If you do not want the default `<DEPLOYMENT_REPO_NAME>-schema-<stack>` naming, set the override explicitly in `.env` before bootstrap.
+14. Save the file locally and confirm it is not committed.
 
 ## Values You Normally Fill Manually
 
@@ -87,7 +98,7 @@ These values are customer-controlled inputs and should usually be set explicitly
 
 - `STACKS`, `PROMOTION_PATH`
 - `TEMPLATE_REPO`, `GITHUB_OWNER`, `DEPLOYMENT_REPO_NAME`, `DEPLOYMENT_REPO_VISIBILITY`, `DEPLOYMENT_REPO_DESCRIPTION`
-- `OIDC_DISCOVERY_DOMAIN`, `CLOUDFLARE_ACCOUNT_ID`
+- `OIDC_DISCOVERY_DOMAIN`, `CONTROLPLANE_UI_DOMAIN`, `CLOUDFLARE_ACCOUNT_ID`
 - `AWS_REGION_<STACK>`, `AWS_ACCOUNT_ID_<STACK>`, `AWS_ROLE_NAME_<STACK>`
 - `AWS_PROFILE_<STACK>` when multiple stacks use different AWS credentials locally
 - `PULUMI_STATE_BUCKET`, `PULUMI_KMS_ALIAS`
@@ -95,9 +106,11 @@ These values are customer-controlled inputs and should usually be set explicitly
 - `LTBASE_RELEASES_REPO`, `LTBASE_RELEASE_ID`
 - `MTLS_TRUSTSTORE_FILE`, `MTLS_TRUSTSTORE_KEY` with the template defaults intact
 - `API_DOMAIN_<STACK>`, `CONTROL_DOMAIN_<STACK>`, `AUTH_DOMAIN_<STACK>`, `PROJECT_ID`, `AUTH_PROVIDER_CONFIG_FILE_<STACK>`, `CLOUDFLARE_ZONE_ID`
-
-- `API_CORS_ALLOW_ORIGINS_<STACK>`, `AUTH_CORS_ALLOW_ORIGINS_<STACK>`, `CONTROL_PLANE_CORS_ALLOW_ORIGINS_<STACK>` when you need browser CORS to be stricter than the default `*`
+- `API_CORS_ALLOW_ORIGINS_<STACK>` and `AUTH_CORS_ALLOW_ORIGINS_<STACK>` when you need browser CORS to be stricter than the default `*`
+- `CONTROL_PLANE_CORS_ALLOW_ORIGINS_<STACK>` when the control-plane API should allow extra browser origins in addition to `https://<CONTROLPLANE_UI_DOMAIN>`, or when you intentionally want wildcard `*`
   - `CLOUDFLARE_ZONE_ID` is still a manual bootstrap input in `.env`, but preview and rollout mTLS audits consume per-stack values stored in `infra/Pulumi.<stack>.yaml`, including `ltbase-infra:cloudflareZoneId`, domains, `awsRegion`, and `runtimeBucket`.
+- `FIREBASE_API_KEY_<STACK>`, `FIREBASE_PROJECT_ID_<STACK>`, `SUPABASE_URL_<STACK>`, `SUPABASE_ANON_KEY_<STACK>`
+  - These are public browser settings for the control-plane UI companion, not backend secrets.
 - `GEMINI_MODEL`, `DSQL_PORT`, `DSQL_DB`, `DSQL_USER`, `DSQL_PROJECT_SCHEMA`
 - `GEMINI_API_KEY`, `CLOUDFLARE_API_TOKEN`, `LTBASE_RELEASES_TOKEN`
 
@@ -149,12 +162,15 @@ Only fill these when the defaults are wrong for your customer environment:
 - do not commit `.env`
 - do not put production secrets into tracked files
 - the template repository only ships `infra/auth-providers.*.json.example`; keep the real `infra/auth-providers.<stack>.json` files in the generated customer deployment repository
+- keep the provider names in each real `infra/auth-providers.<stack>.json` file aligned with the public browser providers you publish for the control-plane UI companion; the bootstrap will reuse matching deployment-owned names in `public/ltbase-controlplane.config.json`
 - treat `PULUMI_BACKEND_URL` and `PULUMI_SECRETS_PROVIDER_*` as generated values if you rely on bootstrap to create backend resources
 - only fill values you actually control; generated values should come from bootstrap outputs
 - do not set `DSQL_ENDPOINT` manually for managed deployments; bootstrap and later reconciliation publish the authoritative value
 - keep `MTLS_TRUSTSTORE_FILE=infra/certs/cloudflare-origin-pull-ca.pem` and `MTLS_TRUSTSTORE_KEY=mtls/cloudflare-origin-pull-ca.pem` unless the LTBase template itself changes; bootstrap requires both values
 - expect `api`, `auth`, and `control-plane` to be reachable only through Cloudflare-proxied custom domains once the mTLS rollout tasks are applied
 - preview and rollout require a valid `SCHEMA_BUCKET_<STACK>` repository variable for each stack; bootstrap writes it from `.env` or the derived default
+- expect bootstrap to write `ltbase-infra:controlPlaneCorsOrigins=https://<CONTROLPLANE_UI_DOMAIN>` into each stack config so the deployed control-plane API accepts browser calls from the admin UI domain
+- before operators try the admin UI, configure the identity provider to allow `https://<CONTROLPLANE_UI_DOMAIN>/auth/callback` and bind at least one admin user or group to the LTBase project you plan to manage
 - the following variables are auto-derived by `scripts/lib/bootstrap-env.sh` and normally do not need manual filling: `DEPLOYMENT_REPO`, `PULUMI_BACKEND_URL`, `PULUMI_SECRETS_PROVIDER_*`, `AWS_ROLE_ARN_*`, `OIDC_ISSUER_URL_*`, `JWKS_URL_*`, `RUNTIME_BUCKET_*`, `SCHEMA_BUCKET_*`, `TABLE_NAME_*`, `GITHUB_ORG`, `GITHUB_REPO`, `OIDC_DISCOVERY_TEMPLATE_REPO`, `OIDC_DISCOVERY_REPO_NAME`, `OIDC_DISCOVERY_REPO`, `OIDC_DISCOVERY_PAGES_PROJECT`, `OIDC_DISCOVERY_AWS_ROLE_NAME_*`, `OIDC_DISCOVERY_AWS_ROLE_ARN_*`, `PREVIEW_DEFAULT_STACK`
 
 ## Expected Result

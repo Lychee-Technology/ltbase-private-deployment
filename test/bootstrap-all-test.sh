@@ -58,6 +58,7 @@ DEPLOYMENT_REPO_NAME=customer-ltbase
 DEPLOYMENT_REPO_VISIBILITY=private
 DEPLOYMENT_REPO_DESCRIPTION="Customer LTBase deployment repo"
 OIDC_DISCOVERY_DOMAIN=oidc.customer.example.com
+CONTROLPLANE_UI_DOMAIN=admin.customer.example.com
 CLOUDFLARE_ACCOUNT_ID=cf-account-123
 AWS_REGION_DEVO=ap-northeast-1
 AWS_REGION_STAGING=us-east-1
@@ -86,6 +87,18 @@ AUTH_PROVIDER_CONFIG_FILE_DEVO=infra/auth-providers.devo.json
 AUTH_PROVIDER_CONFIG_FILE_STAGING=infra/auth-providers.staging.json
 AUTH_PROVIDER_CONFIG_FILE_PROD=infra/auth-providers.prod.json
 CLOUDFLARE_ZONE_ID=zone-123
+FIREBASE_API_KEY_DEVO=public-firebase-key-devo
+FIREBASE_API_KEY_STAGING=public-firebase-key-staging
+FIREBASE_API_KEY_PROD=public-firebase-key-prod
+FIREBASE_PROJECT_ID_DEVO=firebase-project-devo
+FIREBASE_PROJECT_ID_STAGING=firebase-project-staging
+FIREBASE_PROJECT_ID_PROD=firebase-project-prod
+SUPABASE_URL_DEVO=https://devo-project.supabase.co
+SUPABASE_URL_STAGING=https://staging-project.supabase.co
+SUPABASE_URL_PROD=https://prod-project.supabase.co
+SUPABASE_ANON_KEY_DEVO=public-supabase-key-devo
+SUPABASE_ANON_KEY_STAGING=public-supabase-key-staging
+SUPABASE_ANON_KEY_PROD=public-supabase-key-prod
 OIDC_ISSUER_URL_DEVO=https://issuer.example.com/devo
 OIDC_ISSUER_URL_STAGING=https://issuer.example.com/staging
 OIDC_ISSUER_URL_PROD=https://issuer.example.com/prod
@@ -104,7 +117,7 @@ CLOUDFLARE_API_TOKEN=test-cloudflare-token
 LTBASE_RELEASES_TOKEN=test-release-token
 EOF
 
-for name in render-bootstrap-policies.sh create-deployment-repo.sh bootstrap-aws-foundation.sh bootstrap-oidc-discovery-companion.sh bootstrap-deployment-repo.sh reconcile-managed-dsql-endpoint.sh; do
+for name in render-bootstrap-policies.sh create-deployment-repo.sh bootstrap-aws-foundation.sh bootstrap-oidc-discovery-companion.sh bootstrap-controlplane-ui-companion.sh bootstrap-deployment-repo.sh reconcile-managed-dsql-endpoint.sh; do
   create_stub "${name}"
 done
 
@@ -118,6 +131,7 @@ if [[ -x "${SCRIPT_PATH}" ]]; then
   assert_log_contains <(printf '%s' "${output}") "[info] rendering bootstrap policies"
   assert_log_contains <(printf '%s' "${output}") "[info] bootstrapping AWS foundation"
   assert_log_contains <(printf '%s' "${output}") "[info] ensuring OIDC discovery companion"
+  assert_log_contains <(printf '%s' "${output}") "[info] ensuring Control Plane UI companion"
   assert_log_contains <(printf '%s' "${output}") "[info] configuring stack devo"
   assert_log_contains <(printf '%s' "${output}") "[info] configuring stack staging"
   assert_log_contains <(printf '%s' "${output}") "[info] configuring stack prod"
@@ -128,6 +142,7 @@ if [[ -x "${SCRIPT_PATH}" ]]; then
   assert_log_contains "${log_file}" "render-bootstrap-policies.sh --env-file ${temp_dir}/.env"
   assert_log_contains "${log_file}" "bootstrap-aws-foundation.sh --env-file ${temp_dir}/.env"
   assert_log_contains "${log_file}" "bootstrap-oidc-discovery-companion.sh --env-file ${temp_dir}/.env"
+  assert_log_contains "${log_file}" "bootstrap-controlplane-ui-companion.sh --env-file ${temp_dir}/.env"
   assert_log_contains "${log_file}" "bootstrap-deployment-repo.sh --env-file ${temp_dir}/.env --stack devo --infra-dir ${temp_dir}/infra"
   assert_log_contains "${log_file}" "bootstrap-deployment-repo.sh --env-file ${temp_dir}/.env --stack staging --infra-dir ${temp_dir}/infra"
   assert_log_contains "${log_file}" "bootstrap-deployment-repo.sh --env-file ${temp_dir}/.env --stack prod --infra-dir ${temp_dir}/infra"

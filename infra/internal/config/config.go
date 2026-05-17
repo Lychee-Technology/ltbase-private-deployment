@@ -50,6 +50,7 @@ type StackConfig struct {
 	GitHubOIDCProviderArn        string
 	GitHubThumbprints            []string
 	AuthStage                    string
+	ControlPlaneCORSOrigins      string
 }
 
 func Load(ctx *pulumi.Context) (StackConfig, error) {
@@ -95,6 +96,7 @@ func Load(ctx *pulumi.Context) (StackConfig, error) {
 		GitHubOIDCProviderArn:        strings.TrimSpace(cfg.Get("githubOidcProviderArn")),
 		GitHubThumbprints:            []string{githubThumbprint},
 		AuthStage:                    valueOrDefault(cfg.Get("authStage"), stack),
+		ControlPlaneCORSOrigins:      cfg.Require("controlPlaneCorsOrigins"),
 	}
 	if raw := strings.TrimSpace(cfg.Get("githubOidcThumbprints")); raw != "" {
 		out.GitHubThumbprints = splitCSV(raw)

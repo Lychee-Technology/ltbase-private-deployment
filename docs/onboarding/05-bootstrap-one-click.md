@@ -47,13 +47,15 @@ gh auth status
    - write repository secrets and variables
    - create GitHub environments for later promotion approvals
 3. `.env` contains final customer-controlled values for:
-   - repository identity
-   - stack/account/region mapping
-   - schema bucket overrides when you do not want the default `SCHEMA_BUCKET_<STACK>=<DEPLOYMENT_REPO_NAME>-schema-<stack>` naming
-   - domains
-   - Cloudflare IDs and token
-   - release ID and releases token
-   - Gemini API key
+    - repository identity
+    - stack/account/region mapping
+    - schema bucket overrides when you do not want the default `SCHEMA_BUCKET_<STACK>=<DEPLOYMENT_REPO_NAME>-schema-<stack>` naming
+    - domains
+    - control-plane UI companion inputs: `CONTROLPLANE_UI_DOMAIN` plus the public browser auth config (`FIREBASE_*`, `SUPABASE_*`)
+    - Cloudflare IDs and token
+    - release ID and releases token
+    - Gemini API key
+    - auth provider config file paths whose provider names match the browser providers you are publishing in the control-plane UI companion runtime config
 4. If stacks use different AWS accounts, `AWS_PROFILE_<STACK>` values are already configured and tested.
 
 ```bash
@@ -87,6 +89,7 @@ What to expect:
 - authentication failures from GitHub, AWS, Cloudflare, or Pulumi are blockers and should be fixed before continuing
 - the command also writes a machine-readable report to `dist/evaluate-and-continue/report.json`
 - the OIDC companion is only `complete` when the companion repo, Pages project, custom domain binding, required `CNAME`, and discovery IAM roles are all present
+- the control-plane UI companion inputs should already be in `.env` before this step so later bootstrap stages can publish the companion runtime config and write `ltbase-infra:controlPlaneCorsOrigins`
 
 ## Steps
 
@@ -110,7 +113,11 @@ If you also want bootstrap to trigger the first rollout automatically, include t
 7. Review generated files in `dist/`, especially the recovery report and any rendered policy artifacts.
 8. Confirm GitHub variables and secrets were created in the deployment repository.
    - for schema publication, confirm each stack has `SCHEMA_BUCKET_<STACK>` and that the value matches the bucket you intend preview/rollout to use
-9. Confirm every stack in `STACKS` was initialized.
+9. Confirm each generated `infra/Pulumi.<stack>.yaml` file includes `ltbase-infra:controlPlaneCorsOrigins: https://<CONTROLPLANE_UI_DOMAIN>`.
+10. Confirm the operator identity provider is ready for first admin login.
+    - Register `https://<CONTROLPLANE_UI_DOMAIN>/auth/callback` as an allowed redirect URI where required.
+    - Confirm at least one admin user or group is bound to the LTBase project and can authenticate through one of the configured providers.
+11. Confirm every stack in `STACKS` was initialized.
 
 ## What This Command Does
 
@@ -120,12 +127,17 @@ The one-click script runs these stages in order:
 - `render-bootstrap-policies.sh`
 - `bootstrap-aws-foundation.sh`
 - `bootstrap-oidc-discovery-companion.sh`
+- `bootstrap-controlplane-ui-companion.sh`
 - `bootstrap-deployment-repo.sh --stack <each stack in STACKS>`
 - optional `gh workflow run rollout.yml ...` when `--release-id` is set
 
 `bootstrap-aws-foundation.sh` creates the shared Pulumi backend bucket once in the AWS account for the first stack in `PROMOTION_PATH`, then prepares per-stack role and secrets-provider inputs for every stack in `STACKS`.
 
 `bootstrap-oidc-discovery-companion.sh` also creates the required Cloudflare DNS `CNAME` for `OIDC_DISCOVERY_DOMAIN` so the custom domain resolves directly to `${OIDC_DISCOVERY_PAGES_PROJECT}.pages.dev`.
+
+`bootstrap-controlplane-ui-companion.sh` publishes the control-plane UI companion repository, Pages domain, dispatches the companion publish workflow, and updates `public/ltbase-controlplane.config.json` with per-stack public browser config for Firebase/Supabase.
+
+`bootstrap-deployment-repo.sh` also writes `ltbase-infra:controlPlaneCorsOrigins` into each Pulumi stack so the deployed control-plane Lambda accepts browser traffic from the control-plane UI admin domain.
 
 ## Expected Result
 

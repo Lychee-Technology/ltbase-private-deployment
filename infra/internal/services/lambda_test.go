@@ -118,25 +118,29 @@ func TestAuthLambdaEnvIncludesProjectID(t *testing.T) {
 }
 
 func TestControlPlaneLambdaEnvIncludesBootstrapProjectConfig(t *testing.T) {
-	env := controlPlaneLambdaEnv(config.StackConfig{
-		Stack:                  "devo",
-		Project:                "customer-ltbase",
-		APIDomain:              "api.devo.example.com",
-		ProjectID:              "33333333-3333-4333-8333-333333333333",
-		DeploymentProjectName:  "Customer Ltbase",
-		DeploymentAWSAccountID: "123456789012",
-		DSQLPort:               "5432",
-		DSQLDB:                 "postgres",
-		DSQLUser:               "admin",
-		DSQLProjectSchema:      "ltbase",
-	}, pulumi.String("table-name"), pulumi.String("bucket-name"), pulumi.String("schema-bucket"))
+		env := controlPlaneLambdaEnv(config.StackConfig{
+			Stack:                  "devo",
+			Project:                "customer-ltbase",
+			APIDomain:              "api.devo.example.com",
+			ProjectID:              "33333333-3333-4333-8333-333333333333",
+			DeploymentProjectName:  "Customer Ltbase",
+			DeploymentAWSAccountID: "123456789012",
+			ControlPlaneCORSOrigins: "https://admin.example.com",
+			DSQLPort:               "5432",
+			DSQLDB:                 "postgres",
+			DSQLUser:               "admin",
+			DSQLProjectSchema:      "ltbase",
+		}, pulumi.String("table-name"), pulumi.String("bucket-name"), pulumi.String("schema-bucket"))
 
-	for _, key := range []string{"PROJECT_ID", "PROJECT_NAME", "ACCOUNT_ID", "API_BASE_URL", "FORMA_SCHEMA_SOURCE", "FORMA_SCHEMA_BUCKET", "FORMA_SCHEMA_PREFIX", "FORMA_SCHEMA_PUBLISHED_PREFIX", "FORMA_SCHEMA_CACHE_DIR"} {
-		if _, ok := env[key]; !ok {
-			t.Fatalf("controlPlaneLambdaEnv() missing %s", key)
+		for _, key := range []string{"PROJECT_ID", "PROJECT_NAME", "ACCOUNT_ID", "API_BASE_URL", "CONTROL_PLANE_CORS_ORIGINS", "FORMA_SCHEMA_SOURCE", "FORMA_SCHEMA_BUCKET", "FORMA_SCHEMA_PREFIX", "FORMA_SCHEMA_PUBLISHED_PREFIX", "FORMA_SCHEMA_CACHE_DIR"} {
+			if _, ok := env[key]; !ok {
+				t.Fatalf("controlPlaneLambdaEnv() missing %s", key)
+			}
+		}
+		if env["CONTROL_PLANE_CORS_ORIGINS"] != pulumi.String("https://admin.example.com") {
+			t.Fatalf("controlPlaneLambdaEnv() CONTROL_PLANE_CORS_ORIGINS = %v, want https://admin.example.com", env["CONTROL_PLANE_CORS_ORIGINS"])
 		}
 	}
-}
 
 func TestRuntimeResourcesCanCarryBucketVersioningHandle(t *testing.T) {
 	runtime := RuntimeResources{}
