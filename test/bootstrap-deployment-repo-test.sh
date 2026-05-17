@@ -70,6 +70,7 @@ API_DOMAIN_PROD=api.example.com
 CONTROL_DOMAIN_DEVO=control.devo.example.com
 CONTROL_DOMAIN_STAGING=control.staging.example.com
 CONTROL_DOMAIN_PROD=control.example.com
+CONTROLPLANE_UI_DOMAIN=admin.example.com
 AUTH_DOMAIN_DEVO=auth.devo.example.com
 AUTH_DOMAIN_STAGING=auth.staging.example.com
 AUTH_DOMAIN_PROD=auth.example.com
@@ -163,6 +164,7 @@ if [[ -x "${SCRIPT_PATH}" ]]; then
   assert_log_contains "${log_file}" "pulumi config set runtimeBucket ltbase-private-deployment-runtime-prod --stack prod"
   assert_log_contains "${log_file}" "pulumi config set schemaBucket ltbase-private-deployment-schema-prod --stack prod"
   assert_log_contains "${log_file}" "pulumi config set apiDomain api.example.com --stack prod"
+  assert_log_contains "${log_file}" "pulumi config set controlPlaneCorsOrigins https://admin.example.com --stack prod"
   assert_log_contains "${log_file}" "pulumi config set projectId 33333333-3333-4333-8333-333333333333 --stack prod"
   assert_log_contains "${log_file}" "pulumi config set authProviderConfigFile infra/auth-providers.prod.json --stack prod"
   assert_log_contains "${log_file}" "pulumi config set oidcIssuerUrl https://issuer.example.com/prod --stack prod"

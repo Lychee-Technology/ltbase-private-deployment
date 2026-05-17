@@ -50,6 +50,10 @@ for name in "${required_vars[@]}"; do
   fi
 done
 
+if ! bootstrap_env_require_vars CONTROLPLANE_UI_DOMAIN; then
+  exit 1
+fi
+
 if ! bootstrap_env_require_stack_values "${STACK}" AWS_REGION AWS_ROLE_ARN PULUMI_SECRETS_PROVIDER API_DOMAIN CONTROL_DOMAIN AUTH_DOMAIN PROJECT_ID AUTH_PROVIDER_CONFIG_FILE OIDC_ISSUER_URL JWKS_URL RUNTIME_BUCKET SCHEMA_BUCKET TABLE_NAME; then
   exit 1
 fi
@@ -87,6 +91,7 @@ selected_schema_bucket="$(bootstrap_env_resolve_stack_value SCHEMA_BUCKET "${STA
 selected_table_name="$(bootstrap_env_resolve_stack_value TABLE_NAME "${STACK}")"
 selected_api_domain="$(bootstrap_env_resolve_stack_value API_DOMAIN "${STACK}")"
 selected_control_domain="$(bootstrap_env_resolve_stack_value CONTROL_DOMAIN "${STACK}")"
+selected_control_plane_cors_origins="https://${CONTROLPLANE_UI_DOMAIN}"
 selected_auth_domain="$(bootstrap_env_resolve_stack_value AUTH_DOMAIN "${STACK}")"
 selected_project_id="$(bootstrap_env_resolve_stack_value PROJECT_ID "${STACK}")"
 selected_auth_provider_config_file="$(bootstrap_env_resolve_stack_value AUTH_PROVIDER_CONFIG_FILE "${STACK}")"
@@ -130,6 +135,7 @@ bootstrap_env_run_quiet "${stack_env[@]}" pulumi config set mtlsTruststoreFile "
 bootstrap_env_run_quiet "${stack_env[@]}" pulumi config set mtlsTruststoreKey "${MTLS_TRUSTSTORE_KEY}" --stack "${STACK}"
 bootstrap_env_run_quiet "${stack_env[@]}" pulumi config set apiDomain "${selected_api_domain}" --stack "${STACK}"
 bootstrap_env_run_quiet "${stack_env[@]}" pulumi config set controlPlaneDomain "${selected_control_domain}" --stack "${STACK}"
+bootstrap_env_run_quiet "${stack_env[@]}" pulumi config set controlPlaneCorsOrigins "${selected_control_plane_cors_origins}" --stack "${STACK}"
 bootstrap_env_run_quiet "${stack_env[@]}" pulumi config set authDomain "${selected_auth_domain}" --stack "${STACK}"
 bootstrap_env_run_quiet "${stack_env[@]}" pulumi config set projectId "${selected_project_id}" --stack "${STACK}"
 bootstrap_env_run_quiet "${stack_env[@]}" pulumi config set authProviderConfigFile "${selected_auth_provider_config_file}" --stack "${STACK}"

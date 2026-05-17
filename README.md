@@ -71,6 +71,7 @@ Important files and scripts:
 - `scripts/create-deployment-repo.sh`
 - `scripts/bootstrap-aws-foundation.sh`
 - `scripts/bootstrap-oidc-discovery-companion.sh`
+- `scripts/bootstrap-controlplane-ui-companion.sh`
 - `scripts/bootstrap-pulumi-backend.sh`
 - `scripts/bootstrap-deployment-repo.sh`
 - `scripts/bootstrap-all.sh`
@@ -85,6 +86,15 @@ Preferred recovery-aware bootstrap entrypoint:
 - `./scripts/evaluate-and-continue.sh --env-file .env --scope bootstrap --force --release-id <release>`
 
 The bootstrap flow now also manages the customer-specific `*-oidc-discovery` companion repository, its Cloudflare Pages project, its custom domain binding, the required zone-level CNAME pointing at `${OIDC_DISCOVERY_PAGES_PROJECT}.pages.dev`, and the per-stack read-only discovery roles that the companion publish workflow assumes.
+
+It also manages the customer-specific `*-controlplane-ui` companion repository, its Cloudflare Pages project, its custom domain binding, the required zone-level CNAME pointing at `${CONTROLPLANE_UI_PAGES_PROJECT}.pages.dev`, and the runtime config JSON published to `public/ltbase-controlplane.config.json` from the companion repository variable `CONTROLPLANE_UI_STACK_CONFIG`.
+
+The current control plane UI bootstrap emits both Firebase and Supabase browser providers for every stack. It also tries to reuse provider names from each stack's `AUTH_PROVIDER_CONFIG_FILE_<STACK>` when those deployment-owned records match the Firebase and Supabase issuers implied by the public browser config. That means each stack in `.env` must provide all of these public, browser-safe values before running `scripts/bootstrap-controlplane-ui-companion.sh`:
+
+- `FIREBASE_API_KEY_<STACK>`
+- `FIREBASE_PROJECT_ID_<STACK>`
+- `SUPABASE_URL_<STACK>`
+- `SUPABASE_ANON_KEY_<STACK>`
 
 For day-2 maintenance, the generated deployment repository can sync later template changes by running:
 

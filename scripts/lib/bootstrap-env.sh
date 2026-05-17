@@ -233,6 +233,22 @@ bootstrap_env_apply_derivations() {
     OIDC_DISCOVERY_PAGES_PROJECT="${OIDC_DISCOVERY_REPO_NAME}"
     export OIDC_DISCOVERY_PAGES_PROJECT
   fi
+  if [[ -z "${CONTROLPLANE_UI_TEMPLATE_REPO:-}" ]]; then
+    CONTROLPLANE_UI_TEMPLATE_REPO="Lychee-Technology/ltbase-controlplane-ui"
+    export CONTROLPLANE_UI_TEMPLATE_REPO
+  fi
+  if [[ -z "${CONTROLPLANE_UI_REPO_NAME:-}" && -n "${DEPLOYMENT_REPO_NAME:-}" ]]; then
+    CONTROLPLANE_UI_REPO_NAME="${DEPLOYMENT_REPO_NAME}-controlplane-ui"
+    export CONTROLPLANE_UI_REPO_NAME
+  fi
+  if [[ -z "${CONTROLPLANE_UI_REPO:-}" && -n "${GITHUB_OWNER:-}" && -n "${CONTROLPLANE_UI_REPO_NAME:-}" ]]; then
+    CONTROLPLANE_UI_REPO="${GITHUB_OWNER}/${CONTROLPLANE_UI_REPO_NAME}"
+    export CONTROLPLANE_UI_REPO
+  fi
+  if [[ -z "${CONTROLPLANE_UI_PAGES_PROJECT:-}" && -n "${CONTROLPLANE_UI_REPO_NAME:-}" ]]; then
+    CONTROLPLANE_UI_PAGES_PROJECT="${CONTROLPLANE_UI_REPO_NAME}"
+    export CONTROLPLANE_UI_PAGES_PROJECT
+  fi
 
   while IFS= read -r stack; do
     upper_name="$(bootstrap_env_stack_upper "${stack}")"
@@ -315,6 +331,9 @@ bootstrap_env_load() {
   # shellcheck disable=SC1090
   source "${env_file}"
 
+  BOOTSTRAP_ENV_FILE_DIR="$(cd "$(dirname "${env_file}")" && pwd)"
+  export BOOTSTRAP_ENV_FILE_DIR
+
   STACKS="$(bootstrap_env_normalize_csv "${STACKS:-devo,prod}")"
   export STACKS
 
@@ -349,4 +368,110 @@ for line in sys.stdin:
 
 print(json.dumps(payload, separators=(",", ":")))
 '
+}
+
+bootstrap_env_controlplane_ui_stack_config_json() {
+  while IFS= read -r stack; do
+    printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n' \
+      "${stack}" \
+      "$(bootstrap_env_resolve_stack_value PROJECT_ID "${stack}")" \
+      "$(bootstrap_env_resolve_stack_value AUTH_DOMAIN "${stack}")" \
+      "$(bootstrap_env_resolve_stack_value CONTROL_DOMAIN "${stack}")" \
+      "$(bootstrap_env_resolve_stack_value API_DOMAIN "${stack}")" \
+      "$(bootstrap_env_resolve_stack_value AUTH_PROVIDER_CONFIG_FILE "${stack}")" \
+      "$(bootstrap_env_resolve_stack_value FIREBASE_PROJECT_ID "${stack}")" \
+      "$(bootstrap_env_resolve_stack_value FIREBASE_API_KEY "${stack}")" \
+      "$(bootstrap_env_resolve_stack_value SUPABASE_URL "${stack}")" \
+      "$(bootstrap_env_resolve_stack_value SUPABASE_ANON_KEY "${stack}")"
+  done < <(bootstrap_env_each_stack) | python3 -c '
+import json
+import sys
+from pathlib import Path
+
+def label_for_stack(stack: str) -> str:
+    return " ".join(part.capitalize() for part in stack.replace("_", "-").split("-"))
+
+def titleize_provider(name: str) -> str:
+    return " ".join(part.capitalize() for part in name.replace("_", "-").split("-"))
+
+def load_provider_names(config_path: str, firebase_project_id: str, supabase_url: str):
+    config_file = Path(config_path)
+    if not config_file.is_absolute():
+        config_file = Path(sys.argv[2]) / config_file
+
+    if not config_file.exists():
+        return {
+            "firebase": "firebase",
+            "supabase": "supabase",
+        }
+
+    payload = json.loads(config_file.read_text(encoding="utf-8"))
+    providers = payload.get("providers")
+    if not isinstance(providers, list):
+        raise SystemExit(f"auth provider config must contain a providers array: {config_file}")
+
+    firebase_name = None
+    supabase_name = None
+    firebase_issuer = f"https://securetoken.google.com/{firebase_project_id}"
+    supabase_issuer = supabase_url.rstrip("/") + "/auth/v1"
+
+    for provider in providers:
+        if not isinstance(provider, dict):
+            continue
+        name = str(provider.get("name") or "").strip()
+        issuer = str(provider.get("issuer") or "").strip().rstrip("/")
+        enable_login = bool(provider.get("enable_login"))
+        if not name:
+            continue
+        if not enable_login:
+            continue
+        if issuer == firebase_issuer and firebase_name is None:
+            firebase_name = name
+        if issuer == supabase_issuer and supabase_name is None:
+            supabase_name = name
+
+    return {
+        "firebase": firebase_name or "firebase",
+        "supabase": supabase_name or "supabase",
+    }
+
+domain = sys.argv[1]
+payload = {"stacks": []}
+for line in sys.stdin:
+    line = line.rstrip("\n")
+    if not line:
+        continue
+    stack, project_id, auth_domain, control_domain, api_domain, auth_provider_config_file, firebase_project_id, firebase_api_key, supabase_url, supabase_anon_key = line.split("\t", 9)
+    provider_names = load_provider_names(auth_provider_config_file, firebase_project_id, supabase_url)
+    payload["stacks"].append(
+        {
+            "key": stack,
+            "label": label_for_stack(stack),
+            "projectId": project_id,
+            "authBaseUrl": f"https://{auth_domain}",
+            "controlPlaneBaseUrl": f"https://{control_domain}",
+            "apiBaseUrl": f"https://{api_domain}",
+            "oidcClientId": "ltbase-controlplane-ui",
+            "redirectUri": f"https://{domain}/auth/callback",
+            "authProviders": [
+                {
+                    "type": "firebase",
+                    "name": provider_names["firebase"],
+                    "label": titleize_provider(provider_names["firebase"]),
+                    "firebaseProjectId": firebase_project_id,
+                    "firebaseApiKey": firebase_api_key,
+                },
+                {
+                    "type": "supabase",
+                    "name": provider_names["supabase"],
+                    "label": titleize_provider(provider_names["supabase"]),
+                    "supabaseUrl": supabase_url,
+                    "supabaseAnonKey": supabase_anon_key,
+                },
+            ],
+        }
+    )
+
+print(json.dumps(payload, separators=(",", ":")))
+' "${CONTROLPLANE_UI_DOMAIN:-}" "${BOOTSTRAP_ENV_FILE_DIR:-$(pwd)}"
 }

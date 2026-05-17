@@ -28,14 +28,14 @@ if [[ -z "${STACK}" ]]; then
 fi
 
 stack_file="${INFRA_DIR}/Pulumi.${STACK}.yaml"
-display_path="infra/Pulumi.${STACK}.yaml"
 
 if [[ ! -f "${stack_file}" ]]; then
-  printf "Missing Pulumi stack file '%s'. Rerun bootstrap-deployment-repo.sh or restore the stack config file.\n" "${display_path}" >&2
+  printf "Missing Pulumi stack file '%s'. Rerun bootstrap-deployment-repo.sh or restore the stack config file.\n" "${stack_file}" >&2
   exit 1
 fi
 
 required_keys=(
+  "ltbase-infra:awsRegion"
   "ltbase-infra:deploymentAwsAccountId"
   "ltbase-infra:runtimeBucket"
   "ltbase-infra:schemaBucket"
@@ -44,6 +44,7 @@ required_keys=(
   "ltbase-infra:mtlsTruststoreKey"
   "ltbase-infra:apiDomain"
   "ltbase-infra:controlPlaneDomain"
+  "ltbase-infra:controlPlaneCorsOrigins"
   "ltbase-infra:authDomain"
   "ltbase-infra:projectId"
   "ltbase-infra:authProviderConfigFile"
@@ -59,7 +60,7 @@ required_keys=(
 
 for key in "${required_keys[@]}"; do
   if ! grep -Fq "  ${key}:" "${stack_file}"; then
-    printf "Missing required Pulumi config key '%s' in %s. Rerun bootstrap-deployment-repo.sh or update the stack config file.\n" "${key}" "${display_path}" >&2
+    printf "Missing required Pulumi config key '%s' in %s. Rerun bootstrap-deployment-repo.sh or update the stack config file.\n" "${key}" "${stack_file}" >&2
     exit 1
   fi
 done

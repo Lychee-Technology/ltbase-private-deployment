@@ -24,6 +24,7 @@ type StackConfig struct {
 	MTLSTruststoreKey        string
 	APIDomain                string
 	ControlPlaneDomain       string
+	ControlPlaneCORSOrigins  string
 	AuthDomain               string
 	ProjectID                string
 	DeploymentProjectName    string
@@ -66,6 +67,7 @@ func Load(ctx *pulumi.Context) (StackConfig, error) {
 		MTLSTruststoreKey:        cfg.Require("mtlsTruststoreKey"),
 		APIDomain:                cfg.Require("apiDomain"),
 		ControlPlaneDomain:       cfg.Require("controlPlaneDomain"),
+		ControlPlaneCORSOrigins:  cfg.Require("controlPlaneCorsOrigins"),
 		AuthDomain:               cfg.Require("authDomain"),
 		ProjectID:                cfg.Require("projectId"),
 		DeploymentProjectName:    valueOrDefault(cfg.Get("deploymentProjectName"), humanizeProjectName(ctx.Project())),
