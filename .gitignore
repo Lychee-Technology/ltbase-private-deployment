@@ -9,3 +9,4 @@ customer-owned/**
 !customer-owned/
 !customer-owned/schemas/
 !customer-owned/schemas/**
+public/ltbase-controlplane.config.json
