@@ -55,6 +55,63 @@ bootstrap_env_csv_first() {
   printf '%s' "${csv}"
 }
 
+bootstrap_env_csv_contains() {
+  local csv entry old_ifs noglob_was_on
+  csv="$(bootstrap_env_normalize_csv "${1:-}")"
+  entry="$(bootstrap_env_normalize_csv "${2:-}")"
+
+  if [[ -z "${csv}" || -z "${entry}" ]]; then
+    return 1
+  fi
+
+  old_ifs="${IFS}"
+  noglob_was_on=0
+  if [[ -o noglob ]]; then
+    noglob_was_on=1
+  fi
+  set -f
+  IFS=','
+  # shellcheck disable=SC2086
+  set -- ${csv}
+  IFS="${old_ifs}"
+  if [[ "${noglob_was_on}" -eq 0 ]]; then
+    set +f
+  fi
+  for value in "$@"; do
+    if [[ "${value}" == "${entry}" ]]; then
+      return 0
+    fi
+  done
+  return 1
+}
+
+bootstrap_env_append_csv_value_once() {
+  local csv entry normalized_csv normalized_entry
+  csv="${1:-}"
+  entry="${2:-}"
+  normalized_csv="$(bootstrap_env_normalize_csv "${csv}")"
+  normalized_entry="$(bootstrap_env_normalize_csv "${entry}")"
+
+  if [[ -z "${normalized_entry}" ]]; then
+    printf '%s' "${normalized_csv}"
+    return 0
+  fi
+  if [[ -z "${normalized_csv}" ]]; then
+    printf '%s' "${normalized_entry}"
+    return 0
+  fi
+  if bootstrap_env_csv_contains "${normalized_csv}" '*'; then
+    printf '*'
+    return 0
+  fi
+  if bootstrap_env_csv_contains "${normalized_csv}" "${normalized_entry}"; then
+    printf '%s' "${normalized_csv}"
+    return 0
+  fi
+
+  printf '%s,%s' "${normalized_csv}" "${normalized_entry}"
+}
+
 bootstrap_env_stack_upper() {
   printf '%s' "${1}" | tr '[:lower:]-' '[:upper:]_'
 }

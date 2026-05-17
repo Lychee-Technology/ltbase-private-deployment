@@ -64,7 +64,8 @@
       - `CLOUDFLARE_ZONE_ID`
       - 来源：你在目标 Cloudflare zone 中规划好的最终域名
       - bootstrap 会从 `.env` 里的 `CLOUDFLARE_ZONE_ID` 写入每个 `infra/Pulumi.<stack>.yaml` stack 配置；后续 preview 与 rollout 的 mTLS audit 会从该 stack 文件中读取 `ltbase-infra:awsRegion`、`ltbase-infra:apiDomain`、`ltbase-infra:controlPlaneDomain`、`ltbase-infra:authDomain`、`ltbase-infra:runtimeBucket` 和 `ltbase-infra:cloudflareZoneId`。
-      - `*_CORS_ALLOW_ORIGINS_<STACK>` 是可选的逗号分隔 allowlist，用于配置 API Gateway CORS。若留空，则默认使用 `*`；如果 `api`、`auth`、`control-plane` 的浏览器访问策略不同，可以分别填写。
+      - `API_CORS_ALLOW_ORIGINS_<STACK>` 和 `AUTH_CORS_ALLOW_ORIGINS_<STACK>` 是可选的逗号分隔 allowlist，用于配置 API Gateway CORS；若留空，则默认使用 `*`。
+      - `CONTROL_PLANE_CORS_ALLOW_ORIGINS_<STACK>` 也是可选的，但默认规则不同：留空时 bootstrap 会使用 `https://<CONTROLPLANE_UI_DOMAIN>`；填写具体 CSV allowlist 时，bootstrap 会自动追加 `https://<CONTROLPLANE_UI_DOMAIN>`；如果填写 `*`，则保持 `*` 不变。
       - `AUTH_PROVIDER_CONFIG_FILE_<STACK>` 应该指向一个已提交的 JSON 文件，该文件列出该 stack 启用的外部 JWT provider。
       - 先把 `infra/auth-providers.<stack>.json.example` 复制成 `infra/auth-providers.<stack>.json`，再在生成出来的客户 deployment repo 中编辑这个真实文件。
 10. 填写应用默认值：
@@ -91,7 +92,8 @@
 - 保持模板默认值不变的 `MTLS_TRUSTSTORE_FILE`、`MTLS_TRUSTSTORE_KEY`
 - `API_DOMAIN_<STACK>`、`CONTROL_DOMAIN_<STACK>`、`AUTH_DOMAIN_<STACK>`、`PROJECT_ID`、`AUTH_PROVIDER_CONFIG_FILE_<STACK>`、`CLOUDFLARE_ZONE_ID`
 
-- 当你需要比默认 `*` 更严格的浏览器 CORS 策略时，再填写 `API_CORS_ALLOW_ORIGINS_<STACK>`、`AUTH_CORS_ALLOW_ORIGINS_<STACK>`、`CONTROL_PLANE_CORS_ALLOW_ORIGINS_<STACK>`
+- 当你需要比默认 `*` 更严格的浏览器 CORS 策略时，再填写 `API_CORS_ALLOW_ORIGINS_<STACK>`、`AUTH_CORS_ALLOW_ORIGINS_<STACK>`
+- 当 control-plane API 需要在 `https://<CONTROLPLANE_UI_DOMAIN>` 之外额外允许其他浏览器 origin，或者你明确想使用通配符 `*` 时，再填写 `CONTROL_PLANE_CORS_ALLOW_ORIGINS_<STACK>`
   - `CLOUDFLARE_ZONE_ID` 仍然是 `.env` 中需要手动提供的 bootstrap 输入，但 preview 与 rollout 的 mTLS audit 实际读取的是 `infra/Pulumi.<stack>.yaml` 里保存的每个 stack 值，包括 `ltbase-infra:cloudflareZoneId`、域名、`awsRegion` 和 `runtimeBucket`。
 - `GEMINI_MODEL`、`DSQL_PORT`、`DSQL_DB`、`DSQL_USER`、`DSQL_PROJECT_SCHEMA`
 - `GEMINI_API_KEY`、`CLOUDFLARE_API_TOKEN`、`LTBASE_RELEASES_TOKEN`

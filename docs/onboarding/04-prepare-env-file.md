@@ -66,7 +66,8 @@ Use this guide to create the local `.env` file that drives the bootstrap scripts
       - `CLOUDFLARE_ZONE_ID`
       - Source: your final DNS plan in the target Cloudflare zone
       - Bootstrap uses `CLOUDFLARE_ZONE_ID` from `.env` when it writes each `infra/Pulumi.<stack>.yaml` stack config. Preview and rollout mTLS audits then read `ltbase-infra:awsRegion`, `ltbase-infra:apiDomain`, `ltbase-infra:controlPlaneDomain`, `ltbase-infra:authDomain`, `ltbase-infra:runtimeBucket`, and `ltbase-infra:cloudflareZoneId` from that stack file.
-      - The `*_CORS_ALLOW_ORIGINS_<STACK>` values are optional comma-separated allowlists for API Gateway CORS. Leave them unset to default to `*`, or set different values per service when browser access policies differ between `api`, `auth`, and `control-plane`.
+      - The `API_CORS_ALLOW_ORIGINS_<STACK>` and `AUTH_CORS_ALLOW_ORIGINS_<STACK>` values are optional comma-separated allowlists for API Gateway CORS. Leave them unset to default to `*`.
+      - `CONTROL_PLANE_CORS_ALLOW_ORIGINS_<STACK>` is also optional, but its default behavior is different: when unset, bootstrap uses `https://<CONTROLPLANE_UI_DOMAIN>`; when set to a concrete CSV allowlist, bootstrap appends `https://<CONTROLPLANE_UI_DOMAIN>` automatically; when set to `*`, bootstrap keeps `*` unchanged.
       - For `AUTH_PROVIDER_CONFIG_FILE_<STACK>`, point to a checked-in JSON file that lists the external JWT providers enabled for that stack.
       - Start by copying `infra/auth-providers.<stack>.json.example` to `infra/auth-providers.<stack>.json`, then edit the real file in the generated customer deployment repository.
       - Keep the provider names in `infra/auth-providers.<stack>.json` aligned with the public browser config you are publishing for the control-plane UI. The companion bootstrap reuses matching deployment-owned provider names when it renders `public/ltbase-controlplane.config.json`.
@@ -105,7 +106,8 @@ These values are customer-controlled inputs and should usually be set explicitly
 - `LTBASE_RELEASES_REPO`, `LTBASE_RELEASE_ID`
 - `MTLS_TRUSTSTORE_FILE`, `MTLS_TRUSTSTORE_KEY` with the template defaults intact
 - `API_DOMAIN_<STACK>`, `CONTROL_DOMAIN_<STACK>`, `AUTH_DOMAIN_<STACK>`, `PROJECT_ID`, `AUTH_PROVIDER_CONFIG_FILE_<STACK>`, `CLOUDFLARE_ZONE_ID`
-- `API_CORS_ALLOW_ORIGINS_<STACK>`, `AUTH_CORS_ALLOW_ORIGINS_<STACK>`, `CONTROL_PLANE_CORS_ALLOW_ORIGINS_<STACK>` when you need browser CORS to be stricter than the default `*`
+- `API_CORS_ALLOW_ORIGINS_<STACK>` and `AUTH_CORS_ALLOW_ORIGINS_<STACK>` when you need browser CORS to be stricter than the default `*`
+- `CONTROL_PLANE_CORS_ALLOW_ORIGINS_<STACK>` when the control-plane API should allow extra browser origins in addition to `https://<CONTROLPLANE_UI_DOMAIN>`, or when you intentionally want wildcard `*`
   - `CLOUDFLARE_ZONE_ID` is still a manual bootstrap input in `.env`, but preview and rollout mTLS audits consume per-stack values stored in `infra/Pulumi.<stack>.yaml`, including `ltbase-infra:cloudflareZoneId`, domains, `awsRegion`, and `runtimeBucket`.
 - `FIREBASE_API_KEY_<STACK>`, `FIREBASE_PROJECT_ID_<STACK>`, `SUPABASE_URL_<STACK>`, `SUPABASE_ANON_KEY_<STACK>`
   - These are public browser settings for the control-plane UI companion, not backend secrets.
