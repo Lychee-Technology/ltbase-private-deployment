@@ -65,15 +65,15 @@ func NewAPIs(ctx *pulumi.Context, cfg config.StackConfig, providers Providers, r
 	if err != nil {
 		return nil, err
 	}
-	api, err := newHTTPAPI(ctx, cfg, providers, domains["api"].Suffix, domains["api"].Domain, apiCert, domains["api"].Truststore, lambdas.DataPlane, buildAPIRouteSpecs(), []authorizerSpec{ltbaseAuthorizerSpec(cfg)})
+	api, err := newHTTPAPI(ctx, cfg, providers, domains["api"], apiCert, lambdas.DataPlane, buildAPIRouteSpecs(), []authorizerSpec{ltbaseAuthorizerSpec(cfg)})
 	if err != nil {
 		return nil, err
 	}
-	controlPlane, err := newHTTPAPI(ctx, cfg, providers, domains["control"].Suffix, domains["control"].Domain, controlCert, domains["control"].Truststore, lambdas.ControlPlane, buildControlPlaneRouteSpecs(), []authorizerSpec{ltbaseAuthorizerSpec(cfg)})
+	controlPlane, err := newHTTPAPI(ctx, cfg, providers, domains["control"], controlCert, lambdas.ControlPlane, buildControlPlaneRouteSpecs(), []authorizerSpec{ltbaseAuthorizerSpec(cfg)})
 	if err != nil {
 		return nil, err
 	}
-	auth, err := newHTTPAPI(ctx, cfg, providers, domains["auth"].Suffix, domains["auth"].Domain, authCert, domains["auth"].Truststore, lambdas.AuthService, buildAuthRouteSpecs(providerCfg), buildAuthAuthorizerSpecs(cfg, providerCfg))
+	auth, err := newHTTPAPI(ctx, cfg, providers, domains["auth"], authCert, lambdas.AuthService, buildAuthRouteSpecs(providerCfg), buildAuthAuthorizerSpecs(cfg, providerCfg))
 	if err != nil {
 		return nil, err
 	}
@@ -90,9 +90,17 @@ type httpAPIConfig struct {
 }
 
 type httpAPIDomainConfig struct {
-	Suffix     string
-	Domain     string
-	Truststore mtlsTruststore
+	Suffix           string
+	Domain           string
+	Truststore       mtlsTruststore
+	CORSAllowOrigins []string
+}
+
+type httpAPICorsConfig struct {
+	AllowOrigins     []string
+	AllowMethods     []string
+	AllowHeaders     []string
+	AllowCredentials bool
 }
 
 func ltbaseProjectAudiences(projectID string) []string {
@@ -201,17 +209,24 @@ func buildAuthRouteSpecs(providerCfg AuthProviderConfig) []routeSpec {
 	return routes
 }
 
-func newHTTPAPI(ctx *pulumi.Context, cfg config.StackConfig, providers Providers, suffix, domain string, cert *acm.CertificateValidation, truststore mtlsTruststore, service *LambdaService, routes []routeSpec, authorizers []authorizerSpec) (*apigatewayv2.Api, error) {
+func newHTTPAPI(ctx *pulumi.Context, cfg config.StackConfig, providers Providers, domainCfg httpAPIDomainConfig, cert *acm.CertificateValidation, service *LambdaService, routes []routeSpec, authorizers []authorizerSpec) (*apigatewayv2.Api, error) {
 	settings := httpAPISettings()
-	api, err := apigatewayv2.NewApi(ctx, naming.ResourceName(cfg.Project, cfg.Stack, suffix+"-api"), &apigatewayv2.ApiArgs{
-		Name:                      pulumi.String(naming.ResourceName(cfg.Project, cfg.Stack, suffix+"-api")),
+	cors := httpAPICorsConfigForOrigins(domainCfg.CORSAllowOrigins)
+	api, err := apigatewayv2.NewApi(ctx, naming.ResourceName(cfg.Project, cfg.Stack, domainCfg.Suffix+"-api"), &apigatewayv2.ApiArgs{
+		Name:                      pulumi.String(naming.ResourceName(cfg.Project, cfg.Stack, domainCfg.Suffix+"-api")),
 		ProtocolType:              pulumi.String("HTTP"),
 		DisableExecuteApiEndpoint: pulumi.BoolPtr(settings.DisableExecuteAPIEndpoint),
+		CorsConfiguration: &apigatewayv2.ApiCorsConfigurationArgs{
+			AllowOrigins:     pulumi.ToStringArray(cors.AllowOrigins),
+			AllowMethods:     pulumi.ToStringArray(cors.AllowMethods),
+			AllowHeaders:     pulumi.ToStringArray(cors.AllowHeaders),
+			AllowCredentials: pulumi.BoolPtr(cors.AllowCredentials),
+		},
 	}, pulumi.Provider(providers.AWS))
 	if err != nil {
 		return nil, err
 	}
-	integration, err := apigatewayv2.NewIntegration(ctx, naming.ResourceName(cfg.Project, cfg.Stack, suffix+"-integration"), &apigatewayv2.IntegrationArgs{
+	integration, err := apigatewayv2.NewIntegration(ctx, naming.ResourceName(cfg.Project, cfg.Stack, domainCfg.Suffix+"-integration"), &apigatewayv2.IntegrationArgs{
 		ApiId:                api.ID(),
 		IntegrationType:      pulumi.String("AWS_PROXY"),
 		IntegrationMethod:    pulumi.String("POST"),
@@ -224,7 +239,7 @@ func newHTTPAPI(ctx *pulumi.Context, cfg config.StackConfig, providers Providers
 	}
 	authorizerIDs := map[string]pulumi.StringOutput{}
 	for _, spec := range authorizers {
-		authorizer, err := apigatewayv2.NewAuthorizer(ctx, naming.ResourceName(cfg.Project, cfg.Stack, suffix+"-"+spec.Name+"-authorizer"), &apigatewayv2.AuthorizerArgs{
+		authorizer, err := apigatewayv2.NewAuthorizer(ctx, naming.ResourceName(cfg.Project, cfg.Stack, domainCfg.Suffix+"-"+spec.Name+"-authorizer"), &apigatewayv2.AuthorizerArgs{
 			ApiId:          api.ID(),
 			AuthorizerType: pulumi.String("JWT"),
 			IdentitySources: pulumi.StringArray{
@@ -253,22 +268,22 @@ func newHTTPAPI(ctx *pulumi.Context, cfg config.StackConfig, providers Providers
 			args.AuthorizerId = authorizerIDs[spec.AuthorizerName].ToStringPtrOutput()
 		}
 		options := []pulumi.ResourceOption{pulumi.Provider(providers.AWS)}
-		if aliases := routeAliases(cfg, suffix, spec); len(aliases) > 0 {
+		if aliases := routeAliases(cfg, domainCfg.Suffix, spec); len(aliases) > 0 {
 			options = append(options, pulumi.Aliases(aliases))
 		}
-		_, err = apigatewayv2.NewRoute(ctx, naming.ResourceName(cfg.Project, cfg.Stack, suffix+"-route-"+routeResourceNameSuffix(spec.RouteKey)), args, options...)
+		_, err = apigatewayv2.NewRoute(ctx, naming.ResourceName(cfg.Project, cfg.Stack, domainCfg.Suffix+"-route-"+routeResourceNameSuffix(spec.RouteKey)), args, options...)
 		if err != nil {
 			return nil, err
 		}
 	}
-	logGroup, err := cloudwatch.NewLogGroup(ctx, naming.ResourceName(cfg.Project, cfg.Stack, suffix+"-api-logs"), &cloudwatch.LogGroupArgs{
-		Name:            pulumi.String("/aws/apigateway/" + naming.ResourceName(cfg.Project, cfg.Stack, suffix)),
+	logGroup, err := cloudwatch.NewLogGroup(ctx, naming.ResourceName(cfg.Project, cfg.Stack, domainCfg.Suffix+"-api-logs"), &cloudwatch.LogGroupArgs{
+		Name:            pulumi.String("/aws/apigateway/" + naming.ResourceName(cfg.Project, cfg.Stack, domainCfg.Suffix)),
 		RetentionInDays: pulumi.Int(14),
 	}, pulumi.Provider(providers.AWS))
 	if err != nil {
 		return nil, err
 	}
-	stage, err := apigatewayv2.NewStage(ctx, naming.ResourceName(cfg.Project, cfg.Stack, suffix+"-stage"), &apigatewayv2.StageArgs{
+	stage, err := apigatewayv2.NewStage(ctx, naming.ResourceName(cfg.Project, cfg.Stack, domainCfg.Suffix+"-stage"), &apigatewayv2.StageArgs{
 		ApiId:      api.ID(),
 		Name:       pulumi.String("$default"),
 		AutoDeploy: pulumi.Bool(true),
@@ -280,22 +295,22 @@ func newHTTPAPI(ctx *pulumi.Context, cfg config.StackConfig, providers Providers
 	if err != nil {
 		return nil, err
 	}
-	domainName, err := apigatewayv2.NewDomainName(ctx, naming.ResourceName(cfg.Project, cfg.Stack, suffix+"-domain"), &apigatewayv2.DomainNameArgs{
-		DomainName: pulumi.String(domain),
+	domainName, err := apigatewayv2.NewDomainName(ctx, naming.ResourceName(cfg.Project, cfg.Stack, domainCfg.Suffix+"-domain"), &apigatewayv2.DomainNameArgs{
+		DomainName: pulumi.String(domainCfg.Domain),
 		DomainNameConfiguration: &apigatewayv2.DomainNameDomainNameConfigurationArgs{
 			CertificateArn: cert.CertificateArn,
 			EndpointType:   pulumi.String("REGIONAL"),
 			SecurityPolicy: pulumi.String("TLS_1_2"),
 		},
 		MutualTlsAuthentication: &apigatewayv2.DomainNameMutualTlsAuthenticationArgs{
-			TruststoreUri:     pulumi.String(truststore.URI),
-			TruststoreVersion: truststore.Version.ToStringPtrOutput(),
+			TruststoreUri:     pulumi.String(domainCfg.Truststore.URI),
+			TruststoreVersion: domainCfg.Truststore.Version.ToStringPtrOutput(),
 		},
 	}, pulumi.Provider(providers.AWS), pulumi.DependsOn([]pulumi.Resource{cert}))
 	if err != nil {
 		return nil, err
 	}
-	_, err = apigatewayv2.NewApiMapping(ctx, naming.ResourceName(cfg.Project, cfg.Stack, suffix+"-mapping"), &apigatewayv2.ApiMappingArgs{
+	_, err = apigatewayv2.NewApiMapping(ctx, naming.ResourceName(cfg.Project, cfg.Stack, domainCfg.Suffix+"-mapping"), &apigatewayv2.ApiMappingArgs{
 		ApiId:      api.ID(),
 		DomainName: domainName.ID(),
 		Stage:      stage.ID(),
@@ -303,7 +318,7 @@ func newHTTPAPI(ctx *pulumi.Context, cfg config.StackConfig, providers Providers
 	if err != nil {
 		return nil, err
 	}
-	_, err = lambda.NewPermission(ctx, naming.ResourceName(cfg.Project, cfg.Stack, suffix+"-invoke-permission"), &lambda.PermissionArgs{
+	_, err = lambda.NewPermission(ctx, naming.ResourceName(cfg.Project, cfg.Stack, domainCfg.Suffix+"-invoke-permission"), &lambda.PermissionArgs{
 		Action:    pulumi.String("lambda:InvokeFunction"),
 		Function:  service.Function.Name,
 		Principal: pulumi.String("apigateway.amazonaws.com"),
@@ -314,8 +329,8 @@ func newHTTPAPI(ctx *pulumi.Context, cfg config.StackConfig, providers Providers
 		return nil, err
 	}
 	targetDomain := domainName.DomainNameConfiguration.TargetDomainName().Elem()
-	apiDNSRecord := apiDomainRecordArgs(cfg, domain, targetDomain)
-	if _, err = dns.NewCNAME(ctx, naming.ResourceName(cfg.Project, cfg.Stack, suffix+"-dns"), apiDNSRecord); err != nil {
+	apiDNSRecord := apiDomainRecordArgs(cfg, domainCfg.Domain, targetDomain)
+	if _, err = dns.NewCNAME(ctx, naming.ResourceName(cfg.Project, cfg.Stack, domainCfg.Suffix+"-dns"), apiDNSRecord); err != nil {
 		return nil, err
 	}
 	return api, nil
@@ -355,20 +370,32 @@ func httpAPISettings() httpAPIConfig {
 func buildHTTPAPIDomainConfigs(cfg config.StackConfig, truststore mtlsTruststore) map[string]httpAPIDomainConfig {
 	return map[string]httpAPIDomainConfig{
 		"api": {
-			Suffix:     "api",
-			Domain:     cfg.APIDomain,
-			Truststore: truststore,
+			Suffix:           "api",
+			Domain:           cfg.APIDomain,
+			Truststore:       truststore,
+			CORSAllowOrigins: cfg.APICORSAllowOrigins,
 		},
 		"control": {
-			Suffix:     "control",
-			Domain:     cfg.ControlPlaneDomain,
-			Truststore: truststore,
+			Suffix:           "control",
+			Domain:           cfg.ControlPlaneDomain,
+			Truststore:       truststore,
+			CORSAllowOrigins: cfg.ControlPlaneCORSAllowOrigins,
 		},
 		"auth": {
-			Suffix:     "auth",
-			Domain:     cfg.AuthDomain,
-			Truststore: truststore,
+			Suffix:           "auth",
+			Domain:           cfg.AuthDomain,
+			Truststore:       truststore,
+			CORSAllowOrigins: cfg.AuthCORSAllowOrigins,
 		},
+	}
+}
+
+func httpAPICorsConfigForOrigins(origins []string) httpAPICorsConfig {
+	return httpAPICorsConfig{
+		AllowOrigins:     origins,
+		AllowMethods:     []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
+		AllowHeaders:     []string{"Authorization", "Content-Type"},
+		AllowCredentials: false,
 	}
 }
 

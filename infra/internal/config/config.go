@@ -12,42 +12,45 @@ const githubThumbprint = "6938fd4d98bab03faadb97b34396831e3780aea1"
 const defaultReleaseAssetDir = "../../.ltbase/releases"
 
 type StackConfig struct {
-	Project                  string
-	Stack                    string
-	AWSRegion                string
-	DeploymentAWSAccountID   string
-	ReleaseAssetDir          string
-	RuntimeBucket            string
-	SchemaBucket             string
-	TableName                string
-	MTLSTruststoreFile       string
-	MTLSTruststoreKey        string
-	APIDomain                string
-	ControlPlaneDomain       string
-	ControlPlaneCORSOrigins  string
-	AuthDomain               string
-	ProjectID                string
-	DeploymentProjectName    string
-	AuthProviderConfigFile   string
-	CloudflareZoneID         string
-	CloudflareZoneName       string
-	OIDCIssuerURL            string
-	JWKSURL                  string
-	ReleaseID                string
-	FormaCdcSchedule         string
-	DSQLPort                 string
-	DSQLEndpoint             string
-	DSQLDB                   string
-	DSQLUser                 string
-	DSQLProjectSchema        string
-	GeminiAPIKey             pulumi.StringOutput
-	GeminiModel              string
-	GitHubOrg                string
-	GitHubRepo               string
-	ManageGitHubOIDCProvider bool
-	GitHubOIDCProviderArn    string
-	GitHubThumbprints        []string
-	AuthStage                string
+	Project                      string
+	Stack                        string
+	AWSRegion                    string
+	DeploymentAWSAccountID       string
+	ReleaseAssetDir              string
+	RuntimeBucket                string
+	SchemaBucket                 string
+	TableName                    string
+	MTLSTruststoreFile           string
+	MTLSTruststoreKey            string
+	APIDomain                    string
+	ControlPlaneDomain           string
+	AuthDomain                   string
+	APICORSAllowOrigins          []string
+	ControlPlaneCORSAllowOrigins []string
+	AuthCORSAllowOrigins         []string
+	ProjectID                    string
+	DeploymentProjectName        string
+	AuthProviderConfigFile       string
+	CloudflareZoneID             string
+	CloudflareZoneName           string
+	OIDCIssuerURL                string
+	JWKSURL                      string
+	ReleaseID                    string
+	FormaCdcSchedule             string
+	DSQLPort                     string
+	DSQLEndpoint                 string
+	DSQLDB                       string
+	DSQLUser                     string
+	DSQLProjectSchema            string
+	GeminiAPIKey                 pulumi.StringOutput
+	GeminiModel                  string
+	GitHubOrg                    string
+	GitHubRepo                   string
+	ManageGitHubOIDCProvider     bool
+	GitHubOIDCProviderArn        string
+	GitHubThumbprints            []string
+	AuthStage                    string
+	ControlPlaneCORSOrigins      string
 }
 
 func Load(ctx *pulumi.Context) (StackConfig, error) {
@@ -55,42 +58,45 @@ func Load(ctx *pulumi.Context) (StackConfig, error) {
 	stack := ctx.Stack()
 	githubRepo := cfg.Require("githubRepo")
 	out := StackConfig{
-		Project:                  ctx.Project(),
-		Stack:                    stack,
-		AWSRegion:                valueOrDefault(cfg.Get("awsRegion"), "ap-northeast-1"),
-		DeploymentAWSAccountID:   cfg.Require("deploymentAwsAccountId"),
-		ReleaseAssetDir:          valueOrDefault(cfg.Get("releaseAssetDir"), defaultReleaseAssetDir),
-		RuntimeBucket:            cfg.Require("runtimeBucket"),
-		SchemaBucket:             valueOrDefault(cfg.Get("schemaBucket"), defaultSchemaBucket(githubRepo, stack)),
-		TableName:                cfg.Require("tableName"),
-		MTLSTruststoreFile:       cfg.Require("mtlsTruststoreFile"),
-		MTLSTruststoreKey:        cfg.Require("mtlsTruststoreKey"),
-		APIDomain:                cfg.Require("apiDomain"),
-		ControlPlaneDomain:       cfg.Require("controlPlaneDomain"),
-		ControlPlaneCORSOrigins:  cfg.Require("controlPlaneCorsOrigins"),
-		AuthDomain:               cfg.Require("authDomain"),
-		ProjectID:                cfg.Require("projectId"),
-		DeploymentProjectName:    valueOrDefault(cfg.Get("deploymentProjectName"), humanizeProjectName(ctx.Project())),
-		AuthProviderConfigFile:   cfg.Require("authProviderConfigFile"),
-		CloudflareZoneID:         cfg.Require("cloudflareZoneId"),
-		CloudflareZoneName:       strings.TrimSpace(cfg.Get("cloudflareZoneName")),
-		OIDCIssuerURL:            cfg.Require("oidcIssuerUrl"),
-		JWKSURL:                  cfg.Require("jwksUrl"),
-		ReleaseID:                cfg.Require("releaseId"),
-		FormaCdcSchedule:         valueOrDefault(cfg.Get("formaCdcSchedule"), "rate(15 minutes)"),
-		DSQLPort:                 valueOrDefault(cfg.Get("dsqlPort"), "5432"),
-		DSQLEndpoint:             strings.TrimSpace(cfg.Get("dsqlEndpoint")),
-		DSQLDB:                   valueOrDefault(cfg.Get("dsqlDB"), "postgres"),
-		DSQLUser:                 valueOrDefault(cfg.Get("dsqlUser"), "admin"),
-		DSQLProjectSchema:        valueOrDefault(cfg.Get("dsqlProjectSchema"), "ltbase"),
-		GeminiAPIKey:             cfg.RequireSecret("geminiApiKey"),
-		GeminiModel:              valueOrDefault(cfg.Get("geminiModel"), "gemini-3.1-flash-lite"),
-		GitHubOrg:                cfg.Require("githubOrg"),
-		GitHubRepo:               githubRepo,
-		ManageGitHubOIDCProvider: cfg.GetBool("manageGithubOidcProvider"),
-		GitHubOIDCProviderArn:    strings.TrimSpace(cfg.Get("githubOidcProviderArn")),
-		GitHubThumbprints:        []string{githubThumbprint},
-		AuthStage:                valueOrDefault(cfg.Get("authStage"), stack),
+		Project:                      ctx.Project(),
+		Stack:                        stack,
+		AWSRegion:                    valueOrDefault(cfg.Get("awsRegion"), "ap-northeast-1"),
+		DeploymentAWSAccountID:       cfg.Require("deploymentAwsAccountId"),
+		ReleaseAssetDir:              valueOrDefault(cfg.Get("releaseAssetDir"), defaultReleaseAssetDir),
+		RuntimeBucket:                cfg.Require("runtimeBucket"),
+		SchemaBucket:                 valueOrDefault(cfg.Get("schemaBucket"), defaultSchemaBucket(githubRepo, stack)),
+		TableName:                    cfg.Require("tableName"),
+		MTLSTruststoreFile:           cfg.Require("mtlsTruststoreFile"),
+		MTLSTruststoreKey:            cfg.Require("mtlsTruststoreKey"),
+		APIDomain:                    cfg.Require("apiDomain"),
+		ControlPlaneDomain:           cfg.Require("controlPlaneDomain"),
+		AuthDomain:                   cfg.Require("authDomain"),
+		APICORSAllowOrigins:          corsAllowOriginsOrDefault(cfg.Get("apiCorsAllowOrigins")),
+		ControlPlaneCORSAllowOrigins: corsAllowOriginsOrDefault(cfg.Get("controlPlaneCorsAllowOrigins")),
+		AuthCORSAllowOrigins:         corsAllowOriginsOrDefault(cfg.Get("authCorsAllowOrigins")),
+		ProjectID:                    cfg.Require("projectId"),
+		DeploymentProjectName:        valueOrDefault(cfg.Get("deploymentProjectName"), humanizeProjectName(ctx.Project())),
+		AuthProviderConfigFile:       cfg.Require("authProviderConfigFile"),
+		CloudflareZoneID:             cfg.Require("cloudflareZoneId"),
+		CloudflareZoneName:           strings.TrimSpace(cfg.Get("cloudflareZoneName")),
+		OIDCIssuerURL:                cfg.Require("oidcIssuerUrl"),
+		JWKSURL:                      cfg.Require("jwksUrl"),
+		ReleaseID:                    cfg.Require("releaseId"),
+		FormaCdcSchedule:             valueOrDefault(cfg.Get("formaCdcSchedule"), "rate(15 minutes)"),
+		DSQLPort:                     valueOrDefault(cfg.Get("dsqlPort"), "5432"),
+		DSQLEndpoint:                 strings.TrimSpace(cfg.Get("dsqlEndpoint")),
+		DSQLDB:                       valueOrDefault(cfg.Get("dsqlDB"), "postgres"),
+		DSQLUser:                     valueOrDefault(cfg.Get("dsqlUser"), "admin"),
+		DSQLProjectSchema:            valueOrDefault(cfg.Get("dsqlProjectSchema"), "ltbase"),
+		GeminiAPIKey:                 cfg.RequireSecret("geminiApiKey"),
+		GeminiModel:                  valueOrDefault(cfg.Get("geminiModel"), "gemini-3.1-flash-lite"),
+		GitHubOrg:                    cfg.Require("githubOrg"),
+		GitHubRepo:                   githubRepo,
+		ManageGitHubOIDCProvider:     cfg.GetBool("manageGithubOidcProvider"),
+		GitHubOIDCProviderArn:        strings.TrimSpace(cfg.Get("githubOidcProviderArn")),
+		GitHubThumbprints:            []string{githubThumbprint},
+		AuthStage:                    valueOrDefault(cfg.Get("authStage"), stack),
+		ControlPlaneCORSOrigins:      cfg.Require("controlPlaneCorsOrigins"),
 	}
 	if raw := strings.TrimSpace(cfg.Get("githubOidcThumbprints")); raw != "" {
 		out.GitHubThumbprints = splitCSV(raw)
@@ -131,6 +137,13 @@ func splitCSV(raw string) []string {
 		}
 	}
 	return out
+}
+
+func corsAllowOriginsOrDefault(raw string) []string {
+	if strings.TrimSpace(raw) == "" {
+		return []string{"*"}
+	}
+	return splitCSV(raw)
 }
 
 func humanizeProjectName(project string) string {
