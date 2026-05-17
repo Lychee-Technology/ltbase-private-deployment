@@ -168,9 +168,12 @@ func TestHTTPAPIDisableExecuteEndpointDefault(t *testing.T) {
 func TestBuildHTTPAPIDomainConfigsUsesSharedTruststoreForAllDomains(t *testing.T) {
 	truststore := mtlsTruststore{URI: "s3://runtime-bucket/mtls/cloudflare-origin-pull-ca.pem"}
 	configs := buildHTTPAPIDomainConfigs(config.StackConfig{
-		APIDomain:          "api.example.com",
-		ControlPlaneDomain: "control.example.com",
-		AuthDomain:         "auth.example.com",
+		APIDomain:                    "api.example.com",
+		ControlPlaneDomain:           "control.example.com",
+		AuthDomain:                   "auth.example.com",
+		APICORSAllowOrigins:          []string{"https://app.example.com"},
+		ControlPlaneCORSAllowOrigins: []string{"https://admin.example.com"},
+		AuthCORSAllowOrigins:         []string{"*"},
 	}, truststore)
 
 	for _, key := range []string{"api", "control", "auth"} {
@@ -193,6 +196,34 @@ func TestBuildHTTPAPIDomainConfigsUsesSharedTruststoreForAllDomains(t *testing.T
 	}
 	if configs["api"].Suffix != "api" || configs["control"].Suffix != "control" || configs["auth"].Suffix != "auth" {
 		t.Fatal("unexpected suffix mapping in buildHTTPAPIDomainConfigs()")
+	}
+	if got := configs["api"].CORSAllowOrigins; len(got) != 1 || got[0] != "https://app.example.com" {
+		t.Fatalf("api cors origins = %#v", got)
+	}
+	if got := configs["control"].CORSAllowOrigins; len(got) != 1 || got[0] != "https://admin.example.com" {
+		t.Fatalf("control cors origins = %#v", got)
+	}
+	if got := configs["auth"].CORSAllowOrigins; len(got) != 1 || got[0] != "*" {
+		t.Fatalf("auth cors origins = %#v", got)
+	}
+}
+
+func TestHTTPAPICORSConfigurationUsesConfiguredOrigins(t *testing.T) {
+	config := httpAPICorsConfigForOrigins([]string{"https://app.example.com", "https://admin.example.com"})
+	if len(config.AllowOrigins) != 2 {
+		t.Fatalf("allow origins length = %d", len(config.AllowOrigins))
+	}
+	if config.AllowOrigins[0] != "https://app.example.com" || config.AllowOrigins[1] != "https://admin.example.com" {
+		t.Fatalf("allow origins = %#v", config.AllowOrigins)
+	}
+	if len(config.AllowMethods) == 0 {
+		t.Fatal("allow methods should not be empty")
+	}
+	if len(config.AllowHeaders) == 0 {
+		t.Fatal("allow headers should not be empty")
+	}
+	if config.AllowCredentials {
+		t.Fatal("allow credentials = true, want false")
 	}
 }
 
