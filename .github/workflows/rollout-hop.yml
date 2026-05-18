@@ -195,6 +195,9 @@ jobs:
       run_canary: ${{ needs.prepare.outputs.run_canary == 'true' }}
       reconcile_managed_dsql_endpoint: true
       refresh_after_apply: true
+      controlplane_ui_domain: ${{ vars.CONTROLPLANE_UI_DOMAIN }}
+      controlplane_ui_pages_project: ${{ vars.CONTROLPLANE_UI_PAGES_PROJECT }}
+      controlplane_ui_stacks: ${{ vars.STACKS || 'devo,prod' }}
     secrets:
       aws_role_arn: ${{ secrets[format('AWS_ROLE_ARN_{0}', needs.prepare.outputs.target_stack_upper)] }}
       ltbase_releases_token: ${{ secrets.LTBASE_RELEASES_TOKEN }}

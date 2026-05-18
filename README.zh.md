@@ -84,6 +84,17 @@ onboarding 文档支持通用多 stack 拓扑。文中出现 `devo`、`prod` 等
 
 当前 bootstrap 流程还会自动管理客户专属的 `*-oidc-discovery` companion repo、对应的 Cloudflare Pages project 与自定义域名，以及 companion publish workflow 需要假设的每个 stack 的只读 discovery role。
 
+当前 bootstrap 流程也会管理客户专属的 `*-controlplane-ui` companion repo、对应的 Cloudflare Pages project、自定义域名，以及通过 companion repo 变量 `CONTROLPLANE_UI_STACK_CONFIG` 发布到 `public/ltbase-controlplane.config.json` 的运行时配置。
+
+当前 control plane UI bootstrap 会为每个 stack 同时输出 Firebase 和 Supabase 两种浏览器 provider。它还会在 `AUTH_PROVIDER_CONFIG_FILE_<STACK>` 中存在匹配 issuer 且 `enable_login=true` 的 deployment 自有 provider 记录时，复用对应的 provider 名称。因此在运行 `scripts/bootstrap-controlplane-ui-companion.sh` 之前，每个 stack 都必须在 `.env` 中提供以下公开、可安全下发到浏览器的字段：
+
+- `FIREBASE_API_KEY_<STACK>`
+- `FIREBASE_PROJECT_ID_<STACK>`
+- `SUPABASE_URL_<STACK>`
+- `SUPABASE_ANON_KEY_<STACK>`
+
+这四个值现在也会由 `scripts/bootstrap-deployment-repo.sh` 写入每个 Pulumi stack config。infra 程序会导出一个浏览器安全的 `controlplaneUiStackConfig` output，供官方 rollout 工作流聚合成共享 control plane UI 的运行时配置。
+
 对于日常维护，从该模板生成出来的部署仓库可以通过以下命令同步后续模板变更：
 
 - `./scripts/update-sync-template-tooling.sh`
@@ -104,6 +115,25 @@ onboarding 文档支持通用多 stack 拓扑。文中出现 `devo`、`prod` 等
 - 手动 preview 只针对 `PROMOTION_PATH` 的第一个环境
 - 自动 rollout 会按 `PROMOTION_PATH` 逐跳推进，受保护目标环境仍由客户自己审批
 - `api`、`auth`、`control-plane` 默认应通过 Cloudflare 代理的自定义域名访问，并在 API Gateway 上启用 mutual TLS
+
+## Control Plane UI Rollout
+
+从模板生成出的 deployment repo 现在会把以下三个可选值透传给共享的 `ltbase-deploy-workflows` rollout workflow：
+
+- `CONTROLPLANE_UI_DOMAIN`
+- `CONTROLPLANE_UI_PAGES_PROJECT`
+- `STACKS`
+
+当这些值存在，且上游 release contract 已经包含官方 UI artifact 时，rollout 就可以直接从 release 资产发布 control plane UI，而不必只依赖 companion repo 的 publish flow。
+
+rollout 侧的运行时配置来自每个 stack 的 Pulumi outputs：
+
+- 每个 stack 都必须导出 `controlplaneUiStackConfig`
+- 只有输出完整的 stack 才会被写入最终部署的 `ltbase-controlplane.config.json`
+- 当前 rollout 的 target stack 必须存在，否则 rollout 失败
+- `redirectUri` 会在 rollout 时通过 `https://${CONTROLPLANE_UI_DOMAIN}/auth/callback` 派生
+
+重要：当前公开 release contract 仍未正式记录 control plane UI artifact。在 `ltbase.api` / `ltbase-releases` 完成对应 contract 更新之前，这条新的 rollout-side UI deploy 路径仍会被 release bundle 中缺少 artifact 所阻塞。
 
 ## 说明
 

@@ -87,6 +87,18 @@ PROJECT_ID=33333333-3333-4333-8333-333333333333
 AUTH_PROVIDER_CONFIG_FILE_DEVO=infra/auth-providers.devo.json
 AUTH_PROVIDER_CONFIG_FILE_STAGING=infra/auth-providers.staging.json
 AUTH_PROVIDER_CONFIG_FILE_PROD=infra/auth-providers.prod.json
+FIREBASE_API_KEY_DEVO=public-firebase-key-devo
+FIREBASE_API_KEY_STAGING=public-firebase-key-staging
+FIREBASE_API_KEY_PROD=public-firebase-key-prod
+FIREBASE_PROJECT_ID_DEVO=firebase-project-devo
+FIREBASE_PROJECT_ID_STAGING=firebase-project-staging
+FIREBASE_PROJECT_ID_PROD=firebase-project-prod
+SUPABASE_URL_DEVO=https://devo-project.supabase.co
+SUPABASE_URL_STAGING=https://staging-project.supabase.co
+SUPABASE_URL_PROD=https://prod-project.supabase.co
+SUPABASE_ANON_KEY_DEVO=public-supabase-key-devo
+SUPABASE_ANON_KEY_STAGING=public-supabase-key-staging
+SUPABASE_ANON_KEY_PROD=public-supabase-key-prod
 CLOUDFLARE_ZONE_ID=zone-123
 OIDC_ISSUER_URL_DEVO=https://issuer.example.com/devo
 OIDC_ISSUER_URL_STAGING=https://issuer.example.com/staging
@@ -162,6 +174,8 @@ if [[ -x "${SCRIPT_PATH}" ]]; then
   assert_log_contains "${log_file}" "gh variable set SCHEMA_BUCKET_DEVO --repo Lychee-Technology/ltbase-private-deployment --body ltbase-private-deployment-schema-devo"
   assert_log_contains "${log_file}" "gh variable set SCHEMA_BUCKET_STAGING --repo Lychee-Technology/ltbase-private-deployment --body ltbase-private-deployment-schema-staging"
   assert_log_contains "${log_file}" "gh variable set SCHEMA_BUCKET_PROD --repo Lychee-Technology/ltbase-private-deployment --body ltbase-private-deployment-schema-prod"
+  assert_log_contains "${log_file}" "gh variable set CONTROLPLANE_UI_DOMAIN --repo Lychee-Technology/ltbase-private-deployment --body admin.example.com"
+  assert_log_contains "${log_file}" "gh variable set CONTROLPLANE_UI_PAGES_PROJECT --repo Lychee-Technology/ltbase-private-deployment --body ltbase-private-deployment-controlplane-ui"
   assert_log_contains "${log_file}" "gh variable set STACKS --repo Lychee-Technology/ltbase-private-deployment --body devo,staging,prod"
   assert_log_contains "${log_file}" "gh variable set PROMOTION_PATH --repo Lychee-Technology/ltbase-private-deployment --body devo,staging,prod"
   assert_log_contains "${log_file}" "gh variable set PREVIEW_DEFAULT_STACK --repo Lychee-Technology/ltbase-private-deployment --body devo"
@@ -179,6 +193,10 @@ if [[ -x "${SCRIPT_PATH}" ]]; then
   assert_log_contains "${log_file}" "pulumi config set controlPlaneCorsAllowOrigins https://control.example.com,https://admin.example.com --stack prod"
   assert_log_contains "${log_file}" "pulumi config set projectId 33333333-3333-4333-8333-333333333333 --stack prod"
   assert_log_contains "${log_file}" "pulumi config set authProviderConfigFile infra/auth-providers.prod.json --stack prod"
+  assert_log_contains "${log_file}" "pulumi config set firebaseApiKey public-firebase-key-prod --stack prod"
+  assert_log_contains "${log_file}" "pulumi config set firebaseProjectId firebase-project-prod --stack prod"
+  assert_log_contains "${log_file}" "pulumi config set supabaseUrl https://prod-project.supabase.co --stack prod"
+  assert_log_contains "${log_file}" "pulumi config set supabaseAnonKey public-supabase-key-prod --stack prod"
   assert_log_contains "${log_file}" "pulumi config set oidcIssuerUrl https://issuer.example.com/prod --stack prod"
   assert_log_contains "${log_file}" "pulumi config set deploymentAwsAccountId 123456789012 --stack prod"
   assert_log_contains "${log_file}" "pulumi config set githubOidcProviderArn arn:aws:iam::123456789012:oidc-provider/token.actions.githubusercontent.com --stack prod"

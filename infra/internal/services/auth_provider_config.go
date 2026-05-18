@@ -9,6 +9,11 @@ import (
 	"strings"
 )
 
+type controlPlaneUIProviderNamesResult struct {
+	Firebase string
+	Supabase string
+}
+
 type AuthProviderConfig struct {
 	Providers []AuthProvider `json:"providers"`
 }
@@ -79,4 +84,49 @@ func authProviderNames(cfg AuthProviderConfig) []string {
 	}
 	sort.Strings(names)
 	return names
+}
+
+func controlPlaneUIProviderNames(cfg AuthProviderConfig, firebaseProjectID string, supabaseURL string) controlPlaneUIProviderNamesResult {
+	result := controlPlaneUIProviderNamesResult{
+		Firebase: "firebase",
+		Supabase: "supabase",
+	}
+
+	firebaseIssuer := strings.TrimSpace(firebaseProjectID)
+	if firebaseIssuer != "" {
+		firebaseIssuer = "https://securetoken.google.com/" + firebaseIssuer
+	}
+	supabaseIssuer := strings.TrimRight(strings.TrimSpace(supabaseURL), "/")
+	if supabaseIssuer != "" {
+		supabaseIssuer += "/auth/v1"
+	}
+
+	for _, provider := range cfg.Providers {
+		if !provider.EnableLogin {
+			continue
+		}
+		issuer := strings.TrimRight(strings.TrimSpace(provider.Issuer), "/")
+		switch {
+		case result.Firebase == "firebase" && issuer == firebaseIssuer:
+			result.Firebase = provider.Name
+		case result.Supabase == "supabase" && issuer == supabaseIssuer:
+			result.Supabase = provider.Name
+		}
+	}
+
+	return result
+}
+
+func titleizeKey(value string) string {
+	parts := strings.Split(strings.ReplaceAll(strings.TrimSpace(value), "_", "-"), "-")
+	titled := make([]string, 0, len(parts))
+	for _, part := range parts {
+		part = strings.TrimSpace(part)
+		if part == "" {
+			continue
+		}
+		part = strings.ToLower(part)
+		titled = append(titled, strings.ToUpper(part[:1])+part[1:])
+	}
+	return strings.Join(titled, " ")
 }
