@@ -131,7 +131,7 @@ if [[ -x "${SCRIPT_PATH}" ]]; then
   assert_log_contains <(printf '%s' "${output}") "[info] rendering bootstrap policies"
   assert_log_contains <(printf '%s' "${output}") "[info] bootstrapping AWS foundation"
   assert_log_contains <(printf '%s' "${output}") "[info] ensuring OIDC discovery companion"
-  assert_log_contains <(printf '%s' "${output}") "[info] ensuring Control Plane UI companion"
+  assert_log_contains <(printf '%s' "${output}") "[info] ensuring Control Plane UI Pages assets"
   assert_log_contains <(printf '%s' "${output}") "[info] configuring stack devo"
   assert_log_contains <(printf '%s' "${output}") "[info] configuring stack staging"
   assert_log_contains <(printf '%s' "${output}") "[info] configuring stack prod"

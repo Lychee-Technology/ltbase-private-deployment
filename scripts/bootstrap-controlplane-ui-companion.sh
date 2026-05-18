@@ -52,7 +52,7 @@ capture_stdout_quiet() {
   return "${command_status}"
 }
 
-required_vars=(GITHUB_OWNER DEPLOYMENT_REPO_NAME DEPLOYMENT_REPO_VISIBILITY CONTROLPLANE_UI_DOMAIN CLOUDFLARE_ACCOUNT_ID CLOUDFLARE_API_TOKEN CLOUDFLARE_ZONE_ID CONTROLPLANE_UI_TEMPLATE_REPO CONTROLPLANE_UI_REPO_NAME CONTROLPLANE_UI_REPO CONTROLPLANE_UI_PAGES_PROJECT)
+required_vars=(DEPLOYMENT_REPO_NAME CONTROLPLANE_UI_DOMAIN CLOUDFLARE_ACCOUNT_ID CLOUDFLARE_API_TOKEN CLOUDFLARE_ZONE_ID CONTROLPLANE_UI_PAGES_PROJECT)
 bootstrap_env_require_vars "${required_vars[@]}"
 
 if ! python3 -c 'import re, sys; domain = sys.argv[1]; label = r"(?!-)[a-z0-9-]{1,63}(?<!-)"; pattern = rf"^{label}(\.{label})+$"; sys.exit(0 if re.fullmatch(pattern, domain.lower()) else 1)' "${CONTROLPLANE_UI_DOMAIN}"; then
@@ -67,19 +67,8 @@ done < <(bootstrap_env_each_stack)
 
 mkdir -p "${OUTPUT_DIR}"
 
-local_code_dir="${OUTPUT_DIR}/${CONTROLPLANE_UI_REPO_NAME}"
-bootstrap_env_info "Syncing Control Plane UI template code into ${local_code_dir}"
-rm -rf "${local_code_dir}"
-bootstrap_env_run_quiet gh repo clone "${CONTROLPLANE_UI_TEMPLATE_REPO}" "${local_code_dir}" -- --depth 1
-rm -rf "${local_code_dir}/.git"
-
 companion_summary="${OUTPUT_DIR}/controlplane-ui-companion.env"
 stack_config="$(bootstrap_env_controlplane_ui_stack_config_json)"
-
-visibility_flag="--private"
-if [[ "${DEPLOYMENT_REPO_VISIBILITY}" == "public" ]]; then
-  visibility_flag="--public"
-fi
 
 cloudflare_headers=(
   -H "Authorization: Bearer ${CLOUDFLARE_API_TOKEN}"
@@ -309,59 +298,16 @@ pages_target="${CONTROLPLANE_UI_PAGES_PROJECT}.pages.dev"
 dns_records_url="https://api.cloudflare.com/client/v4/zones/${CLOUDFLARE_ZONE_ID}/dns_records"
 dns_lookup_url="${dns_records_url}?name=${CONTROLPLANE_UI_DOMAIN}"
 
-bootstrap_env_info "Ensuring Control Plane UI repository: ${CONTROLPLANE_UI_REPO}"
-repo_view_output=""
-repo_view_error_file="$(mktemp)"
-if gh repo view "${CONTROLPLANE_UI_REPO}" >/dev/null 2>"${repo_view_error_file}"; then
-  rm -f "${repo_view_error_file}"
-  bootstrap_env_info "Companion repo exists, syncing latest template code from ${CONTROLPLANE_UI_TEMPLATE_REPO}"
-  sync_tmp="$(mktemp -d)"
-  bootstrap_env_run_quiet gh repo clone "${CONTROLPLANE_UI_REPO}" "${sync_tmp}/companion" -- --depth 1
-  bootstrap_env_run_quiet gh repo clone "${CONTROLPLANE_UI_TEMPLATE_REPO}" "${sync_tmp}/template" -- --depth 1
-  rsync -a --exclude=.git "${sync_tmp}/template/" "${sync_tmp}/companion/"
-  if git -C "${sync_tmp}/companion" diff --quiet && git -C "${sync_tmp}/companion" diff --cached --quiet; then
-    bootstrap_env_info "Companion repo already up to date"
-  else
-    git -C "${sync_tmp}/companion" add -A
-    git -C "${sync_tmp}/companion" commit -m "Sync from template ${CONTROLPLANE_UI_TEMPLATE_REPO}"
-    git -C "${sync_tmp}/companion" push
-    bootstrap_env_info "Pushed latest template code to ${CONTROLPLANE_UI_REPO}"
-  fi
-  rm -rf "${sync_tmp}"
-else
-  repo_view_output="$(<"${repo_view_error_file}")"
-  rm -f "${repo_view_error_file}"
-  if github_repo_missing "${repo_view_output}"; then
-    bootstrap_env_run_quiet gh repo create "${CONTROLPLANE_UI_REPO}" --template "${CONTROLPLANE_UI_TEMPLATE_REPO}" "${visibility_flag}" --description "LTBase Control Plane UI companion for ${DEPLOYMENT_REPO_NAME}" --clone=false
-  else
-    printf 'GitHub repo lookup failed: %s\n' "${CONTROLPLANE_UI_REPO}" >&2
-    printf '%s\n' "${repo_view_output}" >&2
-    exit 1
-  fi
-fi
-
-capture_stdout_quiet repo_metadata gh api "repos/${CONTROLPLANE_UI_REPO}"
-default_branch="$(python3 -c 'import json, sys; data = json.load(sys.stdin); print(data.get("default_branch", "main"))' <<<"${repo_metadata}")"
+bootstrap_env_info "Ensuring Control Plane UI Pages project: ${CONTROLPLANE_UI_PAGES_PROJECT}"
 
 bootstrap_env_info "Ensuring Pages project: ${CONTROLPLANE_UI_PAGES_PROJECT}"
 if ! cloudflare_get_exists "get Pages project" "${pages_project_url}"; then
-  project_payload="$(python3 - "${CONTROLPLANE_UI_PAGES_PROJECT}" "${GITHUB_OWNER}" "${CONTROLPLANE_UI_REPO_NAME}" "${default_branch}" <<'PY'
+  project_payload="$(python3 - "${CONTROLPLANE_UI_PAGES_PROJECT}" <<'PY'
 import json
 import sys
 
 print(json.dumps({
     "name": sys.argv[1],
-    "production_branch": sys.argv[4],
-    "source": {
-        "type": "github",
-        "config": {
-            "owner": sys.argv[2],
-            "repo_name": sys.argv[3],
-            "production_branch": sys.argv[4],
-            "preview_deployment_setting": "none",
-            "production_deployments_enabled": True,
-        },
-    },
 }, separators=(",", ":")))
 PY
 )"
@@ -383,18 +329,9 @@ fi
 bootstrap_env_info "Reconciling DNS for Control Plane UI domain: ${CONTROLPLANE_UI_DOMAIN}"
 ensure_controlplane_ui_dns_record
 
-bootstrap_env_info "Configuring companion repository variables and secrets"
-bootstrap_env_run_quiet gh variable set CONTROLPLANE_UI_DOMAIN --repo "${CONTROLPLANE_UI_REPO}" --body "${CONTROLPLANE_UI_DOMAIN}"
-bootstrap_env_run_quiet gh variable set CONTROLPLANE_UI_STACK_CONFIG --repo "${CONTROLPLANE_UI_REPO}" --body "${stack_config}"
-bootstrap_env_run_quiet gh variable set CLOUDFLARE_ACCOUNT_ID --repo "${CONTROLPLANE_UI_REPO}" --body "${CLOUDFLARE_ACCOUNT_ID}"
-bootstrap_env_run_quiet gh variable set CONTROLPLANE_UI_PAGES_PROJECT --repo "${CONTROLPLANE_UI_REPO}" --body "${CONTROLPLANE_UI_PAGES_PROJECT}"
-bootstrap_env_run_quiet gh secret set CLOUDFLARE_API_TOKEN --repo "${CONTROLPLANE_UI_REPO}" --body "${CLOUDFLARE_API_TOKEN}"
-bootstrap_env_run_quiet gh workflow run publish-pages.yml --repo "${CONTROLPLANE_UI_REPO}"
-
 : >"${companion_summary}"
 cat >>"${companion_summary}" <<EOF
-CONTROLPLANE_UI_REPO=${CONTROLPLANE_UI_REPO}
-CONTROLPLANE_UI_REPO_NAME=${CONTROLPLANE_UI_REPO_NAME}
+CONTROLPLANE_UI_STACK_CONFIG=${stack_config}
 CONTROLPLANE_UI_PAGES_PROJECT=${CONTROLPLANE_UI_PAGES_PROJECT}
 CONTROLPLANE_UI_DOMAIN=${CONTROLPLANE_UI_DOMAIN}
 EOF
