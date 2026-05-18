@@ -31,6 +31,10 @@ type StackConfig struct {
 	ProjectID                    string
 	DeploymentProjectName        string
 	AuthProviderConfigFile       string
+	FirebaseAPIKey               string
+	FirebaseProjectID            string
+	SupabaseURL                  string
+	SupabaseAnonKey              string
 	CloudflareZoneID             string
 	CloudflareZoneName           string
 	OIDCIssuerURL                string
@@ -77,6 +81,10 @@ func Load(ctx *pulumi.Context) (StackConfig, error) {
 		ProjectID:                    cfg.Require("projectId"),
 		DeploymentProjectName:        valueOrDefault(cfg.Get("deploymentProjectName"), humanizeProjectName(ctx.Project())),
 		AuthProviderConfigFile:       cfg.Require("authProviderConfigFile"),
+		FirebaseAPIKey:               cfg.Require("firebaseApiKey"),
+		FirebaseProjectID:            cfg.Require("firebaseProjectId"),
+		SupabaseURL:                  cfg.Require("supabaseUrl"),
+		SupabaseAnonKey:              cfg.Require("supabaseAnonKey"),
 		CloudflareZoneID:             cfg.Require("cloudflareZoneId"),
 		CloudflareZoneName:           strings.TrimSpace(cfg.Get("cloudflareZoneName")),
 		OIDCIssuerURL:                cfg.Require("oidcIssuerUrl"),

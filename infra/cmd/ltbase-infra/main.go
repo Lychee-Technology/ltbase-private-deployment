@@ -20,6 +20,10 @@ func main() {
 			return err
 		}
 		ctx.Log.Info("ltbase-infra: loaded stack config", nil)
+		controlPlaneUIStackConfig, err := services.ControlPlaneUIStackConfigJSON(ctx.RootDirectory(), cfg)
+		if err != nil {
+			return err
+		}
 		awsProvider, err := aws.NewProvider(ctx, "aws-provider", &aws.ProviderArgs{
 			Region: pulumi.String(cfg.AWSRegion),
 		})
@@ -62,6 +66,7 @@ func main() {
 		ctx.Export("projectId", pulumi.String(cfg.ProjectID))
 		ctx.Export("apiId", apis.API.ID())
 		ctx.Export("apiBaseUrl", pulumi.String(services.APIBaseURL(cfg)))
+		ctx.Export("controlplaneUiStackConfig", pulumi.String(controlPlaneUIStackConfig))
 		ctx.Export("dsqlClusterArn", runtime.DSQL.Cluster.Arn)
 		ctx.Export("dsqlClusterIdentifier", runtime.DSQL.Cluster.Identifier)
 		ctx.Export("dsqlVpcEndpointServiceName", runtime.DSQL.Cluster.VpcEndpointServiceName)
