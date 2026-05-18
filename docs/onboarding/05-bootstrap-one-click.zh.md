@@ -13,6 +13,7 @@
 - 已完成 [`04-prepare-env-file.zh.md`](04-prepare-env-file.zh.md)
 - 如果可能，请在真实部署仓库的本地 clone 中执行这套流程
 - 拥有足够的 GitHub 和 AWS 权限来创建和更新所需资源
+- 拥有足够的 Cloudflare 权限来管理 OIDC discovery Pages project、Control Plane UI Pages project、自定义域名和 DNS 记录
 
 在使用一键路径前，请先阅读 [`01-prerequisites.zh.md`](01-prerequisites.zh.md) 中的 bootstrap 最小权限矩阵。
 
@@ -46,12 +47,15 @@ gh auth status
    - 写入 repository secrets 和 variables
    - 创建后续 promotion 审批所需的 GitHub environments
 3. `.env` 中已经填入最终确认的客户可控输入值，包括：
-   - 仓库标识
-   - stack / account / region 映射
-   - 域名
-   - Cloudflare IDs 和 token
-   - release ID 与 releases token
-   - Gemini API key
+    - 仓库标识
+    - stack / account / region 映射
+    - schema bucket override（如果你不想使用默认的 `SCHEMA_BUCKET_<STACK>=<DEPLOYMENT_REPO_NAME>-schema-<stack>` 命名）
+    - 域名
+    - 当前 Control Plane UI bootstrap 输入：`CONTROLPLANE_UI_DOMAIN`，以及浏览器公开 auth 配置（`FIREBASE_*`、`SUPABASE_*`）
+    - Cloudflare IDs 和 token
+    - release ID 与 releases token
+    - Gemini API key
+    - `auth provider` 配置文件路径，并确保其中 provider 名称与当前 Control Plane UI runtime config 中会发布给浏览器的 provider 名称一致
 4. 如果不同 stack 使用不同 AWS 账户，`AWS_PROFILE_<STACK>` 已经配置并测试通过。
 
 ```bash
@@ -84,6 +88,8 @@ AWS_PROFILE_STAGING=customer-staging aws sts get-caller-identity
 - 如果出现缺少必填变量这类硬性校验错误，则不正常，应先修复
 - GitHub、AWS、Cloudflare 或 Pulumi 的认证错误都属于阻塞问题，应先修复
 - 该命令还会把机器可读报告写入 `dist/evaluate-and-continue/report.json`
+- OIDC companion 只有在 companion repo、Pages project、自定义域名绑定、所需 `CNAME` 和 discovery IAM roles 都存在时，才会被视为 `complete`
+- 当前 Control Plane UI 输入应该在这一步之前就已经填入 `.env`，这样后续 bootstrap 阶段才能发布 companion runtime config 并写入 `ltbase-infra:controlPlaneCorsOrigins`
 
 ## 操作步骤
 
@@ -106,7 +112,13 @@ AWS_PROFILE_STAGING=customer-staging aws sts get-caller-identity
 6. 等待脚本执行完成。
 7. 检查 `dist/` 中生成的文件，重点包括恢复报告和渲染出来的策略产物。
 8. 确认部署仓库中的 GitHub variables 和 secrets 已创建。
-9. 确认 `STACKS` 中的每个 Pulumi stack 都已初始化。
+   - 对 schema 发布来说，确认每个 stack 都有 `SCHEMA_BUCKET_<STACK>`，且值与你希望 preview/rollout 使用的 bucket 一致
+9. 确认每个生成出来的 `infra/Pulumi.<stack>.yaml` 文件都包含 `ltbase-infra:controlPlaneCorsOrigins: https://<CONTROLPLANE_UI_DOMAIN>`。
+10. 确认操作者身份提供方已经为第一次管理员登录准备就绪。
+    - 在需要的地方注册 `https://<CONTROLPLANE_UI_DOMAIN>/auth/callback` 作为允许的 redirect URI。
+    - 确认至少一个管理员用户或用户组已经绑定到 LTBase project，并可以通过已配置的 provider 完成认证。
+    - 确认你提供给浏览器的这些配置值都只是公开值，不包含 secret。
+11. 确认 `STACKS` 中的每个 Pulumi stack 都已初始化。
 
 ## 这个命令会做什么
 
@@ -116,10 +128,19 @@ AWS_PROFILE_STAGING=customer-staging aws sts get-caller-identity
 - `render-bootstrap-policies.sh`
 - `bootstrap-aws-foundation.sh`
 - `bootstrap-oidc-discovery-companion.sh`
+- `bootstrap-controlplane-ui-companion.sh`
 - `bootstrap-deployment-repo.sh --stack <STACKS 中的每个 stack>`
 - 当设置了 `--release-id` 时，可选执行 `gh workflow run rollout.yml ...`
 
 `bootstrap-aws-foundation.sh` 会先在 `PROMOTION_PATH` 第一个 stack 对应的 AWS 账户中创建一次共享 Pulumi backend bucket，然后为 `STACKS` 中每个 stack 准备各自的 role 和 secrets provider 输入。
+
+`bootstrap-oidc-discovery-companion.sh` 还会为 `OIDC_DISCOVERY_DOMAIN` 创建必需的 Cloudflare DNS `CNAME`，让这个自定义域名直接解析到 `${OIDC_DISCOVERY_PAGES_PROJECT}.pages.dev`。
+
+`bootstrap-controlplane-ui-companion.sh` 当前会创建或更新 control-plane UI companion 仓库，确保其 Cloudflare Pages project 和自定义域名，写入包括 `CONTROLPLANE_UI_STACK_CONFIG` 在内的 companion 仓库变量，并用每个 stack 的 Firebase/Supabase 公开浏览器配置更新 `public/ltbase-controlplane.config.json`。
+
+`bootstrap-deployment-repo.sh` 还会把 `ltbase-infra:controlPlaneCorsOrigins` 写入每个 Pulumi stack，让部署后的 control-plane Lambda 接受来自 control-plane UI admin 域名的浏览器流量。
+
+后续单独运行的 preview workflow 仍然只做基础设施预览；它不会发布 Control Plane UI。
 
 ## 预期结果
 

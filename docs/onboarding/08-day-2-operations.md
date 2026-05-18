@@ -34,7 +34,7 @@ The script checks:
 4. If the generated deployment repository does not yet have a real auth provider config file for a stack, copy the matching `infra/auth-providers.<stack>.json.example` file to `infra/auth-providers.<stack>.json` in that generated repository before the next bootstrap or preview run.
 5. Update `LTBASE_RELEASE_ID` in GitHub variables, or pass a new `release_id` directly to the workflow.
 6. Run the preview workflow.
-7. Review the Pulumi preview output.
+7. Review the Pulumi preview output. Remember that preview is infra-only and does not publish the Control Plane UI.
 8. Trigger `rollout.yml` once for the new release.
 9. Validate each deployed stack before approving the next protected target environment.
 10. Approve each protected hop in order until the promotion path completes.
@@ -58,9 +58,21 @@ This validation is presence-only. It does not modify customer config automatical
 
 Keep `.env` private, current, and outside version control.
 
+### Troubleshoot Control Plane UI operator access
+
+When operators cannot sign in to the admin UI, check all of the following before changing workflow or release inputs:
+
+- `CONTROLPLANE_UI_DOMAIN` still points at the expected Cloudflare Pages custom domain and DNS `CNAME`
+- the identity provider still allows `https://<CONTROLPLANE_UI_DOMAIN>/auth/callback`
+- `infra/auth-providers.<stack>.json` still contains provider names that match the browser providers rendered into the current companion runtime config
+- the Control Plane API CORS allowlist still includes `https://<CONTROLPLANE_UI_DOMAIN>` unless you intentionally configured `*`
+- the Firebase and Supabase values in `.env` are browser-safe values only and still match the operator-facing app setup you expect
+- the current repository version may still rely on companion-oriented Control Plane UI bootstrap assumptions, so confirm those resources are still present before treating the issue as an application regression
+
 ## Operational Reminders
 
 - do not rebuild LTBase application binaries in the deployment repository
+- do not rebuild LTBase Control Plane UI source artifacts from the deployment repository
 - do not commit `.env`
 - do not bypass the production approval gate
 - keep `LTBASE_RELEASES_TOKEN` scoped to release download access only

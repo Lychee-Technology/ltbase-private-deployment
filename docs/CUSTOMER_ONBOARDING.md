@@ -24,6 +24,8 @@ Your LTBase deployment uses three repositories:
 
 Your deployment repository does not build LTBase application source code. It downloads an official LTBase release and deploys it into your AWS account.
 
+In the current repository version, the deployment repository is also the operator-facing source of truth for Control Plane UI inputs such as `CONTROLPLANE_UI_DOMAIN`, public browser auth settings, auth provider name alignment, and Control Plane CORS inputs. Some bootstrap scripts still publish those values through a companion-style `*-controlplane-ui` repository, so the docs below describe that current behavior conservatively.
+
 This onboarding set supports generic multi-stack deployments. Names such as `devo` and `prod` are examples, not hard-coded requirements.
 
 ## End State
@@ -39,6 +41,8 @@ When onboarding is complete, you should have:
 - a first promotion stack ready for preview and deployment
 - each later stack in `PROMOTION_PATH` ready for protected promotion after the previous hop is validated
 - one control-plane UI admin domain that is allowed by control-plane CORS and matched to the operator identity-provider redirect setup
+- browser-safe Firebase and Supabase Control Plane UI values prepared for every stack that will expose operator login
+- at least one operator login path whose provider name matches the deployment-owned auth provider records for that stack
 
 ## Before You Start
 
@@ -98,14 +102,16 @@ Before you run any bootstrap automation, confirm all of the following:
 - Cloudflare inputs are ready.
   - Confirm `CLOUDFLARE_ACCOUNT_ID`, `CLOUDFLARE_ZONE_ID`, `CLOUDFLARE_API_TOKEN`, and `OIDC_DISCOVERY_DOMAIN` are final in `.env` before bootstrap.
   - Confirm the token can manage the Pages project and custom domain that bootstrap creates for OIDC discovery.
+  - If you are using the current Control Plane UI companion bootstrap flow, confirm the same Cloudflare account and zone are also ready for the Control Plane UI Pages project, custom domain, and required CNAME.
   - If the operator account or token does not meet the minimum permission matrix, use the manual path instead of one-click bootstrap.
   - Confirm the zone can proxy the `api`, `auth`, and `control-plane` hostnames through Cloudflare.
   - Plan to keep Cloudflare SSL mode on `Full (strict)` and enable Authenticated Origin Pulls before sending production traffic.
 - Release and application inputs are ready.
   - Confirm `LTBASE_RELEASES_REPO`, `LTBASE_RELEASE_ID`, `LTBASE_RELEASES_TOKEN`, and `GEMINI_API_KEY` are available before you continue.
-  - Confirm the control-plane UI companion inputs are final before bootstrap: `CONTROLPLANE_UI_DOMAIN`, `FIREBASE_API_KEY_<STACK>`, `FIREBASE_PROJECT_ID_<STACK>`, `SUPABASE_URL_<STACK>`, and `SUPABASE_ANON_KEY_<STACK>`.
-  - Confirm the provider names in each `infra/auth-providers.<stack>.json` file line up with the control-plane UI companion browser providers you expect operators to use. The companion runtime config now reuses matching deployment-owned provider names when it publishes `public/ltbase-controlplane.config.json`.
-  - Confirm admin login prerequisites are ready in the identity provider before first use, including the control-plane UI redirect URI `https://<CONTROLPLANE_UI_DOMAIN>/auth/callback` that the companion runtime config publishes into `public/ltbase-controlplane.config.json`, plus any required admin-user or group binding for the target LTBase project.
+  - Confirm the current Control Plane UI inputs are final before bootstrap: `CONTROLPLANE_UI_DOMAIN`, `FIREBASE_API_KEY_<STACK>`, `FIREBASE_PROJECT_ID_<STACK>`, `SUPABASE_URL_<STACK>`, and `SUPABASE_ANON_KEY_<STACK>`.
+  - Confirm those Firebase and Supabase values are public browser settings only. Do not place secrets, service-role keys, or other server-side credentials into the Control Plane UI runtime config.
+  - Confirm the provider names in each `infra/auth-providers.<stack>.json` file line up with the browser providers you expect operators to use. The current companion runtime config generation reuses matching deployment-owned provider names when it renders `public/ltbase-controlplane.config.json`.
+  - Confirm admin login prerequisites are ready in the identity provider before first use, including the redirect URI `https://<CONTROLPLANE_UI_DOMAIN>/auth/callback` and any required admin-user or group binding for the target LTBase project.
 - `.env` is clean.
   - Fill customer-controlled values yourself.
   - Leave derived values such as `PULUMI_BACKEND_URL`, `PULUMI_SECRETS_PROVIDER_<STACK>`, `AWS_ROLE_ARN_<STACK>`, `OIDC_ISSUER_URL_<STACK>`, and `JWKS_URL_<STACK>` unset unless you intentionally need an override.
@@ -133,7 +139,7 @@ If you want to control each stage manually, use the manual path:
 ### Step 7 - Run the first preview and deployment
 
 - Read: [`docs/onboarding/07-first-deploy-and-managed-dsql.md`](onboarding/07-first-deploy-and-managed-dsql.md)
-- Covers: preview, promotion-path rollout, protected-environment approvals, managed DSQL post-bootstrap handling
+- Covers: infra-only preview, promotion-path rollout, protected-environment approvals, Control Plane UI operator validation, managed DSQL post-bootstrap handling
 
 ### Step 8 - Day-2 operations
 
@@ -207,6 +213,7 @@ The current repository version uses a bootstrap-safe flow:
 - official workflows only install a prebuilt infra binary when that provenance and `build_fingerprint` exactly match an upstream-published manifest; otherwise they intentionally fall back to source build
 - manual preview only supports the first stack in `PROMOTION_PATH`
 - protected promotions happen in your own repository through per-stack GitHub environment gates
+- the current repository still contains companion-style Control Plane UI bootstrap and config publishing steps, so this runbook documents those current scripts rather than a future UI deployment model that has not been fully verified here
 
 ## Cloudflare mTLS Rollout Notes
 

@@ -38,6 +38,16 @@ Recommended reading order for new deployments:
 
 The onboarding docs support generic multi-stack topologies. When they show names like `devo` or `prod`, treat them as examples only.
 
+## Current Control Plane UI Model
+
+In the current repository version, operators should treat the Control Plane UI as a Cloudflare Pages-hosted admin site rooted at `CONTROLPLANE_UI_DOMAIN`.
+
+- `preview` remains infra-only; it validates release selection, stack config, and Pulumi changes, but does not publish the Control Plane UI
+- the current bootstrap scripts still use companion-style Control Plane UI setup, including a separate `*-controlplane-ui` repository, Cloudflare Pages project, custom domain binding, DNS wiring, and companion repository variables
+- the deployment repository is still the operator-facing source of truth for the UI inputs that feed that setup, including `CONTROLPLANE_UI_DOMAIN`, stack browser config values, auth provider config alignment, and Control Plane CORS inputs
+- runtime config for the UI is browser-safe only; do not place server-side secrets, service-role keys, or admin credentials into the Control Plane UI config
+- operator identity providers must allow `https://<CONTROLPLANE_UI_DOMAIN>/auth/callback`, and the deployed Control Plane API must allow the admin domain through its CORS configuration
+
 ## Documentation Map
 
 Main entrypoints:
@@ -87,7 +97,7 @@ Preferred recovery-aware bootstrap entrypoint:
 
 The bootstrap flow now also manages the customer-specific `*-oidc-discovery` companion repository, its Cloudflare Pages project, its custom domain binding, the required zone-level CNAME pointing at `${OIDC_DISCOVERY_PAGES_PROJECT}.pages.dev`, and the per-stack read-only discovery roles that the companion publish workflow assumes.
 
-It also manages the customer-specific `*-controlplane-ui` companion repository, its Cloudflare Pages project, its custom domain binding, the required zone-level CNAME pointing at `${CONTROLPLANE_UI_PAGES_PROJECT}.pages.dev`, and the runtime config JSON published to `public/ltbase-controlplane.config.json` from the companion repository variable `CONTROLPLANE_UI_STACK_CONFIG`.
+In the current repository version, `scripts/bootstrap-controlplane-ui-companion.sh` also manages a customer-specific `*-controlplane-ui` companion repository, its Cloudflare Pages project, its custom domain binding, the required zone-level CNAME pointing at `${CONTROLPLANE_UI_PAGES_PROJECT}.pages.dev`, and the runtime config JSON published to `public/ltbase-controlplane.config.json` from the companion repository variable `CONTROLPLANE_UI_STACK_CONFIG`.
 
 The current control plane UI bootstrap emits both Firebase and Supabase browser providers for every stack. It also tries to reuse provider names from each stack's `AUTH_PROVIDER_CONFIG_FILE_<STACK>` when those deployment-owned records match the Firebase and Supabase issuers implied by the public browser config. That means each stack in `.env` must provide all of these public, browser-safe values before running `scripts/bootstrap-controlplane-ui-companion.sh`:
 
@@ -112,6 +122,7 @@ This template repository only tracks `infra/auth-providers.*.json.example`. A ge
 - only the upstream template repository publishes those prebuilt infra binaries; generated customer deployment repositories consume them only
 - customers own the GitHub repository, AWS account resources, and deployment approvals
 - bootstrap scripts prepare repository state and deployment configuration
+- current Control Plane UI operator inputs still originate in the deployment repository even when companion-style setup scripts publish or mirror those values elsewhere
 - deployment workflows validate schemas in preview, then publish versioned bundles to each stack's dedicated schema bucket during rollout
 - schema publication and schema application are separate: publishing updates immutable `schemas/releases/<version>/` objects plus the published pointer at `schemas/published/manifest.json`, then an explicit control-plane `ensure-project` call applies that published version into the runtime-consumed `schemas/applied/` pointer
 - the shared Pulumi backend bucket is created once and lives in the AWS account for the first stack in `PROMOTION_PATH`
@@ -130,6 +141,7 @@ This template repository only tracks `infra/auth-providers.*.json.example`. A ge
 - generated customer deployment repositories still receive `.github/workflows/build-infra-binary.yml` from the template, but the workflow is repo-guarded and is skipped outside `Lychee-Technology/ltbase-private-deployment`
 - official workflows only install a prebuilt infra binary when the synced template provenance and `build_fingerprint` exactly match an upstream published manifest; otherwise they fall back to source build
 - if a later repository version changes the managed DSQL lifecycle, follow the docs shipped with that version
+- if a later repository version changes the Control Plane UI deployment model, follow the docs shipped with that version; this README intentionally documents the current companion-style setup that still exists in this repository
 - operators must keep Cloudflare SSL mode on `Full (strict)` and enable Authenticated Origin Pulls for the API hostnames
 - preview and rollout mTLS audits also require `CLOUDFLARE_API_TOKEN` to read Cloudflare zone settings for the target zone, not just DNS records
 - once the mTLS rollout is applied, direct `execute-api` access is expected to fail by design
