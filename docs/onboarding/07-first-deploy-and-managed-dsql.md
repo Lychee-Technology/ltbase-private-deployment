@@ -40,6 +40,8 @@ Confirm that the Pulumi preview matches your expected infrastructure changes.
 
 The preview workflow also runs schema validation in dry-run mode against `customer-owned/schemas/*.json`. It does not upload anything to the stack schema bucket during preview.
 
+The preview workflow is infra-only. It does not publish the Control Plane UI or update the companion repository runtime config.
+
 At minimum, confirm:
 
 - the target stack is the one you expected
@@ -83,6 +85,10 @@ At minimum, check:
 - the expected domain endpoints are reachable
 - your minimum health check, login path, or internal smoke test passes
 - the environment is running the same release ID used for the current rollout
+- the admin domain is reachable through its expected Cloudflare Pages hostname and custom domain setup
+- the provider names shown to operators still line up with the provider names in `infra/auth-providers.<stack>.json`
+- the identity provider accepts `https://<CONTROLPLANE_UI_DOMAIN>/auth/callback`
+- the deployed control-plane API still allows the admin domain through its configured CORS rules
 - the rollout workflow has already reconciled the authservice `project info` item in DynamoDB by using the deployed stack outputs and current AWS account id
 - the schema bucket shows the new release bundle under `schemas/releases/<version>/`
 - `schemas/published/manifest.json` points at the version that rollout just published
@@ -119,6 +125,8 @@ Important:
 
 - this workflow only allows adjacent hops in `PROMOTION_PATH`
 - invalid jumps fail immediately, for example if you skip an intermediate environment
+
+Control Plane UI operator readiness is still separate from preview itself. In the current repository version, make sure the admin domain, current companion runtime config inputs, redirect URI registration, and Control Plane CORS assumptions are all correct before treating operator login as ready.
 
 ## Project Info Guidance
 

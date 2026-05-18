@@ -19,7 +19,7 @@
 
 - 你希望逐段审阅脚本将创建的 GitHub、AWS、Cloudflare 资源
 - 你没有权限让一键流程自动创建全部资源，但可以分阶段完成
-- 你想把仓库创建、AWS foundation、stack 初始化和 OIDC discovery 配套资源拆开执行
+- 你想把仓库创建、AWS foundation、stack 初始化、OIDC discovery 配套资源，以及当前 Control Plane UI companion setup 拆开执行
 
 手动路径的关键点是：每一阶段做完后先检查结果，再进入下一阶段。
 
@@ -155,13 +155,40 @@ source dist/foundation.env
 - Cloudflare Pages 项目与自定义域名绑定已经创建
 - 每个 stack 对应的 OIDC discovery IAM role 已存在
 
-### 7. 确认仓库配置完成
+### 7. 初始化当前 Control Plane UI companion setup
+
+执行前确认：
+
+- `.env` 中的 `CONTROLPLANE_UI_DOMAIN`、`CLOUDFLARE_ACCOUNT_ID`、`CLOUDFLARE_ZONE_ID`、`CLOUDFLARE_API_TOKEN` 都正确无误
+- `STACKS` 中每个 stack 都已经填写 `PROJECT_ID`、`AUTH_DOMAIN_<STACK>`、`CONTROL_DOMAIN_<STACK>`、`API_DOMAIN_<STACK>`、`AUTH_PROVIDER_CONFIG_FILE_<STACK>`、`FIREBASE_API_KEY_<STACK>`、`FIREBASE_PROJECT_ID_<STACK>`、`SUPABASE_URL_<STACK>` 和 `SUPABASE_ANON_KEY_<STACK>`
+- Firebase 和 Supabase 这些值都只是浏览器公开配置，不包含 secret
+- 你已经准备好让脚本创建或更新当前的 `*-controlplane-ui` companion 仓库、Pages project、自定义域名绑定、所需 DNS `CNAME`，以及 companion 仓库变量
+
+执行：
+
+```bash
+./scripts/bootstrap-controlplane-ui-companion.sh --env-file .env
+```
+
+该步骤当前会创建或更新 Control Plane UI companion 仓库、同步 UI 模板代码、确保 Cloudflare Pages project、确保自定义域名绑定和所需 zone `CNAME`，并写入包括 `CONTROLPLANE_UI_STACK_CONFIG` 在内的 companion 仓库变量。
+
+执行后检查：
+
+- Control Plane UI companion 仓库已存在
+- companion 仓库中已经配置 `CONTROLPLANE_UI_DOMAIN`、`CONTROLPLANE_UI_STACK_CONFIG`、`CLOUDFLARE_ACCOUNT_ID` 和 `CONTROLPLANE_UI_PAGES_PROJECT` 这些 GitHub repository variables
+- `CONTROLPLANE_UI_DOMAIN` 对应的 Cloudflare Pages project 与自定义域名绑定已经创建
+- Cloudflare zone 中已经存在 `CONTROLPLANE_UI_DOMAIN` 所需的 `CNAME`
+- `infra/auth-providers.<stack>.json` 中的 provider 名称仍与生成 runtime config 后希望展示给操作者的 provider 名称一致
+- 身份提供方已经允许 `https://<CONTROLPLANE_UI_DOMAIN>/auth/callback`
+
+### 8. 确认仓库配置完成
 
 请至少确认以下事项：
 
 - 部署仓库中已经出现所需 GitHub secrets 和 variables
 - `infra/` 中每个 stack 的 Pulumi 配置都已初始化
 - 如果你使用了 companion 流程，OIDC discovery 相关仓库和 Cloudflare 资源已经准备好
+- 如果你使用了当前的 Control Plane UI companion 流程，admin 域名、runtime config 输入、redirect URI 设置，以及 Control Plane CORS 前提也已经准备好
 
 如果你希望在进入首次部署前做一次汇总检查，可以运行：
 
@@ -182,6 +209,7 @@ source dist/foundation.env
 - 在仓库根目录之外执行手动 bootstrap 命令
 - 做完 AWS foundation 后没有检查 `dist/` 里的策略产物与输出值就继续下一步
 - companion 相关资源尚未准备好就直接进入首次部署
+- admin 域名、redirect URI 和 Control Plane CORS 还没有对齐，就直接进入第一次操作者登录
 
 ## 下一步
 
