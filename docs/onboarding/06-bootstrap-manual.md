@@ -19,7 +19,7 @@ The manual path is a better fit when:
 
 - you want to review each GitHub, AWS, and Cloudflare change stage by stage
 - you do not want one command to create every required resource automatically
-- you need to separate repository creation, AWS foundation, stack bootstrap, and OIDC discovery companion setup
+- you need to separate repository creation, AWS foundation, stack bootstrap, OIDC discovery companion setup, and current Control Plane UI companion setup
 
 The main rule of the manual path is simple: finish one stage, verify the result, then continue.
 
@@ -157,13 +157,40 @@ After this step, confirm:
 - the Cloudflare zone now contains the expected `CNAME` for `OIDC_DISCOVERY_DOMAIN`
 - the per-stack OIDC discovery IAM roles now exist
 
-### 7. Confirm repository configuration
+### 7. Bootstrap the current Control Plane UI companion setup
+
+Before you run this stage, confirm:
+
+- `CONTROLPLANE_UI_DOMAIN`, `CLOUDFLARE_ACCOUNT_ID`, `CLOUDFLARE_ZONE_ID`, and `CLOUDFLARE_API_TOKEN` in `.env` are correct
+- every stack in `STACKS` has `PROJECT_ID`, `AUTH_DOMAIN_<STACK>`, `CONTROL_DOMAIN_<STACK>`, `API_DOMAIN_<STACK>`, `AUTH_PROVIDER_CONFIG_FILE_<STACK>`, `FIREBASE_API_KEY_<STACK>`, `FIREBASE_PROJECT_ID_<STACK>`, `SUPABASE_URL_<STACK>`, and `SUPABASE_ANON_KEY_<STACK>` filled in
+- the Firebase and Supabase values are public browser settings only, not secrets
+- you are ready for the script to create or update the current `*-controlplane-ui` companion repository, Pages project, custom domain binding, required DNS `CNAME`, and companion repository variables
+
+Run:
+
+```bash
+./scripts/bootstrap-controlplane-ui-companion.sh --env-file .env
+```
+
+This step currently creates or updates the Control Plane UI companion repository, syncs the UI template code, ensures the Cloudflare Pages project, ensures the custom domain binding and required zone `CNAME`, and writes companion repository variables including `CONTROLPLANE_UI_STACK_CONFIG`.
+
+After this step, confirm:
+
+- the Control Plane UI companion repository now exists
+- that repository has GitHub repository variables `CONTROLPLANE_UI_DOMAIN`, `CONTROLPLANE_UI_STACK_CONFIG`, `CLOUDFLARE_ACCOUNT_ID`, and `CONTROLPLANE_UI_PAGES_PROJECT`
+- the Cloudflare Pages project and custom domain binding were created for `CONTROLPLANE_UI_DOMAIN`
+- the Cloudflare zone now contains the expected `CNAME` for `CONTROLPLANE_UI_DOMAIN`
+- the provider names in `infra/auth-providers.<stack>.json` still match the browser providers you expect the generated runtime config to expose
+- the identity provider is configured to allow `https://<CONTROLPLANE_UI_DOMAIN>/auth/callback`
+
+### 8. Confirm repository configuration
 
 At minimum, confirm all of the following:
 
 - the deployment repository now contains the required GitHub secrets and variables
 - every stack in `infra/` now has initialized Pulumi configuration
 - if you used the companion flow, the OIDC discovery repository and Cloudflare resources are ready
+- if you used the current Control Plane UI companion flow, the admin domain, runtime config inputs, redirect URI setup, and Control Plane CORS assumptions are ready for first operator use
 
 If you want one final summary check before first deploy, run:
 
@@ -184,6 +211,7 @@ You finish with all bootstrap stages completed manually and the repository is re
 - running manual bootstrap commands outside the repository root
 - continuing past AWS foundation without reviewing the generated artifacts and output values
 - moving to first deploy before the companion resources are actually ready
+- moving to first operator login before the admin domain, redirect URI, and Control Plane CORS setup are aligned
 
 ## Next Step
 

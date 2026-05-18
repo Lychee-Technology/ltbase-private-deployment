@@ -52,6 +52,7 @@ Your deployment repository should contain:
 - copy `env.template` to `.env`
 - fill customer-controlled values, leave derived values alone unless you need overrides, and never commit `.env`
 - keep `MTLS_TRUSTSTORE_FILE` and `MTLS_TRUSTSTORE_KEY` at the template defaults unless LTBase instructs otherwise
+- treat Control Plane UI Firebase and Supabase values as browser-facing config only; do not put secrets into runtime config
 
 ### 5. Choose a bootstrap path
 
@@ -62,6 +63,7 @@ One-click path:
 - if a platform owner must grant AWS bootstrap access first, hand them `dist/bootstrap-operator-<stack>-policy.json` for each stack and `dist/bootstrap-operator-first-stack-s3-policy.json` for the first stack account
 - run `./scripts/evaluate-and-continue.sh --env-file .env --scope bootstrap --infra-dir infra` as a preflight check
 - run `./scripts/evaluate-and-continue.sh --env-file .env --scope bootstrap --force --infra-dir infra`
+- current repo versions may still perform Control Plane UI setup through companion-oriented bootstrap scripts and variables
 
 Manual path:
 
@@ -72,8 +74,10 @@ Manual path:
 
 - read [`onboarding/07-first-deploy-and-managed-dsql.md`](onboarding/07-first-deploy-and-managed-dsql.md)
 - run preview for the first stack in `PROMOTION_PATH`
+- treat preview as infra-only; it does not publish the Control Plane UI
 - trigger `rollout.yml` once for the chosen release
 - approve each protected target stack as GitHub requests it
+- before first operator use, validate the admin domain, redirect URI registration, and Control Plane CORS alignment separately
 
 ### 7. Day-2 operations
 
@@ -106,6 +110,7 @@ Manual path:
 - preview is manual in the customer repo because live credentials are customer-owned
 - manual preview only supports the first stack in `PROMOTION_PATH`
 - protected target environments are guarded by per-stack GitHub environment approval gates during rollout
+- current repo versions still expose companion-oriented Control Plane UI scripts and variables even though the deployment repository remains the operator-facing source of truth for those inputs
 - the template now assumes `api`, `auth`, and `control-plane` are served through Cloudflare-proxied custom domains
 - set Cloudflare SSL mode to `Full (strict)` before enabling production traffic
 - enable Cloudflare Authenticated Origin Pulls before expecting API Gateway mTLS to succeed

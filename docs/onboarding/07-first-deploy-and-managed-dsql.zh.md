@@ -37,6 +37,8 @@
 
 确认 Pulumi preview 输出与你预期的基础设施变更一致。
 
+preview workflow 只做基础设施预览。它不会发布 Control Plane UI，也不会更新 companion 仓库中的 runtime config。
+
 至少应检查：
 
 - 目标 stack 与你预期一致
@@ -66,6 +68,10 @@
 - 目标域名可访问
 - 基础健康检查、登录链路或你内部定义的最小冒烟检查通过
 - 当前环境使用的 release ID 与你本次 rollout 的 release ID 一致
+- admin 域名已经通过预期的 Cloudflare Pages hostname 与自定义域名设置正常可达
+- 操作者会看到的 provider 名称仍与 `infra/auth-providers.<stack>.json` 中的 provider 名称一致
+- 身份提供方接受 `https://<CONTROLPLANE_UI_DOMAIN>/auth/callback`
+- 已部署出来的 control-plane API 仍通过其 CORS 配置允许 admin 域名访问
 - rollout 工作流已经通过部署后的 stack outputs 和当前 AWS account id 自动回写 authservice 所需的 DynamoDB `project info` 记录
 
 ### 5. 审批受保护目标环境
@@ -91,6 +97,8 @@
 
 - 这个工作流只允许 `PROMOTION_PATH` 中相邻的 hop
 - 非法跳转会直接失败，例如跨过中间环境的 promotion
+
+Control Plane UI 的操作者侧可用性仍独立于 preview 本身。在当前仓库版本中，在把操作者登录视为 ready 之前，还需要确认 admin 域名、当前 companion runtime config 输入、redirect URI 注册，以及 Control Plane CORS 前提全部正确。
 
 ## Project Info 指引
 

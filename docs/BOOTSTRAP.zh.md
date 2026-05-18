@@ -52,6 +52,7 @@
 - 将 `env.template` 复制为 `.env`
 - 填写客户可控输入值；除非确实需要 override，否则派生值先不要手填；并且绝对不要提交 `.env`
 - 除非 LTBase 另行说明，否则保持 `MTLS_TRUSTSTORE_FILE` 与 `MTLS_TRUSTSTORE_KEY` 为模板默认值
+- 将 Control Plane UI 相关的 Firebase 和 Supabase 值视为浏览器公开配置，不要把 secret 写进 runtime config
 
 ### 5. 选择 bootstrap 路径
 
@@ -62,6 +63,7 @@
 - 如果平台管理员需要先授予 AWS bootstrap 权限，把每个 stack 对应的 `dist/bootstrap-operator-<stack>-policy.json` 和第一个 stack 账户专用的 `dist/bootstrap-operator-first-stack-s3-policy.json` 发给对方
 - 先运行 `./scripts/evaluate-and-continue.sh --env-file .env --scope bootstrap --infra-dir infra` 做 preflight 检查
 - 运行 `./scripts/evaluate-and-continue.sh --env-file .env --scope bootstrap --force --infra-dir infra`
+- 当前仓库版本仍可能通过 companion 风格的脚本和变量完成 Control Plane UI setup
 
 手动路径：
 
@@ -72,8 +74,10 @@
 
 - 阅读 [`onboarding/07-first-deploy-and-managed-dsql.zh.md`](onboarding/07-first-deploy-and-managed-dsql.zh.md)
 - 对 `PROMOTION_PATH` 第一个环境执行 preview
+- 将 preview 视为纯基础设施预览；它不会发布 Control Plane UI
 - 针对目标 release 触发一次 `rollout.yml`
 - 在 GitHub 请求时依次审批受保护目标环境
+- 在首次让操作者使用前，单独确认 admin 域名、redirect URI 注册和 Control Plane CORS 对齐情况
 
 ### 7. 日常运维
 
@@ -106,6 +110,7 @@
 - 客户仓库中的 preview 默认为手动触发，因为真实凭据由客户持有
 - 手动 preview 只支持 `PROMOTION_PATH` 的第一个环境
 - rollout 中的受保护目标环境由各自的 GitHub environment 审批 gate 保护
+- 当前仓库版本仍暴露 companion 风格的 Control Plane UI 脚本与变量，尽管这些输入的操作者侧权威来源依然是 deployment repo
 - 当前模板默认假设 `api`、`auth`、`control-plane` 都通过 Cloudflare 代理的自定义域名对外提供访问
 - 在承载正式流量前，将 Cloudflare SSL 模式设置为 `Full (strict)`
 - 在期待 API Gateway mTLS 生效前，先启用 Cloudflare Authenticated Origin Pulls

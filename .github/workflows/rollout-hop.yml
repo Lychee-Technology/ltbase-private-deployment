@@ -209,7 +209,6 @@ jobs:
       pulumi_secrets_provider: ${{ vars[format('PULUMI_SECRETS_PROVIDER_{0}', needs.prepare.outputs.target_stack_upper)] }}
       releases_repo: ${{ vars.LTBASE_RELEASES_REPO || 'Lychee-Technology/ltbase-releases' }}
       controlplane_ui_pages_project: ${{ vars.CONTROLPLANE_UI_PAGES_PROJECT }}
-      controlplane_ui_runtime_config_path: .github/ltbase-controlplane.config.json
       controlplane_ui_runtime_config_json: ${{ needs.render_controlplane_ui_config.outputs.runtime_config_json }}
       working_directory: infra
       run_canary: ${{ needs.prepare.outputs.run_canary == 'true' }}

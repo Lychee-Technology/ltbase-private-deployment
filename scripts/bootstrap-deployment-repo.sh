@@ -54,7 +54,7 @@ if ! bootstrap_env_require_vars CONTROLPLANE_UI_DOMAIN; then
   exit 1
 fi
 
-if ! bootstrap_env_require_stack_values "${STACK}" AWS_REGION AWS_ROLE_ARN PULUMI_SECRETS_PROVIDER API_DOMAIN CONTROL_DOMAIN AUTH_DOMAIN PROJECT_ID AUTH_PROVIDER_CONFIG_FILE OIDC_ISSUER_URL JWKS_URL RUNTIME_BUCKET SCHEMA_BUCKET TABLE_NAME; then
+if ! bootstrap_env_require_stack_values "${STACK}" AWS_REGION AWS_ROLE_ARN PULUMI_SECRETS_PROVIDER API_DOMAIN CONTROL_DOMAIN AUTH_DOMAIN PROJECT_ID AUTH_PROVIDER_CONFIG_FILE FIREBASE_API_KEY FIREBASE_PROJECT_ID SUPABASE_URL SUPABASE_ANON_KEY OIDC_ISSUER_URL JWKS_URL RUNTIME_BUCKET SCHEMA_BUCKET TABLE_NAME; then
   exit 1
 fi
 
@@ -79,6 +79,7 @@ bootstrap_env_run_quiet gh variable set STACKS --repo "${DEPLOYMENT_REPO}" --bod
 bootstrap_env_run_quiet gh variable set PROMOTION_PATH --repo "${DEPLOYMENT_REPO}" --body "${PROMOTION_PATH}"
 bootstrap_env_run_quiet gh variable set PREVIEW_DEFAULT_STACK --repo "${DEPLOYMENT_REPO}" --body "${PREVIEW_DEFAULT_STACK}"
 bootstrap_env_run_quiet gh variable set CONTROLPLANE_UI_STACK_CONFIG --repo "${DEPLOYMENT_REPO}" --body "$(bootstrap_env_controlplane_ui_stack_config_json)"
+bootstrap_env_run_quiet gh variable set CONTROLPLANE_UI_DOMAIN --repo "${DEPLOYMENT_REPO}" --body "${CONTROLPLANE_UI_DOMAIN}"
 bootstrap_env_run_quiet gh variable set CONTROLPLANE_UI_PAGES_PROJECT --repo "${DEPLOYMENT_REPO}" --body "${CONTROLPLANE_UI_PAGES_PROJECT}"
 
 bootstrap_env_run_quiet gh secret set LTBASE_RELEASES_TOKEN --repo "${DEPLOYMENT_REPO}" --body "${LTBASE_RELEASES_TOKEN}"
@@ -101,6 +102,10 @@ selected_control_plane_cors_allow_origins_raw="$(bootstrap_env_resolve_stack_val
 selected_control_plane_cors_allow_origins="$(bootstrap_env_append_csv_value_once "${selected_control_plane_cors_allow_origins_raw}" "${selected_control_plane_cors_origins}")"
 selected_project_id="$(bootstrap_env_resolve_stack_value PROJECT_ID "${STACK}")"
 selected_auth_provider_config_file="$(bootstrap_env_resolve_stack_value AUTH_PROVIDER_CONFIG_FILE "${STACK}")"
+selected_firebase_api_key="$(bootstrap_env_resolve_stack_value FIREBASE_API_KEY "${STACK}")"
+selected_firebase_project_id="$(bootstrap_env_resolve_stack_value FIREBASE_PROJECT_ID "${STACK}")"
+selected_supabase_url="$(bootstrap_env_resolve_stack_value SUPABASE_URL "${STACK}")"
+selected_supabase_anon_key="$(bootstrap_env_resolve_stack_value SUPABASE_ANON_KEY "${STACK}")"
 selected_oidc_issuer_url="$(bootstrap_env_resolve_stack_value OIDC_ISSUER_URL "${STACK}")"
 selected_jwks_url="$(bootstrap_env_resolve_stack_value JWKS_URL "${STACK}")"
 selected_account_id="$(bootstrap_env_resolve_stack_value AWS_ACCOUNT_ID "${STACK}")"
@@ -148,6 +153,10 @@ bootstrap_env_run_quiet "${stack_env[@]}" pulumi config set authCorsAllowOrigins
 bootstrap_env_run_quiet "${stack_env[@]}" pulumi config set controlPlaneCorsAllowOrigins "${selected_control_plane_cors_allow_origins}" --stack "${STACK}"
 bootstrap_env_run_quiet "${stack_env[@]}" pulumi config set projectId "${selected_project_id}" --stack "${STACK}"
 bootstrap_env_run_quiet "${stack_env[@]}" pulumi config set authProviderConfigFile "${selected_auth_provider_config_file}" --stack "${STACK}"
+bootstrap_env_run_quiet "${stack_env[@]}" pulumi config set firebaseApiKey "${selected_firebase_api_key}" --stack "${STACK}"
+bootstrap_env_run_quiet "${stack_env[@]}" pulumi config set firebaseProjectId "${selected_firebase_project_id}" --stack "${STACK}"
+bootstrap_env_run_quiet "${stack_env[@]}" pulumi config set supabaseUrl "${selected_supabase_url}" --stack "${STACK}"
+bootstrap_env_run_quiet "${stack_env[@]}" pulumi config set supabaseAnonKey "${selected_supabase_anon_key}" --stack "${STACK}"
 bootstrap_env_run_quiet "${stack_env[@]}" pulumi config set cloudflareZoneId "${CLOUDFLARE_ZONE_ID}" --stack "${STACK}"
 bootstrap_env_run_quiet "${stack_env[@]}" pulumi config set oidcIssuerUrl "${selected_oidc_issuer_url}" --stack "${STACK}"
 bootstrap_env_run_quiet "${stack_env[@]}" pulumi config set jwksUrl "${selected_jwks_url}" --stack "${STACK}"

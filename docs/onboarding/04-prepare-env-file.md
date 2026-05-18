@@ -27,12 +27,12 @@ Use this guide to create the local `.env` file that drives the bootstrap scripts
    - `DEPLOYMENT_REPO_VISIBILITY`
    - `DEPLOYMENT_REPO_DESCRIPTION`
    - Source: your target GitHub owner and customer deployment repository naming decision
-4. Fill in OIDC discovery values:
+4. Fill in OIDC discovery and admin UI domain values:
     - `OIDC_DISCOVERY_DOMAIN`
     - `CONTROLPLANE_UI_DOMAIN`
     - `CLOUDFLARE_ACCOUNT_ID`
     - Source: your Cloudflare account and the custom domains you want to use for OIDC discovery and the control-plane UI admin site
-    - One-click bootstrap uses `CONTROLPLANE_UI_DOMAIN` when it provisions the control-plane UI companion and when it later writes `ltbase-infra:controlPlaneCorsOrigins=https://<CONTROLPLANE_UI_DOMAIN>` into each Pulumi stack.
+    - In the current repository version, the Control Plane UI bootstrap uses `CONTROLPLANE_UI_DOMAIN` when it provisions the control-plane UI companion Pages site and when it later writes `ltbase-infra:controlPlaneCorsOrigins=https://<CONTROLPLANE_UI_DOMAIN>` into each Pulumi stack.
 5. Fill in AWS environment values (one pair per stack):
    - `AWS_REGION_<STACK>`
    - `AWS_ACCOUNT_ID_<STACK>`
@@ -70,14 +70,15 @@ Use this guide to create the local `.env` file that drives the bootstrap scripts
       - `CONTROL_PLANE_CORS_ALLOW_ORIGINS_<STACK>` is also optional, but its default behavior is different: when unset, bootstrap uses `https://<CONTROLPLANE_UI_DOMAIN>`; when set to a concrete CSV allowlist, bootstrap appends `https://<CONTROLPLANE_UI_DOMAIN>` automatically; when set to `*`, bootstrap keeps `*` unchanged.
       - For `AUTH_PROVIDER_CONFIG_FILE_<STACK>`, point to a checked-in JSON file that lists the external JWT providers enabled for that stack.
       - Start by copying `infra/auth-providers.<stack>.json.example` to `infra/auth-providers.<stack>.json`, then edit the real file in the generated customer deployment repository.
-      - Keep the provider names in `infra/auth-providers.<stack>.json` aligned with the public browser config you are publishing for the control-plane UI. The companion bootstrap reuses matching deployment-owned provider names when it renders `public/ltbase-controlplane.config.json`.
+      - Keep the provider names in `infra/auth-providers.<stack>.json` aligned with the public browser config you are publishing for the control-plane UI. The current companion bootstrap reuses matching deployment-owned provider names when it renders `public/ltbase-controlplane.config.json`.
       - Bootstrap also writes `ltbase-infra:controlPlaneCorsOrigins=https://<CONTROLPLANE_UI_DOMAIN>` into each stack file so the deployed control-plane API accepts browser requests from the admin UI domain.
+      - Before operators try the admin UI, configure the identity provider to allow `https://<CONTROLPLANE_UI_DOMAIN>/auth/callback`.
 10. Fill in required public browser auth values for every stack:
     - `FIREBASE_API_KEY_<STACK>`, `FIREBASE_PROJECT_ID_<STACK>`
     - `SUPABASE_URL_<STACK>`, `SUPABASE_ANON_KEY_<STACK>`
     - Source: the public Firebase/Supabase application settings that the control-plane UI companion publishes to browsers
-    - Important: these values are intentionally public. Do not put server-side Firebase admin credentials or Supabase service-role keys here.
-    - One-click bootstrap uses these values when it publishes the control-plane UI companion runtime config for each stack.
+    - Important: these values are intentionally public. Do not put server-side Firebase admin credentials, Supabase service-role keys, or any other secret values here.
+    - The current Control Plane UI bootstrap uses these values when it renders browser runtime config for each stack.
 11. Fill in application defaults:
      - `GEMINI_MODEL`
      - `DSQL_PORT`, `DSQL_DB`, `DSQL_USER`, `DSQL_PROJECT_SCHEMA`
@@ -161,6 +162,7 @@ Only fill these when the defaults are wrong for your customer environment:
 
 - do not commit `.env`
 - do not put production secrets into tracked files
+- do not put server-only Firebase credentials, Supabase service-role keys, or other secrets into Control Plane UI runtime config inputs
 - the template repository only ships `infra/auth-providers.*.json.example`; keep the real `infra/auth-providers.<stack>.json` files in the generated customer deployment repository
 - keep the provider names in each real `infra/auth-providers.<stack>.json` file aligned with the public browser providers you publish for the control-plane UI companion; the bootstrap will reuse matching deployment-owned names in `public/ltbase-controlplane.config.json`
 - treat `PULUMI_BACKEND_URL` and `PULUMI_SECRETS_PROVIDER_*` as generated values if you rely on bootstrap to create backend resources
