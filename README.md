@@ -106,6 +106,8 @@ The current control plane UI bootstrap emits both Firebase and Supabase browser 
 - `SUPABASE_URL_<STACK>`
 - `SUPABASE_ANON_KEY_<STACK>`
 
+The same four values are now also written into each Pulumi stack config by `scripts/bootstrap-deployment-repo.sh`. The infra program exports a browser-safe `controlplaneUiStackConfig` output that official rollout workflows can aggregate into the shared control plane UI runtime config.
+
 For day-2 maintenance, the generated deployment repository can sync later template changes by running:
 
 - `./scripts/update-sync-template-tooling.sh`
@@ -129,6 +131,25 @@ This template repository only tracks `infra/auth-providers.*.json.example`. A ge
 - manual preview only targets the first stack in `PROMOTION_PATH`
 - automated rollout continues one hop at a time across `PROMOTION_PATH`, with customer-controlled approvals on protected target environments
 - `api`, `auth`, and `control-plane` are expected to use Cloudflare-proxied custom domains with API Gateway mutual TLS enabled
+
+## Control Plane UI Rollout
+
+Generated deployment repositories now pass three optional values through to the shared `ltbase-deploy-workflows` rollout workflow:
+
+- `CONTROLPLANE_UI_DOMAIN`
+- `CONTROLPLANE_UI_PAGES_PROJECT`
+- `STACKS`
+
+When those values are present and the upstream release contract includes the official UI artifact, rollout can publish the control plane UI directly from release assets instead of relying only on the companion-repo publish flow.
+
+The rollout-side runtime config is built from per-stack Pulumi outputs:
+
+- each stack must export `controlplaneUiStackConfig`
+- only stacks with a complete output are included in the deployed `ltbase-controlplane.config.json`
+- the current rollout target must be included, or rollout fails
+- `redirectUri` is derived during rollout from `https://${CONTROLPLANE_UI_DOMAIN}/auth/callback`
+
+Important: the current public release contract still does not document the control plane UI artifact. Until that contract is updated in `ltbase.api` / `ltbase-releases`, the new rollout-side UI deploy path remains blocked on the release bundle not yet containing the expected artifact.
 
 ## Notes
 

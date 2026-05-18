@@ -115,6 +115,9 @@ assert_file_contains "${rollout_hop_workflow}" 'Required mTLS audit values missi
 assert_file_contains "${rollout_hop_workflow}" 'Cloudflare zone ID missing from ${stack_file}'
 assert_file_contains "${rollout_hop_workflow}" "MTLS_TRUSTSTORE_KEY: mtls/cloudflare-origin-pull-ca.pem"
 assert_file_contains "${rollout_hop_workflow}" "reconcile_managed_dsql_endpoint: true"
+assert_file_contains "${rollout_hop_workflow}" "controlplane_ui_domain: \${{ vars.CONTROLPLANE_UI_DOMAIN }}"
+assert_file_contains "${rollout_hop_workflow}" "controlplane_ui_pages_project: \${{ vars.CONTROLPLANE_UI_PAGES_PROJECT }}"
+assert_file_contains "${rollout_hop_workflow}" "controlplane_ui_stacks: \${{ vars.STACKS || 'devo,prod' }}"
 assert_file_not_contains "${rollout_hop_workflow}" "pulumi_stack: devo"
 assert_file_not_contains "${rollout_hop_workflow}" "pulumi_stack: prod"
 
