@@ -47,6 +47,8 @@ assert_file_contains "${preview_workflow}" "name: Validate customer schemas"
 assert_file_contains "${preview_workflow}" "./scripts/publish-schemas.sh --dry-run --schema-bucket"
 assert_file_contains "${preview_workflow}" "name: Audit Cloudflare mTLS"
 assert_file_contains "${preview_workflow}" "./scripts/check-cloudflare-mtls.sh --env-file .github/mTLS-audit.env --stack"
+assert_file_not_contains "${preview_workflow}" "render-controlplane-ui-config.sh"
+assert_file_not_contains "${preview_workflow}" "controlplane_ui_pages_project"
 assert_file_contains "${preview_workflow}" 'stack_file="infra/Pulumi.${{ needs.prepare.outputs.target_stack }}.yaml"'
 assert_file_contains "${preview_workflow}" 'extract_stack_value() {'
 assert_file_contains "${preview_workflow}" 'raw_line="$(grep -E "^[[:space:]]*${config_key}:[[:space:]]*" "${stack_file}" | head -n 1 || true)"'
@@ -59,6 +61,11 @@ assert_file_contains "${preview_workflow}" 'cloudflare_zone_id="$(extract_stack_
 assert_file_contains "${preview_workflow}" 'Required mTLS audit values missing from ${stack_file}'
 assert_file_contains "${preview_workflow}" 'Cloudflare zone ID missing from ${stack_file}'
 assert_file_contains "${rollout_hop_workflow}" "Lychee-Technology/ltbase-deploy-workflows/.github/workflows/rollout-hop.yml@main"
+assert_file_contains "${rollout_hop_workflow}" "CONTROLPLANE_UI_STACK_CONFIG"
+assert_file_contains "${rollout_hop_workflow}" "CONTROLPLANE_UI_PAGES_PROJECT"
+assert_file_contains "${rollout_hop_workflow}" "controlplane_ui_pages_project"
+assert_file_contains "${rollout_hop_workflow}" "controlplane_ui_runtime_config_path"
+assert_file_contains "${rollout_hop_workflow}" "./scripts/render-controlplane-ui-config.sh"
 
 assert_file_contains "${deploy_workflow}" "uses: ./.github/workflows/rollout-hop.yml"
 assert_file_contains "${deploy_workflow}" "runs-on: ubuntu-24.04-arm"

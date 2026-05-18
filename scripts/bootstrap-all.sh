@@ -54,7 +54,7 @@ bootstrap_env_run_quiet "${script_dir}/bootstrap-aws-foundation.sh" --env-file "
 bootstrap_env_info "ensuring OIDC discovery companion"
 bootstrap_env_run_quiet "${script_dir}/bootstrap-oidc-discovery-companion.sh" --env-file "${ENV_FILE}"
 
-bootstrap_env_info "ensuring Control Plane UI companion"
+bootstrap_env_info "ensuring Control Plane UI Pages assets"
 bootstrap_env_run_quiet "${script_dir}/bootstrap-controlplane-ui-companion.sh" --env-file "${ENV_FILE}"
 
 while IFS= read -r stack; do

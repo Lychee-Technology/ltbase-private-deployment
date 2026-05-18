@@ -177,11 +177,28 @@ jobs:
     steps:
       - run: echo "approval granted for ${{ needs.prepare.outputs.target_stack }}"
 
+  render_controlplane_ui_config:
+    needs:
+      - prepare
+      - validate_config
+    runs-on: ubuntu-24.04-arm
+    outputs:
+      runtime_config_json: ${{ steps.capture.outputs.runtime_config_json }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Render Control Plane UI runtime config
+        run: ./scripts/render-controlplane-ui-config.sh --stack-config-json '${{ vars.CONTROLPLANE_UI_STACK_CONFIG }}' --output-path .github/ltbase-controlplane.config.json
+      - id: capture
+        run: |
+          printf 'runtime_config_json=%s\n' "$(jq -c '.' .github/ltbase-controlplane.config.json)" >> "$GITHUB_OUTPUT"
+
   rollout:
     needs:
       - prepare
       - validate_config
       - approve
+      - render_controlplane_ui_config
     if: ${{ always() && needs.prepare.result == 'success' && (needs.prepare.outputs.approval_required != 'true' || needs.approve.result == 'success') }}
     uses: Lychee-Technology/ltbase-deploy-workflows/.github/workflows/rollout-hop.yml@main
     with:
@@ -191,6 +208,9 @@ jobs:
       pulumi_backend_url: ${{ vars.PULUMI_BACKEND_URL }}
       pulumi_secrets_provider: ${{ vars[format('PULUMI_SECRETS_PROVIDER_{0}', needs.prepare.outputs.target_stack_upper)] }}
       releases_repo: ${{ vars.LTBASE_RELEASES_REPO || 'Lychee-Technology/ltbase-releases' }}
+      controlplane_ui_pages_project: ${{ vars.CONTROLPLANE_UI_PAGES_PROJECT }}
+      controlplane_ui_runtime_config_path: .github/ltbase-controlplane.config.json
+      controlplane_ui_runtime_config_json: ${{ needs.render_controlplane_ui_config.outputs.runtime_config_json }}
       working_directory: infra
       run_canary: ${{ needs.prepare.outputs.run_canary == 'true' }}
       reconcile_managed_dsql_endpoint: true

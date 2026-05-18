@@ -78,6 +78,8 @@ bootstrap_env_run_quiet gh variable set LTBASE_RELEASE_ID --repo "${DEPLOYMENT_R
 bootstrap_env_run_quiet gh variable set STACKS --repo "${DEPLOYMENT_REPO}" --body "${STACKS}"
 bootstrap_env_run_quiet gh variable set PROMOTION_PATH --repo "${DEPLOYMENT_REPO}" --body "${PROMOTION_PATH}"
 bootstrap_env_run_quiet gh variable set PREVIEW_DEFAULT_STACK --repo "${DEPLOYMENT_REPO}" --body "${PREVIEW_DEFAULT_STACK}"
+bootstrap_env_run_quiet gh variable set CONTROLPLANE_UI_STACK_CONFIG --repo "${DEPLOYMENT_REPO}" --body "$(bootstrap_env_controlplane_ui_stack_config_json)"
+bootstrap_env_run_quiet gh variable set CONTROLPLANE_UI_PAGES_PROJECT --repo "${DEPLOYMENT_REPO}" --body "${CONTROLPLANE_UI_PAGES_PROJECT}"
 
 bootstrap_env_run_quiet gh secret set LTBASE_RELEASES_TOKEN --repo "${DEPLOYMENT_REPO}" --body "${LTBASE_RELEASES_TOKEN}"
 bootstrap_env_run_quiet gh secret set CLOUDFLARE_API_TOKEN --repo "${DEPLOYMENT_REPO}" --body "${CLOUDFLARE_API_TOKEN}"
