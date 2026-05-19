@@ -200,7 +200,7 @@ jobs:
       - approve
       - render_controlplane_ui_config
     if: ${{ always() && needs.prepare.result == 'success' && (needs.prepare.outputs.approval_required != 'true' || needs.approve.result == 'success') }}
-    uses: Lychee-Technology/ltbase-deploy-workflows/.github/workflows/rollout-hop.yml@main
+    uses: Lychee-Technology/ltbase-deploy-workflows/.github/workflows/rollout-hop.yml@controlplane-ui-runtime-config
     with:
       pulumi_stack: ${{ needs.prepare.outputs.target_stack }}
       aws_region: ${{ vars[format('AWS_REGION_{0}', needs.prepare.outputs.target_stack_upper)] }}
