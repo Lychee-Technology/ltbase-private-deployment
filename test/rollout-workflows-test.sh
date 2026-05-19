@@ -63,6 +63,7 @@ assert_file_contains "${preview_workflow}" 'Cloudflare zone ID missing from ${st
 assert_file_contains "${rollout_hop_workflow}" "Lychee-Technology/ltbase-deploy-workflows/.github/workflows/rollout-hop.yml@main"
 assert_file_contains "${rollout_hop_workflow}" "CONTROLPLANE_UI_STACK_CONFIG"
 assert_file_contains "${rollout_hop_workflow}" "CONTROLPLANE_UI_PAGES_PROJECT"
+assert_file_contains "${rollout_hop_workflow}" "CLOUDFLARE_ACCOUNT_ID"
 assert_file_contains "${rollout_hop_workflow}" "controlplane_ui_pages_project"
 assert_file_contains "${rollout_hop_workflow}" "controlplane_ui_runtime_config_json"
 assert_file_contains "${rollout_hop_workflow}" "./scripts/render-controlplane-ui-config.sh"
@@ -122,6 +123,7 @@ assert_file_contains "${rollout_hop_workflow}" 'Required mTLS audit values missi
 assert_file_contains "${rollout_hop_workflow}" 'Cloudflare zone ID missing from ${stack_file}'
 assert_file_contains "${rollout_hop_workflow}" "MTLS_TRUSTSTORE_KEY: mtls/cloudflare-origin-pull-ca.pem"
 assert_file_contains "${rollout_hop_workflow}" "reconcile_managed_dsql_endpoint: true"
+assert_file_contains "${rollout_hop_workflow}" "cloudflare_account_id: \${{ vars.CLOUDFLARE_ACCOUNT_ID }}"
 assert_file_contains "${rollout_hop_workflow}" "controlplane_ui_pages_project: \${{ vars.CONTROLPLANE_UI_PAGES_PROJECT }}"
 assert_file_contains "${rollout_hop_workflow}" "controlplane_ui_runtime_config_json: \${{ needs.render_controlplane_ui_config.outputs.runtime_config_json }}"
 assert_file_not_contains "${rollout_hop_workflow}" "pulumi_stack: devo"

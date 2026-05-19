@@ -208,6 +208,7 @@ jobs:
       pulumi_backend_url: ${{ vars.PULUMI_BACKEND_URL }}
       pulumi_secrets_provider: ${{ vars[format('PULUMI_SECRETS_PROVIDER_{0}', needs.prepare.outputs.target_stack_upper)] }}
       releases_repo: ${{ vars.LTBASE_RELEASES_REPO || 'Lychee-Technology/ltbase-releases' }}
+      cloudflare_account_id: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
       controlplane_ui_pages_project: ${{ vars.CONTROLPLANE_UI_PAGES_PROJECT }}
       controlplane_ui_runtime_config_json: ${{ needs.render_controlplane_ui_config.outputs.runtime_config_json }}
       working_directory: infra
