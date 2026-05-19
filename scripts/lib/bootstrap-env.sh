@@ -253,6 +253,42 @@ bootstrap_env_require_stack_values() {
   done
 }
 
+bootstrap_env_require_controlplane_ui_auth_provider() {
+  local stack="$1"
+  local upper_name firebase_project_id firebase_api_key supabase_url supabase_anon_key
+
+  upper_name="$(bootstrap_env_stack_upper "${stack}")"
+  firebase_project_id="$(bootstrap_env_resolve_stack_value FIREBASE_PROJECT_ID "${stack}")"
+  firebase_api_key="$(bootstrap_env_resolve_stack_value FIREBASE_API_KEY "${stack}")"
+  supabase_url="$(bootstrap_env_resolve_stack_value SUPABASE_URL "${stack}")"
+  supabase_anon_key="$(bootstrap_env_resolve_stack_value SUPABASE_ANON_KEY "${stack}")"
+
+  if [[ -n "${firebase_project_id}" || -n "${firebase_api_key}" ]]; then
+    if [[ -z "${firebase_project_id}" || -z "${firebase_api_key}" ]]; then
+      printf 'Firebase control plane UI config for stack %s must include both FIREBASE_PROJECT_ID_%s and FIREBASE_API_KEY_%s\n' "${stack}" "${upper_name}" "${upper_name}" >&2
+      return 1
+    fi
+  fi
+
+  if [[ -n "${supabase_url}" || -n "${supabase_anon_key}" ]]; then
+    if [[ -z "${supabase_url}" || -z "${supabase_anon_key}" ]]; then
+      printf 'Supabase control plane UI config for stack %s must include both SUPABASE_URL_%s and SUPABASE_ANON_KEY_%s\n' "${stack}" "${upper_name}" "${upper_name}" >&2
+      return 1
+    fi
+  fi
+
+  if [[ -n "${firebase_project_id}" && -n "${firebase_api_key}" ]]; then
+    return 0
+  fi
+
+  if [[ -n "${supabase_url}" && -n "${supabase_anon_key}" ]]; then
+    return 0
+  fi
+
+  printf 'stack %s must configure at least one control plane UI auth provider: Firebase or Supabase\n' "${stack}" >&2
+  return 1
+}
+
 bootstrap_env_apply_derivations() {
   local stack upper_name region account_id role_name
   local role_arn_var provider_var runtime_bucket_var schema_bucket_var table_name_var
@@ -488,6 +524,27 @@ for line in sys.stdin:
         continue
     stack, project_id, auth_domain, control_domain, api_domain, auth_provider_config_file, firebase_project_id, firebase_api_key, supabase_url, supabase_anon_key = line.split("\t", 9)
     provider_names = load_provider_names(auth_provider_config_file, firebase_project_id, supabase_url)
+    auth_providers = []
+    if firebase_project_id and firebase_api_key:
+        auth_providers.append(
+            {
+                "type": "firebase",
+                "name": provider_names["firebase"],
+                "label": titleize_provider(provider_names["firebase"]),
+                "firebaseProjectId": firebase_project_id,
+                "firebaseApiKey": firebase_api_key,
+            }
+        )
+    if supabase_url and supabase_anon_key:
+        auth_providers.append(
+            {
+                "type": "supabase",
+                "name": provider_names["supabase"],
+                "label": titleize_provider(provider_names["supabase"]),
+                "supabaseUrl": supabase_url,
+                "supabaseAnonKey": supabase_anon_key,
+            }
+        )
     payload["stacks"].append(
         {
             "key": stack,
@@ -498,22 +555,7 @@ for line in sys.stdin:
             "apiBaseUrl": f"https://{api_domain}",
             "oidcClientId": "ltbase-controlplane-ui",
             "redirectUri": f"https://{domain}/auth/callback",
-            "authProviders": [
-                {
-                    "type": "firebase",
-                    "name": provider_names["firebase"],
-                    "label": titleize_provider(provider_names["firebase"]),
-                    "firebaseProjectId": firebase_project_id,
-                    "firebaseApiKey": firebase_api_key,
-                },
-                {
-                    "type": "supabase",
-                    "name": provider_names["supabase"],
-                    "label": titleize_provider(provider_names["supabase"]),
-                    "supabaseUrl": supabase_url,
-                    "supabaseAnonKey": supabase_anon_key,
-                },
-            ],
+            "authProviders": auth_providers,
         }
     )
 

@@ -62,7 +62,8 @@ if ! python3 -c 'import re, sys; domain = sys.argv[1]; label = r"(?!-)[a-z0-9-]{
 fi
 
 while IFS= read -r stack; do
-  bootstrap_env_require_stack_values "${stack}" PROJECT_ID AUTH_DOMAIN CONTROL_DOMAIN API_DOMAIN AUTH_PROVIDER_CONFIG_FILE FIREBASE_API_KEY FIREBASE_PROJECT_ID SUPABASE_URL SUPABASE_ANON_KEY
+  bootstrap_env_require_stack_values "${stack}" PROJECT_ID AUTH_DOMAIN CONTROL_DOMAIN API_DOMAIN AUTH_PROVIDER_CONFIG_FILE
+  bootstrap_env_require_controlplane_ui_auth_provider "${stack}"
 done < <(bootstrap_env_each_stack)
 
 mkdir -p "${OUTPUT_DIR}"

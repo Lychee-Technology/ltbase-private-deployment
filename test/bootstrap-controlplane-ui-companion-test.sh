@@ -37,6 +37,17 @@ assert_file_contains() {
   fi
 }
 
+assert_file_not_contains() {
+  local path="$1"
+  local needle="$2"
+  if [[ ! -f "${path}" ]]; then
+    fail "missing file: ${path}"
+  fi
+  if grep -Fq "${needle}" "${path}"; then
+    fail "expected ${path} to not contain: ${needle}"
+  fi
+}
+
 temp_dir="$(mktemp -d)"
 trap 'rm -rf "${temp_dir}"' EXIT
 fake_bin="${temp_dir}/bin"
@@ -383,6 +394,51 @@ assert_log_not_contains <(printf '%s' "${output}") "NOISY_GH_STDERR"
 assert_log_not_contains <(printf '%s' "${output}") "NOISY_CURL_STDOUT"
 assert_log_not_contains <(printf '%s' "${output}") "NOISY_CURL_STDERR"
 
+cat >"${temp_dir}/firebase-only.env" <<'EOF'
+STACKS=devo,prod
+PROMOTION_PATH=devo,prod
+TEMPLATE_REPO=Lychee-Technology/ltbase-private-deployment
+GITHUB_OWNER=customer-org
+DEPLOYMENT_REPO_NAME=customer-ltbase
+DEPLOYMENT_REPO_VISIBILITY=private
+DEPLOYMENT_REPO_DESCRIPTION="Customer LTBase deployment repo"
+OIDC_DISCOVERY_DOMAIN=oidc.customer.example.com
+CONTROLPLANE_UI_DOMAIN=admin.customer.example.com
+CLOUDFLARE_ACCOUNT_ID=cf-account-123
+CLOUDFLARE_ZONE_ID=zone-123
+AWS_REGION_DEVO=ap-northeast-1
+AWS_REGION_PROD=us-west-2
+AWS_ACCOUNT_ID_DEVO=123456789012
+AWS_ACCOUNT_ID_PROD=210987654321
+PULUMI_KMS_ALIAS=alias/ltbase-pulumi-secrets
+PROJECT_ID=11111111-1111-4111-8111-111111111111
+AUTH_PROVIDER_CONFIG_FILE_DEVO=infra/auth-providers.devo.json
+AUTH_PROVIDER_CONFIG_FILE_PROD=infra/auth-providers.prod.json
+API_DOMAIN_DEVO=api.devo.customer.example.com
+API_DOMAIN_PROD=api.customer.example.com
+CONTROL_DOMAIN_DEVO=control.devo.customer.example.com
+CONTROL_DOMAIN_PROD=control.customer.example.com
+AUTH_DOMAIN_DEVO=auth.devo.customer.example.com
+AUTH_DOMAIN_PROD=auth.customer.example.com
+FIREBASE_API_KEY_DEVO=public-firebase-key-devo
+FIREBASE_PROJECT_ID_DEVO=firebase-project-devo
+SUPABASE_URL_DEVO=
+SUPABASE_ANON_KEY_DEVO=
+FIREBASE_API_KEY_PROD=public-firebase-key-prod
+FIREBASE_PROJECT_ID_PROD=firebase-project-prod
+SUPABASE_URL_PROD=
+SUPABASE_ANON_KEY_PROD=
+CLOUDFLARE_API_TOKEN=test-cloudflare-token
+EOF
+
+: >"${log_file}"
+if ! output="$(PATH="${fake_bin}:$PATH" COMMAND_LOG="${log_file}" "${SCRIPT_PATH}" --env-file "${temp_dir}/firebase-only.env" --output-dir "${temp_dir}/dist-firebase-only" 2>&1)"; then
+  fail "expected Firebase-only auth config to succeed, got: ${output}"
+fi
+
+assert_file_contains "${temp_dir}/dist-firebase-only/controlplane-ui-companion.env" '"type":"firebase"'
+assert_file_not_contains "${temp_dir}/dist-firebase-only/controlplane-ui-companion.env" '"type":"supabase"'
+
 cat >"${temp_dir}/missing-provider-config.env" <<'EOF'
 STACKS=devo
 PROMOTION_PATH=devo
@@ -416,6 +472,40 @@ if ! output="$(PATH="${fake_bin}:$PATH" COMMAND_LOG="${log_file}" "${SCRIPT_PATH
 fi
 
 assert_log_not_contains "${log_file}" "gh variable set CONTROLPLANE_UI_STACK_CONFIG --repo customer-org/customer-ltbase-controlplane-ui"
+
+cat >"${temp_dir}/partial-supabase.env" <<'EOF'
+STACKS=devo
+PROMOTION_PATH=devo
+TEMPLATE_REPO=Lychee-Technology/ltbase-private-deployment
+GITHUB_OWNER=customer-org
+DEPLOYMENT_REPO_NAME=customer-ltbase
+DEPLOYMENT_REPO_VISIBILITY=private
+DEPLOYMENT_REPO_DESCRIPTION="Customer LTBase deployment repo"
+OIDC_DISCOVERY_DOMAIN=oidc.customer.example.com
+CONTROLPLANE_UI_DOMAIN=admin.customer.example.com
+CLOUDFLARE_ACCOUNT_ID=cf-account-123
+CLOUDFLARE_ZONE_ID=zone-123
+AWS_REGION_DEVO=ap-northeast-1
+AWS_ACCOUNT_ID_DEVO=123456789012
+PULUMI_KMS_ALIAS=alias/ltbase-pulumi-secrets
+PROJECT_ID=11111111-1111-4111-8111-111111111111
+AUTH_PROVIDER_CONFIG_FILE_DEVO=infra/auth-providers.devo.json
+API_DOMAIN_DEVO=api.devo.customer.example.com
+CONTROL_DOMAIN_DEVO=control.devo.customer.example.com
+AUTH_DOMAIN_DEVO=auth.devo.customer.example.com
+FIREBASE_API_KEY_DEVO=public-firebase-key-devo
+FIREBASE_PROJECT_ID_DEVO=firebase-project-devo
+SUPABASE_URL_DEVO=https://devo-project.supabase.co
+SUPABASE_ANON_KEY_DEVO=
+CLOUDFLARE_API_TOKEN=test-cloudflare-token
+EOF
+
+: >"${log_file}"
+if PATH="${fake_bin}:$PATH" COMMAND_LOG="${log_file}" "${SCRIPT_PATH}" --env-file "${temp_dir}/partial-supabase.env" --output-dir "${temp_dir}/dist-partial-supabase" >"${temp_dir}/partial-supabase.log" 2>&1; then
+  fail "expected partial Supabase auth config to fail"
+fi
+
+assert_log_contains "${temp_dir}/partial-supabase.log" "Supabase control plane UI config for stack devo must include both SUPABASE_URL_DEVO and SUPABASE_ANON_KEY_DEVO"
 
 cat >"${temp_dir}/invalid-domain.env" <<'EOF'
 STACKS=devo,prod

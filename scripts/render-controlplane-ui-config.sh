@@ -48,4 +48,11 @@ script_dir="$(cd "$(dirname "$0")" && pwd)"
 # shellcheck disable=SC1091
 source "${script_dir}/lib/bootstrap-env.sh"
 bootstrap_env_load "${ENV_FILE}"
+
+while IFS= read -r stack; do
+  if ! bootstrap_env_require_controlplane_ui_auth_provider "${stack}"; then
+    exit 1
+  fi
+done < <(bootstrap_env_each_stack)
+
 bootstrap_env_controlplane_ui_stack_config_json >"${OUTPUT_PATH}"

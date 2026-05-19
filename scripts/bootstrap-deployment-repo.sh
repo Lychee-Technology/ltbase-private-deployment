@@ -54,9 +54,19 @@ if ! bootstrap_env_require_vars CONTROLPLANE_UI_DOMAIN; then
   exit 1
 fi
 
-if ! bootstrap_env_require_stack_values "${STACK}" AWS_REGION AWS_ROLE_ARN PULUMI_SECRETS_PROVIDER API_DOMAIN CONTROL_DOMAIN AUTH_DOMAIN PROJECT_ID AUTH_PROVIDER_CONFIG_FILE FIREBASE_API_KEY FIREBASE_PROJECT_ID SUPABASE_URL SUPABASE_ANON_KEY OIDC_ISSUER_URL JWKS_URL RUNTIME_BUCKET SCHEMA_BUCKET TABLE_NAME; then
+if ! bootstrap_env_require_stack_values "${STACK}" AWS_REGION AWS_ROLE_ARN PULUMI_SECRETS_PROVIDER API_DOMAIN CONTROL_DOMAIN AUTH_DOMAIN PROJECT_ID AUTH_PROVIDER_CONFIG_FILE OIDC_ISSUER_URL JWKS_URL RUNTIME_BUCKET SCHEMA_BUCKET TABLE_NAME; then
   exit 1
 fi
+
+if ! bootstrap_env_require_controlplane_ui_auth_provider "${STACK}"; then
+  exit 1
+fi
+
+while IFS= read -r target_stack; do
+  if ! bootstrap_env_require_controlplane_ui_auth_provider "${target_stack}"; then
+    exit 1
+  fi
+done < <(bootstrap_env_each_stack)
 
 bootstrap_env_info "configuring repository variables and secrets for ${DEPLOYMENT_REPO}"
 while IFS= read -r target_stack; do

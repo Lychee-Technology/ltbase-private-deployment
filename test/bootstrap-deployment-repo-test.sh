@@ -115,6 +115,231 @@ MTLS_TRUSTSTORE_FILE=infra/certs/cloudflare-origin-pull-ca.pem
 MTLS_TRUSTSTORE_KEY=mtls/cloudflare-origin-pull-ca.pem
 EOF
 
+cat >"${temp_dir}/firebase-only.env" <<'EOF'
+STACKS=devo,staging,prod
+PROMOTION_PATH=devo,staging,prod
+GITHUB_OWNER=Lychee-Technology
+DEPLOYMENT_REPO_NAME=ltbase-private-deployment
+AWS_REGION_DEVO=ap-northeast-1
+AWS_REGION_STAGING=us-east-1
+AWS_REGION_PROD=us-west-2
+AWS_ACCOUNT_ID_DEVO=123456789012
+AWS_ACCOUNT_ID_STAGING=123456789012
+AWS_ACCOUNT_ID_PROD=123456789012
+AWS_PROFILE_DEVO=devo-profile
+AWS_PROFILE_STAGING=staging-profile
+AWS_PROFILE_PROD=prod-profile
+AWS_ROLE_NAME_DEVO=test-deploy-role
+AWS_ROLE_NAME_STAGING=test-staging-role
+AWS_ROLE_NAME_PROD=test-prod-role
+PULUMI_STATE_BUCKET=test-pulumi-state
+PULUMI_KMS_ALIAS=alias/test-pulumi-secrets
+LTBASE_RELEASES_REPO=Lychee-Technology/ltbase-releases
+LTBASE_RELEASE_ID=v1.0.0
+LTBASE_RELEASES_TOKEN=test-release-token
+CLOUDFLARE_API_TOKEN=test-cloudflare-token
+GEMINI_API_KEY=test-gemini-key
+API_DOMAIN_DEVO=api.devo.example.com
+API_DOMAIN_STAGING=api.staging.example.com
+API_DOMAIN_PROD=api.example.com
+CONTROL_DOMAIN_DEVO=control.devo.example.com
+CONTROL_DOMAIN_STAGING=control.staging.example.com
+CONTROL_DOMAIN_PROD=control.example.com
+CONTROLPLANE_UI_DOMAIN=admin.example.com
+AUTH_DOMAIN_DEVO=auth.devo.example.com
+AUTH_DOMAIN_STAGING=auth.staging.example.com
+AUTH_DOMAIN_PROD=auth.example.com
+API_CORS_ALLOW_ORIGINS_DEVO=https://app.devo.example.com
+API_CORS_ALLOW_ORIGINS_STAGING=https://app.staging.example.com
+API_CORS_ALLOW_ORIGINS_PROD=https://app.example.com,https://admin.example.com
+AUTH_CORS_ALLOW_ORIGINS_DEVO=*
+AUTH_CORS_ALLOW_ORIGINS_STAGING=https://auth-ui.staging.example.com
+AUTH_CORS_ALLOW_ORIGINS_PROD=https://auth-ui.example.com
+CONTROL_PLANE_CORS_ALLOW_ORIGINS_DEVO=https://control.devo.example.com
+CONTROL_PLANE_CORS_ALLOW_ORIGINS_STAGING=*
+CONTROL_PLANE_CORS_ALLOW_ORIGINS_PROD=https://control.example.com
+PROJECT_ID=33333333-3333-4333-8333-333333333333
+AUTH_PROVIDER_CONFIG_FILE_DEVO=infra/auth-providers.devo.json
+AUTH_PROVIDER_CONFIG_FILE_STAGING=infra/auth-providers.staging.json
+AUTH_PROVIDER_CONFIG_FILE_PROD=infra/auth-providers.prod.json
+FIREBASE_API_KEY_DEVO=public-firebase-key-devo
+FIREBASE_API_KEY_STAGING=public-firebase-key-staging
+FIREBASE_API_KEY_PROD=public-firebase-key-prod
+FIREBASE_PROJECT_ID_DEVO=firebase-project-devo
+FIREBASE_PROJECT_ID_STAGING=firebase-project-staging
+FIREBASE_PROJECT_ID_PROD=firebase-project-prod
+SUPABASE_URL_DEVO=
+SUPABASE_URL_STAGING=
+SUPABASE_URL_PROD=
+SUPABASE_ANON_KEY_DEVO=
+SUPABASE_ANON_KEY_STAGING=
+SUPABASE_ANON_KEY_PROD=
+CLOUDFLARE_ZONE_ID=zone-123
+OIDC_ISSUER_URL_DEVO=https://issuer.example.com/devo
+OIDC_ISSUER_URL_STAGING=https://issuer.example.com/staging
+OIDC_ISSUER_URL_PROD=https://issuer.example.com/prod
+JWKS_URL_DEVO=https://issuer.example.com/devo/jwks.json
+JWKS_URL_STAGING=https://issuer.example.com/staging/jwks.json
+JWKS_URL_PROD=https://issuer.example.com/prod/jwks.json
+GEMINI_MODEL=gemini-3.1-flash-lite
+DSQL_PORT=5432
+DSQL_DB=postgres
+DSQL_USER=admin
+DSQL_PROJECT_SCHEMA=ltbase
+MTLS_TRUSTSTORE_FILE=infra/certs/cloudflare-origin-pull-ca.pem
+MTLS_TRUSTSTORE_KEY=mtls/cloudflare-origin-pull-ca.pem
+EOF
+
+cat >"${temp_dir}/partial-supabase.env" <<'EOF'
+STACKS=devo,staging,prod
+PROMOTION_PATH=devo,staging,prod
+GITHUB_OWNER=Lychee-Technology
+DEPLOYMENT_REPO_NAME=ltbase-private-deployment
+AWS_REGION_DEVO=ap-northeast-1
+AWS_REGION_STAGING=us-east-1
+AWS_REGION_PROD=us-west-2
+AWS_ACCOUNT_ID_DEVO=123456789012
+AWS_ACCOUNT_ID_STAGING=123456789012
+AWS_ACCOUNT_ID_PROD=123456789012
+AWS_PROFILE_DEVO=devo-profile
+AWS_PROFILE_STAGING=staging-profile
+AWS_PROFILE_PROD=prod-profile
+AWS_ROLE_NAME_DEVO=test-deploy-role
+AWS_ROLE_NAME_STAGING=test-staging-role
+AWS_ROLE_NAME_PROD=test-prod-role
+PULUMI_STATE_BUCKET=test-pulumi-state
+PULUMI_KMS_ALIAS=alias/test-pulumi-secrets
+LTBASE_RELEASES_REPO=Lychee-Technology/ltbase-releases
+LTBASE_RELEASE_ID=v1.0.0
+LTBASE_RELEASES_TOKEN=test-release-token
+CLOUDFLARE_API_TOKEN=test-cloudflare-token
+GEMINI_API_KEY=test-gemini-key
+API_DOMAIN_DEVO=api.devo.example.com
+API_DOMAIN_STAGING=api.staging.example.com
+API_DOMAIN_PROD=api.example.com
+CONTROL_DOMAIN_DEVO=control.devo.example.com
+CONTROL_DOMAIN_STAGING=control.staging.example.com
+CONTROL_DOMAIN_PROD=control.example.com
+CONTROLPLANE_UI_DOMAIN=admin.example.com
+AUTH_DOMAIN_DEVO=auth.devo.example.com
+AUTH_DOMAIN_STAGING=auth.staging.example.com
+AUTH_DOMAIN_PROD=auth.example.com
+API_CORS_ALLOW_ORIGINS_DEVO=https://app.devo.example.com
+API_CORS_ALLOW_ORIGINS_STAGING=https://app.staging.example.com
+API_CORS_ALLOW_ORIGINS_PROD=https://app.example.com,https://admin.example.com
+AUTH_CORS_ALLOW_ORIGINS_DEVO=*
+AUTH_CORS_ALLOW_ORIGINS_STAGING=https://auth-ui.staging.example.com
+AUTH_CORS_ALLOW_ORIGINS_PROD=https://auth-ui.example.com
+CONTROL_PLANE_CORS_ALLOW_ORIGINS_DEVO=https://control.devo.example.com
+CONTROL_PLANE_CORS_ALLOW_ORIGINS_STAGING=*
+CONTROL_PLANE_CORS_ALLOW_ORIGINS_PROD=https://control.example.com
+PROJECT_ID=33333333-3333-4333-8333-333333333333
+AUTH_PROVIDER_CONFIG_FILE_DEVO=infra/auth-providers.devo.json
+AUTH_PROVIDER_CONFIG_FILE_STAGING=infra/auth-providers.staging.json
+AUTH_PROVIDER_CONFIG_FILE_PROD=infra/auth-providers.prod.json
+FIREBASE_API_KEY_DEVO=public-firebase-key-devo
+FIREBASE_API_KEY_STAGING=public-firebase-key-staging
+FIREBASE_API_KEY_PROD=public-firebase-key-prod
+FIREBASE_PROJECT_ID_DEVO=firebase-project-devo
+FIREBASE_PROJECT_ID_STAGING=firebase-project-staging
+FIREBASE_PROJECT_ID_PROD=firebase-project-prod
+SUPABASE_URL_DEVO=https://devo-project.supabase.co
+SUPABASE_URL_STAGING=https://staging-project.supabase.co
+SUPABASE_URL_PROD=https://prod-project.supabase.co
+SUPABASE_ANON_KEY_DEVO=
+SUPABASE_ANON_KEY_STAGING=public-supabase-key-staging
+SUPABASE_ANON_KEY_PROD=public-supabase-key-prod
+CLOUDFLARE_ZONE_ID=zone-123
+OIDC_ISSUER_URL_DEVO=https://issuer.example.com/devo
+OIDC_ISSUER_URL_STAGING=https://issuer.example.com/staging
+OIDC_ISSUER_URL_PROD=https://issuer.example.com/prod
+JWKS_URL_DEVO=https://issuer.example.com/devo/jwks.json
+JWKS_URL_STAGING=https://issuer.example.com/staging/jwks.json
+JWKS_URL_PROD=https://issuer.example.com/prod/jwks.json
+GEMINI_MODEL=gemini-3.1-flash-lite
+DSQL_PORT=5432
+DSQL_DB=postgres
+DSQL_USER=admin
+DSQL_PROJECT_SCHEMA=ltbase
+MTLS_TRUSTSTORE_FILE=infra/certs/cloudflare-origin-pull-ca.pem
+MTLS_TRUSTSTORE_KEY=mtls/cloudflare-origin-pull-ca.pem
+EOF
+
+cat >"${temp_dir}/selected-valid-other-partial.env" <<'EOF'
+STACKS=devo,staging,prod
+PROMOTION_PATH=devo,staging,prod
+GITHUB_OWNER=Lychee-Technology
+DEPLOYMENT_REPO_NAME=ltbase-private-deployment
+AWS_REGION_DEVO=ap-northeast-1
+AWS_REGION_STAGING=us-east-1
+AWS_REGION_PROD=us-west-2
+AWS_ACCOUNT_ID_DEVO=123456789012
+AWS_ACCOUNT_ID_STAGING=123456789012
+AWS_ACCOUNT_ID_PROD=123456789012
+AWS_PROFILE_DEVO=devo-profile
+AWS_PROFILE_STAGING=staging-profile
+AWS_PROFILE_PROD=prod-profile
+AWS_ROLE_NAME_DEVO=test-deploy-role
+AWS_ROLE_NAME_STAGING=test-staging-role
+AWS_ROLE_NAME_PROD=test-prod-role
+PULUMI_STATE_BUCKET=test-pulumi-state
+PULUMI_KMS_ALIAS=alias/test-pulumi-secrets
+LTBASE_RELEASES_REPO=Lychee-Technology/ltbase-releases
+LTBASE_RELEASE_ID=v1.0.0
+LTBASE_RELEASES_TOKEN=test-release-token
+CLOUDFLARE_API_TOKEN=test-cloudflare-token
+GEMINI_API_KEY=test-gemini-key
+API_DOMAIN_DEVO=api.devo.example.com
+API_DOMAIN_STAGING=api.staging.example.com
+API_DOMAIN_PROD=api.example.com
+CONTROL_DOMAIN_DEVO=control.devo.example.com
+CONTROL_DOMAIN_STAGING=control.staging.example.com
+CONTROL_DOMAIN_PROD=control.example.com
+CONTROLPLANE_UI_DOMAIN=admin.example.com
+AUTH_DOMAIN_DEVO=auth.devo.example.com
+AUTH_DOMAIN_STAGING=auth.staging.example.com
+AUTH_DOMAIN_PROD=auth.example.com
+API_CORS_ALLOW_ORIGINS_DEVO=https://app.devo.example.com
+API_CORS_ALLOW_ORIGINS_STAGING=https://app.staging.example.com
+API_CORS_ALLOW_ORIGINS_PROD=https://app.example.com,https://admin.example.com
+AUTH_CORS_ALLOW_ORIGINS_DEVO=*
+AUTH_CORS_ALLOW_ORIGINS_STAGING=https://auth-ui.staging.example.com
+AUTH_CORS_ALLOW_ORIGINS_PROD=https://auth-ui.example.com
+CONTROL_PLANE_CORS_ALLOW_ORIGINS_DEVO=https://control.devo.example.com
+CONTROL_PLANE_CORS_ALLOW_ORIGINS_STAGING=*
+CONTROL_PLANE_CORS_ALLOW_ORIGINS_PROD=https://control.example.com
+PROJECT_ID=33333333-3333-4333-8333-333333333333
+AUTH_PROVIDER_CONFIG_FILE_DEVO=infra/auth-providers.devo.json
+AUTH_PROVIDER_CONFIG_FILE_STAGING=infra/auth-providers.staging.json
+AUTH_PROVIDER_CONFIG_FILE_PROD=infra/auth-providers.prod.json
+FIREBASE_API_KEY_DEVO=public-firebase-key-devo
+FIREBASE_API_KEY_STAGING=public-firebase-key-staging
+FIREBASE_API_KEY_PROD=public-firebase-key-prod
+FIREBASE_PROJECT_ID_DEVO=firebase-project-devo
+FIREBASE_PROJECT_ID_STAGING=firebase-project-staging
+FIREBASE_PROJECT_ID_PROD=firebase-project-prod
+SUPABASE_URL_DEVO=https://devo-project.supabase.co
+SUPABASE_URL_STAGING=https://staging-project.supabase.co
+SUPABASE_URL_PROD=https://prod-project.supabase.co
+SUPABASE_ANON_KEY_DEVO=public-supabase-key-devo
+SUPABASE_ANON_KEY_STAGING=
+SUPABASE_ANON_KEY_PROD=public-supabase-key-prod
+CLOUDFLARE_ZONE_ID=zone-123
+OIDC_ISSUER_URL_DEVO=https://issuer.example.com/devo
+OIDC_ISSUER_URL_STAGING=https://issuer.example.com/staging
+OIDC_ISSUER_URL_PROD=https://issuer.example.com/prod
+JWKS_URL_DEVO=https://issuer.example.com/devo/jwks.json
+JWKS_URL_STAGING=https://issuer.example.com/staging/jwks.json
+JWKS_URL_PROD=https://issuer.example.com/prod/jwks.json
+GEMINI_MODEL=gemini-3.1-flash-lite
+DSQL_PORT=5432
+DSQL_DB=postgres
+DSQL_USER=admin
+DSQL_PROJECT_SCHEMA=ltbase
+MTLS_TRUSTSTORE_FILE=infra/certs/cloudflare-origin-pull-ca.pem
+MTLS_TRUSTSTORE_KEY=mtls/cloudflare-origin-pull-ca.pem
+EOF
+
 cat >"${fake_bin}/gh" <<EOF
 #!/usr/bin/env bash
 set -euo pipefail
@@ -265,6 +490,32 @@ if [[ -x "${SCRIPT_PATH}" ]]; then
   assert_log_contains "${log_file}" "pulumi config set controlPlaneCorsOrigins https://admin.example.com --stack staging"
   assert_log_contains "${log_file}" "pulumi config set controlPlaneCorsAllowOrigins * --stack staging"
   assert_log_not_contains "${log_file}" "pulumi config set controlPlaneCorsAllowOrigins *,https://admin.example.com --stack staging"
+
+  : >"${log_file}"
+  if ! output="$(PATH="${fake_bin}:$PATH" "${SCRIPT_PATH}" --env-file "${temp_dir}/firebase-only.env" --stack prod --infra-dir "${temp_dir}/infra" 2>&1)"; then
+    rm -rf "${temp_dir}"
+    fail "expected script to succeed with Firebase-only auth config, got: ${output}"
+  fi
+
+  assert_log_contains "${log_file}" "gh variable set CONTROLPLANE_UI_STACK_CONFIG --repo Lychee-Technology/ltbase-private-deployment --body {\"stacks\":[{\"key\":\"devo\""
+  assert_log_contains "${log_file}" '"type":"firebase"'
+  assert_log_not_contains "${log_file}" '"type":"supabase"'
+
+  if output="$(PATH="${fake_bin}:$PATH" "${SCRIPT_PATH}" --env-file "${temp_dir}/partial-supabase.env" --stack devo --infra-dir "${temp_dir}/infra" 2>&1)"; then
+    rm -rf "${temp_dir}"
+    fail "expected script to fail for partial Supabase auth config"
+  fi
+
+  assert_log_contains <(printf '%s' "${output}") "Supabase control plane UI config for stack devo must include both SUPABASE_URL_DEVO and SUPABASE_ANON_KEY_DEVO"
+
+  : >"${log_file}"
+  if output="$(PATH="${fake_bin}:$PATH" "${SCRIPT_PATH}" --env-file "${temp_dir}/selected-valid-other-partial.env" --stack prod --infra-dir "${temp_dir}/infra" 2>&1)"; then
+    rm -rf "${temp_dir}"
+    fail "expected script to fail when another stack has partial auth config"
+  fi
+
+  assert_log_contains <(printf '%s' "${output}") "Supabase control plane UI config for stack staging must include both SUPABASE_URL_STAGING and SUPABASE_ANON_KEY_STAGING"
+  assert_log_not_contains "${log_file}" "gh variable set CONTROLPLANE_UI_STACK_CONFIG --repo Lychee-Technology/ltbase-private-deployment"
 else
   fail "missing executable script: ${SCRIPT_PATH}"
 fi
