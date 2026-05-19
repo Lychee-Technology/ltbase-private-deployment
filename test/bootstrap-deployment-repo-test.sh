@@ -63,6 +63,7 @@ LTBASE_RELEASES_REPO=Lychee-Technology/ltbase-releases
 LTBASE_RELEASE_ID=v1.0.0
 LTBASE_RELEASES_TOKEN=test-release-token
 CLOUDFLARE_API_TOKEN=test-cloudflare-token
+CLOUDFLARE_ACCOUNT_ID=cf-account-123
 GEMINI_API_KEY=test-gemini-key
 API_DOMAIN_DEVO=api.devo.example.com
 API_DOMAIN_STAGING=api.staging.example.com
@@ -138,6 +139,7 @@ LTBASE_RELEASES_REPO=Lychee-Technology/ltbase-releases
 LTBASE_RELEASE_ID=v1.0.0
 LTBASE_RELEASES_TOKEN=test-release-token
 CLOUDFLARE_API_TOKEN=test-cloudflare-token
+CLOUDFLARE_ACCOUNT_ID=cf-account-123
 GEMINI_API_KEY=test-gemini-key
 API_DOMAIN_DEVO=api.devo.example.com
 API_DOMAIN_STAGING=api.staging.example.com
@@ -213,6 +215,7 @@ LTBASE_RELEASES_REPO=Lychee-Technology/ltbase-releases
 LTBASE_RELEASE_ID=v1.0.0
 LTBASE_RELEASES_TOKEN=test-release-token
 CLOUDFLARE_API_TOKEN=test-cloudflare-token
+CLOUDFLARE_ACCOUNT_ID=cf-account-123
 GEMINI_API_KEY=test-gemini-key
 API_DOMAIN_DEVO=api.devo.example.com
 API_DOMAIN_STAGING=api.staging.example.com
@@ -288,6 +291,7 @@ LTBASE_RELEASES_REPO=Lychee-Technology/ltbase-releases
 LTBASE_RELEASE_ID=v1.0.0
 LTBASE_RELEASES_TOKEN=test-release-token
 CLOUDFLARE_API_TOKEN=test-cloudflare-token
+CLOUDFLARE_ACCOUNT_ID=cf-account-123
 GEMINI_API_KEY=test-gemini-key
 API_DOMAIN_DEVO=api.devo.example.com
 API_DOMAIN_STAGING=api.staging.example.com
@@ -400,6 +404,7 @@ if [[ -x "${SCRIPT_PATH}" ]]; then
   assert_log_contains "${log_file}" "gh variable set SCHEMA_BUCKET_STAGING --repo Lychee-Technology/ltbase-private-deployment --body ltbase-private-deployment-schema-staging"
   assert_log_contains "${log_file}" "gh variable set SCHEMA_BUCKET_PROD --repo Lychee-Technology/ltbase-private-deployment --body ltbase-private-deployment-schema-prod"
   assert_log_contains "${log_file}" "gh variable set CONTROLPLANE_UI_DOMAIN --repo Lychee-Technology/ltbase-private-deployment --body admin.example.com"
+  assert_log_contains "${log_file}" "gh variable set CLOUDFLARE_ACCOUNT_ID --repo Lychee-Technology/ltbase-private-deployment --body cf-account-123"
   assert_log_contains "${log_file}" "gh variable set CONTROLPLANE_UI_PAGES_PROJECT --repo Lychee-Technology/ltbase-private-deployment --body ltbase-private-deployment-controlplane-ui"
   assert_log_contains "${log_file}" "gh variable set STACKS --repo Lychee-Technology/ltbase-private-deployment --body devo,staging,prod"
   assert_log_contains "${log_file}" "gh variable set PROMOTION_PATH --repo Lychee-Technology/ltbase-private-deployment --body devo,staging,prod"
