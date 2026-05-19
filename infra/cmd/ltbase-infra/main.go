@@ -66,7 +66,7 @@ func main() {
 		ctx.Export("projectId", pulumi.String(cfg.ProjectID))
 		ctx.Export("apiId", apis.API.ID())
 		ctx.Export("apiBaseUrl", pulumi.String(services.APIBaseURL(cfg)))
-		ctx.Export("controlplaneUiStackConfig", pulumi.String(controlPlaneUIStackConfig))
+		ctx.Export("controlplaneUiStackConfig", controlPlaneUIStackConfig)
 		ctx.Export("dsqlClusterArn", runtime.DSQL.Cluster.Arn)
 		ctx.Export("dsqlClusterIdentifier", runtime.DSQL.Cluster.Identifier)
 		ctx.Export("dsqlVpcEndpointServiceName", runtime.DSQL.Cluster.VpcEndpointServiceName)

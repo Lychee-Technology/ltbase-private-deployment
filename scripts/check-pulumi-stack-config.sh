@@ -63,7 +63,7 @@ required_keys=(
 )
 
 for key in "${required_keys[@]}"; do
-  if ! grep -Fq "  ${key}:" "${stack_file}"; then
+  if ! grep -Eq "^[[:space:]]{2}${key}:($|[[:space:]])" "${stack_file}"; then
     printf "Missing required Pulumi config key '%s' in %s. Rerun bootstrap-deployment-repo.sh or update the stack config file.\n" "${key}" "${stack_file}" >&2
     exit 1
   fi

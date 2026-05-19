@@ -163,7 +163,7 @@ bootstrap_env_run_quiet "${stack_env[@]}" pulumi config set authCorsAllowOrigins
 bootstrap_env_run_quiet "${stack_env[@]}" pulumi config set controlPlaneCorsAllowOrigins "${selected_control_plane_cors_allow_origins}" --stack "${STACK}"
 bootstrap_env_run_quiet "${stack_env[@]}" pulumi config set projectId "${selected_project_id}" --stack "${STACK}"
 bootstrap_env_run_quiet "${stack_env[@]}" pulumi config set authProviderConfigFile "${selected_auth_provider_config_file}" --stack "${STACK}"
-bootstrap_env_run_quiet "${stack_env[@]}" pulumi config set firebaseApiKey "${selected_firebase_api_key}" --stack "${STACK}"
+bootstrap_env_run_quiet "${stack_env[@]}" pulumi config set --secret firebaseApiKey "${selected_firebase_api_key}" --stack "${STACK}"
 bootstrap_env_run_quiet "${stack_env[@]}" pulumi config set firebaseProjectId "${selected_firebase_project_id}" --stack "${STACK}"
 bootstrap_env_run_quiet "${stack_env[@]}" pulumi config set supabaseUrl "${selected_supabase_url}" --stack "${STACK}"
 bootstrap_env_run_quiet "${stack_env[@]}" pulumi config set supabaseAnonKey "${selected_supabase_anon_key}" --stack "${STACK}"

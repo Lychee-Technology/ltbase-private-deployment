@@ -2,12 +2,27 @@ package services
 
 import (
 	"encoding/json"
+	"fmt"
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
+
+	"github.com/pulumi/pulumi/sdk/v3/go/common/resource"
+	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 
 	"lychee.technology/ltbase/infra/internal/config"
 )
+
+type controlPlaneUIStackConfigMocks struct{}
+
+func (controlPlaneUIStackConfigMocks) Call(args pulumi.MockCallArgs) (resource.PropertyMap, error) {
+	return resource.PropertyMap{}, nil
+}
+
+func (controlPlaneUIStackConfigMocks) NewResource(args pulumi.MockResourceArgs) (string, resource.PropertyMap, error) {
+	return args.Name + "_id", args.Inputs, nil
+}
 
 func TestControlPlaneUIStackConfigJSONReusesLoginProviderNamesAndOmitsRedirectURI(t *testing.T) {
 	rootDir := t.TempDir()
@@ -22,18 +37,36 @@ func TestControlPlaneUIStackConfigJSONReusesLoginProviderNamesAndOmitsRedirectUR
 		t.Fatalf("os.WriteFile() error = %v", err)
 	}
 
-	got, err := controlPlaneUIStackConfigJSON(rootDir, config.StackConfig{
-		Stack:                  "devo_env",
-		ProjectID:              "11111111-1111-4111-8111-111111111111",
-		AuthDomain:             "auth.devo.example.com",
-		ControlPlaneDomain:     "control.devo.example.com",
-		APIDomain:              "api.devo.example.com",
-		FirebaseProjectID:      "firebase-project-devo",
-		FirebaseAPIKey:         "public-firebase-key-devo",
-		SupabaseURL:            "https://devo-project.supabase.co",
-		SupabaseAnonKey:        "public-supabase-key-devo",
-		AuthProviderConfigFile: filepath.Base(configPath),
-	})
+	var got string
+	err := pulumi.RunErr(func(ctx *pulumi.Context) error {
+		controlPlaneUIStackConfig, err := controlPlaneUIStackConfigJSON(rootDir, config.StackConfig{
+			Project:                "ltbase-infra",
+			Stack:                  "devo_env",
+			ProjectID:              "11111111-1111-4111-8111-111111111111",
+			AuthDomain:             "auth.devo.example.com",
+			ControlPlaneDomain:     "control.devo.example.com",
+			APIDomain:              "api.devo.example.com",
+			FirebaseProjectID:      "firebase-project-devo",
+			FirebaseAPIKey:         pulumi.String("public-firebase-key-devo").ToStringOutput(),
+			SupabaseURL:            "https://devo-project.supabase.co",
+			SupabaseAnonKey:        "public-supabase-key-devo",
+			AuthProviderConfigFile: filepath.Base(configPath),
+		})
+		if err != nil {
+			return err
+		}
+		resultCh := make(chan string, 1)
+		controlPlaneUIStackConfig.ApplyT(func(value string) string {
+			resultCh <- value
+			return value
+		})
+		select {
+		case got = <-resultCh:
+			return nil
+		case <-time.After(2 * time.Second):
+			return fmt.Errorf("timed out waiting for control plane UI stack config output")
+		}
+	}, pulumi.WithMocks("ltbase-infra", "devo_env", controlPlaneUIStackConfigMocks{}))
 	if err != nil {
 		t.Fatalf("controlPlaneUIStackConfigJSON() error = %v", err)
 	}
@@ -106,18 +139,36 @@ func TestControlPlaneUIStackConfigJSONReusesLoginProviderNamesAndOmitsRedirectUR
 }
 
 func TestControlPlaneUIStackConfigJSONFallsBackToDefaultProviderNamesWhenMissing(t *testing.T) {
-	got, err := controlPlaneUIStackConfigJSON(t.TempDir(), config.StackConfig{
-		Stack:                  "prod",
-		ProjectID:              "11111111-1111-4111-8111-111111111111",
-		AuthDomain:             "auth.example.com",
-		ControlPlaneDomain:     "control.example.com",
-		APIDomain:              "api.example.com",
-		FirebaseProjectID:      "firebase-project-prod",
-		FirebaseAPIKey:         "public-firebase-key-prod",
-		SupabaseURL:            "https://prod-project.supabase.co",
-		SupabaseAnonKey:        "public-supabase-key-prod",
-		AuthProviderConfigFile: "missing.json",
-	})
+	var got string
+	err := pulumi.RunErr(func(ctx *pulumi.Context) error {
+		controlPlaneUIStackConfig, err := controlPlaneUIStackConfigJSON(t.TempDir(), config.StackConfig{
+			Project:                "ltbase-infra",
+			Stack:                  "prod",
+			ProjectID:              "11111111-1111-4111-8111-111111111111",
+			AuthDomain:             "auth.example.com",
+			ControlPlaneDomain:     "control.example.com",
+			APIDomain:              "api.example.com",
+			FirebaseProjectID:      "firebase-project-prod",
+			FirebaseAPIKey:         pulumi.String("public-firebase-key-prod").ToStringOutput(),
+			SupabaseURL:            "https://prod-project.supabase.co",
+			SupabaseAnonKey:        "public-supabase-key-prod",
+			AuthProviderConfigFile: "missing.json",
+		})
+		if err != nil {
+			return err
+		}
+		resultCh := make(chan string, 1)
+		controlPlaneUIStackConfig.ApplyT(func(value string) string {
+			resultCh <- value
+			return value
+		})
+		select {
+		case got = <-resultCh:
+			return nil
+		case <-time.After(2 * time.Second):
+			return fmt.Errorf("timed out waiting for control plane UI stack config output")
+		}
+	}, pulumi.WithMocks("ltbase-infra", "prod", controlPlaneUIStackConfigMocks{}))
 	if err != nil {
 		t.Fatalf("controlPlaneUIStackConfigJSON() error = %v", err)
 	}
