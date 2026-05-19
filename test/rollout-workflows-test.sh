@@ -60,7 +60,7 @@ assert_file_contains "${preview_workflow}" 'runtime_bucket="$(extract_stack_valu
 assert_file_contains "${preview_workflow}" 'cloudflare_zone_id="$(extract_stack_value "ltbase-infra:cloudflareZoneId")"'
 assert_file_contains "${preview_workflow}" 'Required mTLS audit values missing from ${stack_file}'
 assert_file_contains "${preview_workflow}" 'Cloudflare zone ID missing from ${stack_file}'
-assert_file_contains "${rollout_hop_workflow}" "Lychee-Technology/ltbase-deploy-workflows/.github/workflows/rollout-hop.yml@controlplane-ui-runtime-config"
+assert_file_contains "${rollout_hop_workflow}" "Lychee-Technology/ltbase-deploy-workflows/.github/workflows/rollout-hop.yml@main"
 assert_file_contains "${rollout_hop_workflow}" "CONTROLPLANE_UI_STACK_CONFIG"
 assert_file_contains "${rollout_hop_workflow}" "CONTROLPLANE_UI_PAGES_PROJECT"
 assert_file_contains "${rollout_hop_workflow}" "controlplane_ui_pages_project"
