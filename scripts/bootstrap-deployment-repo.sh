@@ -42,7 +42,7 @@ if ! bootstrap_env_has_stack "${STACK}"; then
   exit 1
 fi
 
-required_vars=(DEPLOYMENT_REPO PULUMI_BACKEND_URL LTBASE_RELEASES_REPO LTBASE_RELEASE_ID LTBASE_RELEASES_TOKEN CLOUDFLARE_API_TOKEN GEMINI_API_KEY CLOUDFLARE_ZONE_ID GITHUB_ORG GITHUB_REPO GEMINI_MODEL DSQL_PORT DSQL_DB DSQL_USER DSQL_PROJECT_SCHEMA MTLS_TRUSTSTORE_FILE MTLS_TRUSTSTORE_KEY)
+required_vars=(DEPLOYMENT_REPO PULUMI_BACKEND_URL LTBASE_RELEASES_REPO LTBASE_RELEASE_ID LTBASE_RELEASES_TOKEN CLOUDFLARE_API_TOKEN CLOUDFLARE_ACCOUNT_ID GEMINI_API_KEY CLOUDFLARE_ZONE_ID GITHUB_ORG GITHUB_REPO GEMINI_MODEL DSQL_PORT DSQL_DB DSQL_USER DSQL_PROJECT_SCHEMA MTLS_TRUSTSTORE_FILE MTLS_TRUSTSTORE_KEY)
 for name in "${required_vars[@]}"; do
   if [[ -z "${!name:-}" ]]; then
     echo "${name} is required" >&2
@@ -90,6 +90,7 @@ bootstrap_env_run_quiet gh variable set PROMOTION_PATH --repo "${DEPLOYMENT_REPO
 bootstrap_env_run_quiet gh variable set PREVIEW_DEFAULT_STACK --repo "${DEPLOYMENT_REPO}" --body "${PREVIEW_DEFAULT_STACK}"
 bootstrap_env_run_quiet gh variable set CONTROLPLANE_UI_STACK_CONFIG --repo "${DEPLOYMENT_REPO}" --body "$(bootstrap_env_controlplane_ui_stack_config_json)"
 bootstrap_env_run_quiet gh variable set CONTROLPLANE_UI_DOMAIN --repo "${DEPLOYMENT_REPO}" --body "${CONTROLPLANE_UI_DOMAIN}"
+bootstrap_env_run_quiet gh variable set CLOUDFLARE_ACCOUNT_ID --repo "${DEPLOYMENT_REPO}" --body "${CLOUDFLARE_ACCOUNT_ID}"
 bootstrap_env_run_quiet gh variable set CONTROLPLANE_UI_PAGES_PROJECT --repo "${DEPLOYMENT_REPO}" --body "${CONTROLPLANE_UI_PAGES_PROJECT}"
 
 bootstrap_env_run_quiet gh secret set LTBASE_RELEASES_TOKEN --repo "${DEPLOYMENT_REPO}" --body "${LTBASE_RELEASES_TOKEN}"
