@@ -76,6 +76,10 @@ cloudflare_headers=(
   -H "Content-Type: application/json"
 )
 
+capture_stdout_quiet repo_metadata gh api "repos/${DEPLOYMENT_REPO}"
+default_branch="$(python3 -c 'import json, sys; data = json.load(sys.stdin); print(data.get("default_branch", "main"))' <<<"${repo_metadata}"
+)"
+
 cloudflare_require_success() {
   local action="$1"
   local response="$2"
@@ -303,12 +307,13 @@ bootstrap_env_info "Ensuring Control Plane UI Pages project: ${CONTROLPLANE_UI_P
 
 bootstrap_env_info "Ensuring Pages project: ${CONTROLPLANE_UI_PAGES_PROJECT}"
 if ! cloudflare_get_exists "get Pages project" "${pages_project_url}"; then
-  project_payload="$(python3 - "${CONTROLPLANE_UI_PAGES_PROJECT}" <<'PY'
+  project_payload="$(python3 - "${CONTROLPLANE_UI_PAGES_PROJECT}" "${default_branch}" <<'PY'
 import json
 import sys
 
 print(json.dumps({
     "name": sys.argv[1],
+    "production_branch": sys.argv[2],
 }, separators=(",", ":")))
 PY
 )"

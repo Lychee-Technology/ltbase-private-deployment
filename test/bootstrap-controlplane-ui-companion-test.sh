@@ -167,6 +167,11 @@ if [[ "${cmd} ${sub}" == "api repos/customer-org/customer-ltbase-controlplane-ui
   printf '{"default_branch":"main","private":false}'
   exit 0
 fi
+if [[ "${cmd} ${sub}" == "api repos/customer-org/customer-ltbase" ]]; then
+  printf 'NOISY_GH_STDERR deployment repo metadata success\n' >&2
+  printf '{"default_branch":"main","private":false}'
+  exit 0
+fi
 if [[ "${cmd} ${sub}" == "repo clone" ]]; then
   dest="${4:-}"
   mkdir -p "${dest}"
@@ -372,6 +377,7 @@ assert_log_contains "${log_file}" "https://api.cloudflare.com/client/v4/accounts
 assert_log_contains "${log_file}" "https://api.cloudflare.com/client/v4/accounts/cf-account-123/pages/projects/customer-ltbase-controlplane-ui/domains"
 assert_log_contains "${log_file}" "https://api.cloudflare.com/client/v4/zones/zone-123/dns_records?name=admin.customer.example.com"
 assert_log_contains "${log_file}" "https://api.cloudflare.com/client/v4/zones/zone-123/dns_records"
+assert_log_contains "${log_file}" '"production_branch":"main"'
 assert_log_not_contains "${log_file}" "gh repo create customer-org/customer-ltbase-controlplane-ui"
 assert_log_not_contains "${log_file}" "gh variable set CONTROLPLANE_UI_DOMAIN --repo customer-org/customer-ltbase-controlplane-ui --body admin.customer.example.com"
 assert_log_not_contains "${log_file}" "gh variable set CONTROLPLANE_UI_STACK_CONFIG --repo customer-org/customer-ltbase-controlplane-ui"
