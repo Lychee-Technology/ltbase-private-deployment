@@ -37,7 +37,8 @@ config:
   ltbase-infra:authDomain: auth.example.com
   ltbase-infra:projectId: 11111111-1111-4111-8111-111111111111
   ltbase-infra:authProviderConfigFile: infra/auth-providers.devo.json
-  ltbase-infra:firebaseApiKey: public-firebase-key-devo
+  ltbase-infra:firebaseApiKey:
+    secure: test-firebase-secret
   ltbase-infra:firebaseProjectId: firebase-project-devo
   ltbase-infra:supabaseUrl: https://devo-project.supabase.co
   ltbase-infra:supabaseAnonKey: public-supabase-key-devo
@@ -150,7 +151,7 @@ from pathlib import Path
 import sys
 
 path = Path(sys.argv[1])
-path.write_text(path.read_text().replace('  ltbase-infra:firebaseApiKey: public-firebase-key-devo\n', ''))
+path.write_text(path.read_text().replace('  ltbase-infra:firebaseApiKey:\n    secure: test-firebase-secret\n', ''))
 PY
 
 if output="$(${SCRIPT_PATH} --stack devo --infra-dir "${temp_dir}/infra" 2>&1)"; then

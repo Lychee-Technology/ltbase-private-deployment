@@ -420,7 +420,7 @@ if [[ -x "${SCRIPT_PATH}" ]]; then
   assert_log_contains "${log_file}" "pulumi config set controlPlaneCorsAllowOrigins https://control.example.com,https://admin.example.com --stack prod"
   assert_log_contains "${log_file}" "pulumi config set projectId 33333333-3333-4333-8333-333333333333 --stack prod"
   assert_log_contains "${log_file}" "pulumi config set authProviderConfigFile infra/auth-providers.prod.json --stack prod"
-  assert_log_contains "${log_file}" "pulumi config set firebaseApiKey public-firebase-key-prod --stack prod"
+  assert_log_contains "${log_file}" "pulumi config set --secret firebaseApiKey public-firebase-key-prod --stack prod"
   assert_log_contains "${log_file}" "pulumi config set firebaseProjectId firebase-project-prod --stack prod"
   assert_log_contains "${log_file}" "pulumi config set supabaseUrl https://prod-project.supabase.co --stack prod"
   assert_log_contains "${log_file}" "pulumi config set supabaseAnonKey public-supabase-key-prod --stack prod"

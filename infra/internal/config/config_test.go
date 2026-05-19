@@ -1,6 +1,10 @@
 package config
 
-import "testing"
+import (
+	"testing"
+
+	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
+)
 
 func TestValueOrDefault(t *testing.T) {
 	if got := valueOrDefault(" ", "fallback"); got != "fallback" {
@@ -80,7 +84,7 @@ func TestValidateAllowsProjectIDAndAuthProviderConfigFile(t *testing.T) {
 		ManageGitHubOIDCProvider: true,
 		ProjectID:                "11111111-1111-4111-8111-111111111111",
 		AuthProviderConfigFile:   "infra/auth-providers.devo.json",
-		FirebaseAPIKey:           "public-firebase-key",
+		FirebaseAPIKey:           pulumi.String("public-firebase-key").ToStringOutput(),
 		FirebaseProjectID:        "firebase-project-id",
 		SupabaseURL:              "https://project.supabase.co",
 		SupabaseAnonKey:          "public-anon-key",
@@ -96,7 +100,7 @@ func TestValidateAllowsProjectIDAndAuthProviderConfigFile(t *testing.T) {
 	if cfg.AuthProviderConfigFile == "" {
 		t.Fatal("AuthProviderConfigFile should be preserved")
 	}
-	if cfg.FirebaseAPIKey == "" || cfg.FirebaseProjectID == "" || cfg.SupabaseURL == "" || cfg.SupabaseAnonKey == "" {
+	if cfg.FirebaseAPIKey == (pulumi.StringOutput{}) || cfg.FirebaseProjectID == "" || cfg.SupabaseURL == "" || cfg.SupabaseAnonKey == "" {
 		t.Fatal("browser-safe auth provider config should be preserved")
 	}
 	if cfg.MTLSTruststoreFile == "" {
