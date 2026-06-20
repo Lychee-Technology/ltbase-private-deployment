@@ -1,24 +1,35 @@
 config:
   ltbase-infra:awsRegion: ap-northeast-1
+  ltbase-infra:deploymentAwsAccountId: "123456789012"
   ltbase-infra:runtimeBucket: customer-ltbase-runtime-devo
+  ltbase-infra:schemaBucket: customer-ltbase-schema-devo
   ltbase-infra:tableName: customer-ltbase-devo
   ltbase-infra:mtlsTruststoreFile: infra/certs/cloudflare-origin-pull-ca.pem
   ltbase-infra:mtlsTruststoreKey: mtls/cloudflare-origin-pull-ca.pem
   ltbase-infra:apiDomain: api.devo.customer.example.com
   ltbase-infra:controlPlaneDomain: control.devo.customer.example.com
+  ltbase-infra:controlPlaneCorsOrigins: https://admin.customer.example.com
   ltbase-infra:authDomain: auth.devo.customer.example.com
   ltbase-infra:projectId: 11111111-1111-4111-8111-111111111111
   ltbase-infra:authProviderConfigFile: infra/auth-providers.devo.json
+  ltbase-infra:firebaseApiKey:
+    secure: replace-with-firebase-api-key-secret
+  ltbase-infra:firebaseProjectId: replace-with-firebase-project-id
+  ltbase-infra:supabaseUrl: https://replace-with-project.supabase.co
+  ltbase-infra:supabaseAnonKey: replace-with-supabase-anon-key
   ltbase-infra:cloudflareZoneId: replace-with-zone-id
   ltbase-infra:oidcIssuerUrl: https://oidc.ltbase.dev/customer-devo
   ltbase-infra:jwksUrl: https://oidc.ltbase.dev/customer-devo/.well-known/jwks.json
+  ltbase-infra:releaseId: v1.0.0
   ltbase-infra:githubOrg: customer-org
   ltbase-infra:githubRepo: ltbase-private-deployment
   ltbase-infra:manageGithubOidcProvider: "true"
-  ltbase-infra:formaCdcSchedule: rate(15 minutes)
-  ltbase-infra:releaseId: v1.0.0
+  ltbase-infra:githubOidcProviderArn: replace-with-devo-provider-arn
+  ltbase-infra:geminiApiKey:
+    secure: replace-with-gemini-api-key-secret
+  ltbase-infra:geminiModel: gemini-3.1-flash-lite
   ltbase-infra:dsqlPort: "5432"
   ltbase-infra:dsqlDB: postgres
   ltbase-infra:dsqlUser: admin
   ltbase-infra:dsqlProjectSchema: ltbase
-  ltbase-infra:geminiModel: gemini-3.1-flash-lite
+  ltbase-infra:formaCdcSchedule: rate(15 minutes)

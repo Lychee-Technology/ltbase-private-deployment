@@ -28,6 +28,7 @@ It assumes the implementation PRs are already merged to `main`.
   - `ltbase-authservice-lambda.zip`
   - `ltbase-forma-cdc-lambda.zip`
   - `ltbase-controlplane-ui.tar.gz`
+  - `ltbase-governance-ontology-compiler.zip`
   - `manifest.json`
 - [ ] Verify `manifest.json` includes an artifact entry with:
   - `name: controlplane-ui`
@@ -96,7 +97,7 @@ It assumes the implementation PRs are already merged to `main`.
 
 ## Exit Criteria
 
-- [ ] A formal `ltbase-releases` release includes `ltbase-controlplane-ui.tar.gz`.
+- [ ] A formal `ltbase-releases` release includes `ltbase-controlplane-ui.tar.gz` and `ltbase-governance-ontology-compiler.zip`.
 - [ ] A fresh internal deployment repo passes bootstrap, preview, rollout, and promotion.
 - [ ] Workflow and template versioning are aligned with the intended customer path.
 - [ ] Documentation matches the actual deployment model.

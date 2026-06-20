@@ -28,10 +28,15 @@ func newSchemaBucket(ctx *pulumi.Context, cfg config.StackConfig, providers Prov
 
 func schemaLambdaEnv(schemaBucket pulumi.StringInput, runtimePrefix pulumi.StringInput) pulumi.StringMap {
 	return pulumi.StringMap{
-		"FORMA_SCHEMA_SOURCE":           pulumi.String("s3"),
-		"FORMA_SCHEMA_BUCKET":           schemaBucket,
-		"FORMA_SCHEMA_PREFIX":           runtimePrefix,
-		"FORMA_SCHEMA_PUBLISHED_PREFIX": pulumi.String(schemaPublishedPrefix),
-		"FORMA_SCHEMA_CACHE_DIR":        pulumi.String(schemaCacheDir),
+		"FORMA_SCHEMA_SOURCE":    pulumi.String("s3"),
+		"FORMA_SCHEMA_BUCKET":    schemaBucket,
+		"FORMA_SCHEMA_PREFIX":    runtimePrefix,
+		"FORMA_SCHEMA_CACHE_DIR": pulumi.String(schemaCacheDir),
 	}
+}
+
+func schemaLambdaEnvWithPublishedPrefix(schemaBucket pulumi.StringInput, runtimePrefix pulumi.StringInput) pulumi.StringMap {
+	env := schemaLambdaEnv(schemaBucket, runtimePrefix)
+	env["FORMA_SCHEMA_PUBLISHED_PREFIX"] = pulumi.String(schemaPublishedPrefix)
+	return env
 }
