@@ -402,6 +402,10 @@ if [[ "${cmd}" == "api" ]]; then
     printf '{"default_branch":"main","private":false}\n'
     exit 0
   fi
+  if [[ "${url}" == "repos/customer-org/customer-ltbase" ]]; then
+    printf '{"default_branch":"main","private":false}\n'
+    exit 0
+  fi
   if [[ "${url}" == "repos/customer-org/customer-ltbase-controlplane-ui" ]]; then
     printf '{"default_branch":"main","private":false}\n'
     exit 0

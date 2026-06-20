@@ -145,7 +145,7 @@ rollout 侧的运行时配置来自每个 stack 的 Pulumi outputs：
 - 当前 rollout 的 target stack 必须存在，否则 rollout 失败
 - `redirectUri` 会在 rollout 时通过 `https://${CONTROLPLANE_UI_DOMAIN}/auth/callback` 派生
 
-重要：当前公开 release contract 仍未正式记录 control plane UI artifact。在 `ltbase.api` / `ltbase-releases` 完成对应 contract 更新之前，这条新的 rollout-side UI deploy 路径仍会被 release bundle 中缺少 artifact 所阻塞。
+上游 release contract 在每个 `ltbase-releases` GitHub release 中都包含官方的 `ltbase-controlplane-ui.tar.gz` artifact。当 deployment 仓库提供 `CONTROLPLANE_UI_PAGES_PROJECT` 和渲染好的 runtime config 时，rollout 工作流会直接从下载到的 release 资产发布 control plane UI 到 Cloudflare Pages。
 
 ## 说明
 

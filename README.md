@@ -149,7 +149,7 @@ The rollout-side runtime config is built from per-stack Pulumi outputs:
 - the current rollout target must be included, or rollout fails
 - `redirectUri` is derived during rollout from `https://${CONTROLPLANE_UI_DOMAIN}/auth/callback`
 
-Important: the current public release contract still does not document the control plane UI artifact. Until that contract is updated in `ltbase.api` / `ltbase-releases`, the new rollout-side UI deploy path remains blocked on the release bundle not yet containing the expected artifact.
+The upstream release contract includes the official `ltbase-controlplane-ui.tar.gz` artifact in every `ltbase-releases` GitHub release. When the deployment repository supplies `CONTROLPLANE_UI_PAGES_PROJECT` and a rendered runtime config, the rollout workflow publishes the control plane UI directly from the downloaded release asset to Cloudflare Pages.
 
 ## Notes
 

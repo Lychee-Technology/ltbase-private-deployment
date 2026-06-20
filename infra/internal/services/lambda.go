@@ -198,7 +198,7 @@ func dataPlaneLambdaEnv(cfg config.StackConfig, tableName pulumi.StringInput, bu
 }
 
 func controlPlaneLambdaEnv(cfg config.StackConfig, tableName pulumi.StringInput, bucketName pulumi.StringInput, schemaBucket pulumi.StringInput) pulumi.StringMap {
-	return mergeEnv(commonLambdaEnv(cfg, tableName, bucketName), schemaLambdaEnv(schemaBucket, pulumi.String(schemaPublishedPrefix)), pulumi.StringMap{
+	return mergeEnv(commonLambdaEnv(cfg, tableName, bucketName), schemaLambdaEnvWithPublishedPrefix(schemaBucket, pulumi.String(schemaPublishedPrefix)), pulumi.StringMap{
 		"PROJECT_ID":                 pulumi.String(cfg.ProjectID),
 		"PROJECT_NAME":               pulumi.String(cfg.DeploymentProjectName),
 		"ACCOUNT_ID":                 pulumi.String(cfg.DeploymentAWSAccountID),

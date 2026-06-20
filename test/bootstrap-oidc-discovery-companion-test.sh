@@ -71,6 +71,21 @@ set -euo pipefail
 printf 'gh %s\n' "$*" >>"${COMMAND_LOG}"
 cmd="${1:-}"
 sub="${2:-}"
+if [[ "${cmd} ${sub}" == "repo clone" ]]; then
+  dest="${4:-}"
+  if [[ -n "${dest}" ]]; then
+    mkdir -p "${dest}"
+    if [[ "${dest}" == *"/companion" ]]; then
+      mkdir -p "${dest}/.git"
+      printf 'existing repo\n' >"${dest}/README.md"
+    else
+      printf 'template repo\n' >"${dest}/README.md"
+    fi
+  fi
+  printf 'NOISY_GH_STDOUT repo clone success\n'
+  printf 'NOISY_GH_STDERR repo clone success\n' >&2
+  exit 0
+fi
 if [[ "${cmd} ${sub}" == "repo view" ]]; then
   if [[ "${GH_REPO_VIEW_EXISTS:-false}" == "true" ]]; then
     printf 'NOISY_GH_STDOUT repo view success\n'
@@ -248,6 +263,24 @@ fi
 exit 22
 EOF
 chmod +x "${fake_bin}/curl"
+
+cat >"${fake_bin}/git" <<'EOF'
+#!/usr/bin/env bash
+set -euo pipefail
+printf 'git %s\n' "$*" >>"${COMMAND_LOG}"
+args=("$@")
+if [[ "${args[0]:-}" == "-C" ]]; then
+  args=("${args[@]:2}")
+fi
+if [[ "${args[0]:-}" == "diff" && "${args[1]:-}" == "--quiet" ]]; then
+  exit 0
+fi
+if [[ "${args[0]:-}" == "add" || "${args[0]:-}" == "commit" || "${args[0]:-}" == "push" ]]; then
+  exit 0
+fi
+exit 0
+EOF
+chmod +x "${fake_bin}/git"
 
 if [[ ! -x "${SCRIPT_PATH}" ]]; then
   fail "missing executable script: ${SCRIPT_PATH}"

@@ -137,7 +137,7 @@ func TestNewLambdaServicesWireSchemaEnvAndReadOnlyPolicy(t *testing.T) {
 	}
 	assertSchemaEnvPrefix(t, mocks.resourceByName("aws:lambda/function:Function", "ltbase-infra-devo-data-plane").Inputs, schemaAppliedPrefix)
 	assertSchemaEnvPrefix(t, mocks.resourceByName("aws:lambda/function:Function", "ltbase-infra-devo-control-plane").Inputs, schemaPublishedPrefix)
-	assertSchemaPublishedPrefix(t, mocks.resourceByName("aws:lambda/function:Function", "ltbase-infra-devo-data-plane").Inputs, schemaPublishedPrefix)
+	assertSchemaEnvMissingKey(t, mocks.resourceByName("aws:lambda/function:Function", "ltbase-infra-devo-data-plane").Inputs, "FORMA_SCHEMA_PUBLISHED_PREFIX")
 	assertSchemaPublishedPrefix(t, mocks.resourceByName("aws:lambda/function:Function", "ltbase-infra-devo-control-plane").Inputs, schemaPublishedPrefix)
 
 	for _, name := range []string{"ltbase-infra-devo-data-plane-inline", "ltbase-infra-devo-control-plane-inline"} {
@@ -288,9 +288,6 @@ func assertSchemaEnvContract(t *testing.T, inputs resource.PropertyMap, bucket s
 	if got := propertyString(variables[resource.PropertyKey("FORMA_SCHEMA_BUCKET")]); got != bucket {
 		t.Fatalf("FORMA_SCHEMA_BUCKET = %q", got)
 	}
-	if got := propertyString(variables[resource.PropertyKey("FORMA_SCHEMA_PUBLISHED_PREFIX")]); got != schemaPublishedPrefix {
-		t.Fatalf("FORMA_SCHEMA_PUBLISHED_PREFIX = %q", got)
-	}
 	if got := propertyString(variables[resource.PropertyKey("FORMA_SCHEMA_CACHE_DIR")]); got != schemaCacheDir {
 		t.Fatalf("FORMA_SCHEMA_CACHE_DIR = %q", got)
 	}
@@ -309,6 +306,14 @@ func assertSchemaPublishedPrefix(t *testing.T, inputs resource.PropertyMap, want
 	variables := nestedObjectInput(inputs, "environment", "variables")
 	if got := propertyString(variables[resource.PropertyKey("FORMA_SCHEMA_PUBLISHED_PREFIX")]); got != want {
 		t.Fatalf("FORMA_SCHEMA_PUBLISHED_PREFIX = %q, want %q", got, want)
+	}
+}
+
+func assertSchemaEnvMissingKey(t *testing.T, inputs resource.PropertyMap, key string) {
+	t.Helper()
+	variables := nestedObjectInput(inputs, "environment", "variables")
+	if _, ok := variables[resource.PropertyKey(key)]; ok {
+		t.Fatalf("unexpected env key %s", key)
 	}
 }
 

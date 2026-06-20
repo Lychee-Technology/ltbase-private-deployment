@@ -67,10 +67,16 @@ func TestDataPlaneLambdaEnvIncludesSchemaSourceContract(t *testing.T) {
 		DSQLProjectSchema: "ltbase",
 	}, pulumi.String("table-name"), pulumi.String("runtime-bucket"), pulumi.String("schema-bucket"), pulumi.String("gemini-key"))
 
-	for _, key := range []string{"FORMA_SCHEMA_SOURCE", "FORMA_SCHEMA_BUCKET", "FORMA_SCHEMA_PREFIX", "FORMA_SCHEMA_PUBLISHED_PREFIX", "FORMA_SCHEMA_CACHE_DIR"} {
+	for _, key := range []string{"FORMA_SCHEMA_SOURCE", "FORMA_SCHEMA_BUCKET", "FORMA_SCHEMA_PREFIX", "FORMA_SCHEMA_CACHE_DIR"} {
 		if _, ok := env[key]; !ok {
 			t.Fatalf("dataPlaneLambdaEnv() missing %s", key)
 		}
+	}
+	if _, ok := env["FORMA_SCHEMA_PUBLISHED_PREFIX"]; ok {
+		t.Fatal("dataPlaneLambdaEnv() should not set FORMA_SCHEMA_PUBLISHED_PREFIX")
+	}
+	if got := env["FORMA_SCHEMA_PREFIX"]; got != pulumi.String(schemaAppliedPrefix) {
+		t.Fatalf("dataPlaneLambdaEnv() FORMA_SCHEMA_PREFIX = %v, want %s", got, schemaAppliedPrefix)
 	}
 }
 
@@ -136,6 +142,12 @@ func TestControlPlaneLambdaEnvIncludesBootstrapProjectConfig(t *testing.T) {
 			if _, ok := env[key]; !ok {
 				t.Fatalf("controlPlaneLambdaEnv() missing %s", key)
 			}
+		}
+		if env["FORMA_SCHEMA_PREFIX"] != pulumi.String(schemaPublishedPrefix) {
+			t.Fatalf("controlPlaneLambdaEnv() FORMA_SCHEMA_PREFIX = %v, want %s", env["FORMA_SCHEMA_PREFIX"], schemaPublishedPrefix)
+		}
+		if env["FORMA_SCHEMA_PUBLISHED_PREFIX"] != pulumi.String(schemaPublishedPrefix) {
+			t.Fatalf("controlPlaneLambdaEnv() FORMA_SCHEMA_PUBLISHED_PREFIX = %v, want %s", env["FORMA_SCHEMA_PUBLISHED_PREFIX"], schemaPublishedPrefix)
 		}
 		if env["CONTROL_PLANE_CORS_ORIGINS"] != pulumi.String("https://admin.example.com") {
 			t.Fatalf("controlPlaneLambdaEnv() CONTROL_PLANE_CORS_ORIGINS = %v, want https://admin.example.com", env["CONTROL_PLANE_CORS_ORIGINS"])
