@@ -24,7 +24,7 @@ config:
   ltbase-infra:githubOrg: customer-org
   ltbase-infra:githubRepo: ltbase-private-deployment
   ltbase-infra:manageGithubOidcProvider: "false"
-  ltbase-infra:githubOidcProviderArn: replace-with-devo-provider-arn
+  ltbase-infra:githubOidcProviderArn: replace-with-prod-provider-arn
   ltbase-infra:geminiApiKey:
     secure: replace-with-gemini-api-key-secret
   ltbase-infra:geminiModel: gemini-3.1-flash-lite
