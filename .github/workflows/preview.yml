@@ -18,7 +18,7 @@ permissions:
 
 jobs:
   prepare:
-    runs-on: ubuntu-24.04-arm
+    runs-on: [self-hosted, Linux, ARM64]
     outputs:
       target_stack: ${{ steps.plan.outputs.target_stack }}
       target_stack_upper: ${{ steps.plan.outputs.target_stack_upper }}
@@ -50,7 +50,7 @@ jobs:
 
   validate_config:
     needs: prepare
-    runs-on: ubuntu-24.04-arm
+    runs-on: [self-hosted, Linux, ARM64]
     steps:
       - uses: actions/checkout@v6
 
@@ -84,7 +84,7 @@ jobs:
       - prepare
       - preview
     if: ${{ needs.preview.result == 'success' }}
-    runs-on: ubuntu-24.04-arm
+    runs-on: [self-hosted, Linux, ARM64]
     steps:
       - uses: actions/checkout@v6
 
