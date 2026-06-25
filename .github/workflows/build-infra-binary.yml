@@ -20,10 +20,10 @@ jobs:
       matrix:
         include:
           - arch: linux-amd64
-            runner: [self-hosted, Linux, X64]
+            runner: ubuntu-latest
             goarch: amd64
           - arch: linux-arm64
-            runner: [self-hosted, Linux, ARM64]
+            runner: ubuntu-24.04-arm
             goarch: arm64
     runs-on: ${{ matrix.runner }}
     steps:
@@ -62,7 +62,7 @@ jobs:
   publish:
     if: github.repository == 'Lychee-Technology/ltbase-private-deployment'
     needs: build
-    runs-on: [self-hosted, Linux, X64]
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
 
