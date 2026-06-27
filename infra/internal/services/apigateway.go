@@ -132,55 +132,6 @@ func ltbaseRefreshAuthorizerSpec(cfg config.StackConfig) authorizerSpec {
 	}
 }
 
-func buildAPIRouteSpecs() []routeSpec {
-	return []routeSpec{
-		{RouteKey: "GET /api/ai/v1/notes", AuthorizerName: "LTBase"},
-		{RouteKey: "POST /api/ai/v1/notes", AuthorizerName: "LTBase"},
-		{RouteKey: "GET /api/ai/v1/notes/{note_id}", AuthorizerName: "LTBase"},
-		{RouteKey: "PUT /api/ai/v1/notes/{note_id}", AuthorizerName: "LTBase"},
-		{RouteKey: "DELETE /api/ai/v1/notes/{note_id}", AuthorizerName: "LTBase"},
-		{RouteKey: "GET /api/ai/v1/notes/{note_id}/model_sync", AuthorizerName: "LTBase"},
-		{RouteKey: "POST /api/ai/v1/notes/{note_id}/model_sync", AuthorizerName: "LTBase"},
-		{RouteKey: "GET /api/v1/deepping", AuthorizerName: "LTBase"},
-		{RouteKey: "GET /api/v1/{schema_name}", AuthorizerName: "LTBase"},
-		{RouteKey: "POST /api/v1/{schema_name}", AuthorizerName: "LTBase"},
-		{RouteKey: "GET /api/v1/{schema_name}/{row_id}", AuthorizerName: "LTBase"},
-		{RouteKey: "PUT /api/v1/{schema_name}/{row_id}", AuthorizerName: "LTBase"},
-		{RouteKey: "DELETE /api/v1/{schema_name}/{row_id}", AuthorizerName: "LTBase"},
-	}
-}
-
-func buildControlPlaneRouteSpecs() []routeSpec {
-	return []routeSpec{
-		{RouteKey: "ANY /", AuthorizerName: "LTBase"},
-		{RouteKey: "ANY /{proxy+}", AuthorizerName: "LTBase"},
-	}
-}
-
-func legacyRouteAliasName(cfg config.StackConfig, suffix string, spec routeSpec) string {
-	if suffix != "control" {
-		return ""
-	}
-
-	switch spec.RouteKey {
-	case "ANY /":
-		return naming.ResourceName(cfg.Project, cfg.Stack, "control-root")
-	case "ANY /{proxy+}":
-		return naming.ResourceName(cfg.Project, cfg.Stack, "control-route")
-	default:
-		return ""
-	}
-}
-
-func routeAliases(cfg config.StackConfig, suffix string, spec routeSpec) []pulumi.Alias {
-	legacyName := legacyRouteAliasName(cfg, suffix, spec)
-	if legacyName == "" {
-		return nil
-	}
-
-	return []pulumi.Alias{{Name: pulumi.String(legacyName)}}
-}
-
 func buildAuthAuthorizerSpecs(cfg config.StackConfig, providerCfg AuthProviderConfig) []authorizerSpec {
 	specs := []authorizerSpec{ltbaseAuthorizerSpec(cfg), ltbaseRefreshAuthorizerSpec(cfg)}
 	for _, provider := range providerCfg.Providers {
@@ -191,22 +142,6 @@ func buildAuthAuthorizerSpecs(cfg config.StackConfig, providerCfg AuthProviderCo
 		})
 	}
 	return specs
-}
-
-func buildAuthRouteSpecs(providerCfg AuthProviderConfig) []routeSpec {
-	routes := []routeSpec{
-		{RouteKey: "GET /api/v1/auth/health"},
-		{RouteKey: "POST /api/v1/auth/refresh", AuthorizerName: "LTBaseRefresh"},
-	}
-	for _, provider := range providerCfg.Providers {
-		if provider.EnableIDBinding {
-			routes = append(routes, routeSpec{RouteKey: "POST /api/v1/id_bindings/" + provider.Name, AuthorizerName: provider.Name})
-		}
-		if provider.EnableLogin {
-			routes = append(routes, routeSpec{RouteKey: "POST /api/v1/login/" + provider.Name, AuthorizerName: provider.Name})
-		}
-	}
-	return routes
 }
 
 func newHTTPAPI(ctx *pulumi.Context, cfg config.StackConfig, providers Providers, domainCfg httpAPIDomainConfig, cert *acm.CertificateValidation, service *LambdaService, routes []routeSpec, authorizers []authorizerSpec) (*apigatewayv2.Api, error) {
@@ -256,8 +191,8 @@ func newHTTPAPI(ctx *pulumi.Context, cfg config.StackConfig, providers Providers
 		}
 		authorizerIDs[spec.Name] = authorizer.ID().ToStringOutput()
 	}
+	suffixes := ensureUniqueRouteResourceSuffixes(routes)
 	for i, spec := range routes {
-		_ = i
 		args := &apigatewayv2.RouteArgs{
 			ApiId:    api.ID(),
 			RouteKey: pulumi.String(spec.RouteKey),
@@ -267,11 +202,7 @@ func newHTTPAPI(ctx *pulumi.Context, cfg config.StackConfig, providers Providers
 			args.AuthorizationType = pulumi.StringPtr("JWT")
 			args.AuthorizerId = authorizerIDs[spec.AuthorizerName].ToStringPtrOutput()
 		}
-		options := []pulumi.ResourceOption{pulumi.Provider(providers.AWS)}
-		if aliases := routeAliases(cfg, domainCfg.Suffix, spec); len(aliases) > 0 {
-			options = append(options, pulumi.Aliases(aliases))
-		}
-		_, err = apigatewayv2.NewRoute(ctx, naming.ResourceName(cfg.Project, cfg.Stack, domainCfg.Suffix+"-route-"+routeResourceNameSuffix(spec.RouteKey)), args, options...)
+		_, err = apigatewayv2.NewRoute(ctx, naming.ResourceName(cfg.Project, cfg.Stack, domainCfg.Suffix+"-route-"+suffixes[i]), args, pulumi.Provider(providers.AWS))
 		if err != nil {
 			return nil, err
 		}
@@ -393,10 +324,42 @@ func buildHTTPAPIDomainConfigs(cfg config.StackConfig, truststore mtlsTruststore
 func httpAPICorsConfigForOrigins(origins []string) httpAPICorsConfig {
 	return httpAPICorsConfig{
 		AllowOrigins:     origins,
-		AllowMethods:     []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
+		AllowMethods:     []string{"GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"},
 		AllowHeaders:     []string{"Authorization", "Content-Type"},
 		AllowCredentials: false,
 	}
+}
+
+func ensureUniqueRouteResourceSuffixes(routes []routeSpec) []string {
+	bases := make([]string, len(routes))
+	counts := make(map[string]int)
+	for i, r := range routes {
+		bases[i] = routeResourceNameSuffix(r.RouteKey)
+		counts[bases[i]]++
+	}
+	result := make([]string, len(routes))
+	used := make(map[string]bool)
+	disambiguator := make(map[string]int)
+	for i := range routes {
+		base := bases[i]
+		if counts[base] == 1 {
+			result[i] = base
+			used[base] = true
+			continue
+		}
+		// Multiple route keys normalize to the same suffix; append an
+		// incrementing index until we reach an unused, deterministic name.
+		for {
+			disambiguator[base]++
+			candidate := fmt.Sprintf("%s-%d", base, disambiguator[base])
+			if !used[candidate] {
+				result[i] = candidate
+				used[candidate] = true
+				break
+			}
+		}
+	}
+	return result
 }
 
 func apiDomainRecordArgs(cfg config.StackConfig, domain string, target pulumi.StringPtrInput) dns.RecordArgs {
