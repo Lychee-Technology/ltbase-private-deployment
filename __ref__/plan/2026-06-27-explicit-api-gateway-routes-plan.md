@@ -6,21 +6,6 @@
 
 **Repos affected:** `ltbase-private-deployment` (primary), `ltbase.api` (AGENTS.md), `ltbase-private-deployment-demo01` (config only).
 
-## Implementation Notes (post-implementation)
-
-The original plan had two bugs that were fixed during implementation:
-
-1. **Control Plane routes lacked HTTP methods.** The `controlPlaneRoutes` helper in Task 2 generated path-only route keys like `/api/v1/status` instead of `GET /api/v1/status`. API Gateway HTTP API routes require `METHOD /path` format. Fixed by generating explicit `"METHOD "+prefix+path` strings inside the builder, using a local closure `p(path)` for prefixing.
-
-2. **OPTIONS / suffix collision across APIs.** `OPTIONS /` appears in all three API route builders (Data Plane, Control Plane, AuthService). When `ensureUniqueRouteResourceSuffixes` was called with a combined route set in tests, identical FNV hashes caused duplicate disambiguated suffixes. Fixed by incorporating a disambiguation counter into the hash input.
-
-Additional implementation differences from the plan:
-- Route builders and helpers moved to new file `infra/internal/services/apigateway_routes.go` to keep `apigateway.go` under 500 lines.
-- `ensureUniqueRouteResourceSuffixes` added to handle Pulumi resource name collisions (e.g. `auth-config` vs `auth/config` both normalizing to the same suffix).
-- Control Plane routes enumerated with explicit `METHOD path` route keys rather than the buggy path-only helper.
-- `ltbase.api` AGENTS.md update deferred to separate issue (https://github.com/Lychee-Technology/ltbase.api/issues/397).
-- `ltbase-private-deployment-demo01` CORS update deferred (out of scope for #99).
-
 ---
 
 ## Task 1: Add route spec helper utilities
