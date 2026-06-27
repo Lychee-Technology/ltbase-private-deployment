@@ -249,26 +249,45 @@ func TestAuthRouteSpecsNoBusinessCatchAlls(t *testing.T) {
 	}
 }
 
+func assertUniqueRouteSuffixes(t *testing.T, routes []routeSpec) {
+	t.Helper()
+	suffixes := ensureUniqueRouteResourceSuffixes(routes)
+	seen := make(map[string]string) // suffix -> first routeKey
+	for i, s := range suffixes {
+		if prev, exists := seen[s]; exists {
+			t.Fatalf("suffix collision: %q used by both %q and %q", s, prev, routes[i].RouteKey)
+		}
+		seen[s] = routes[i].RouteKey
+	}
+	if len(suffixes) != len(routes) {
+		t.Fatalf("suffix count = %d, want %d", len(suffixes), len(routes))
+	}
+}
+
+func TestRouteSuffixesAreUniquePerBuilder(t *testing.T) {
+	providerCfg := AuthProviderConfig{
+		Providers: []AuthProvider{
+			{Name: "firebase", Issuer: "https://issuer.example.com", Audiences: []string{"aud-1"}, EnableLogin: true, EnableIDBinding: true},
+		},
+	}
+	// Each builder runs on its own API Gateway, so per-builder uniqueness is the
+	// production-relevant guarantee.
+	assertUniqueRouteSuffixes(t, buildAPIRouteSpecs())
+	assertUniqueRouteSuffixes(t, buildControlPlaneRouteSpecs())
+	assertUniqueRouteSuffixes(t, buildAuthRouteSpecs(providerCfg))
+}
+
 func TestRouteSuffixesAreUniqueForAllRouteBuilders(t *testing.T) {
 	providerCfg := AuthProviderConfig{
 		Providers: []AuthProvider{
 			{Name: "firebase", Issuer: "https://issuer.example.com", Audiences: []string{"aud-1"}, EnableLogin: true, EnableIDBinding: true},
 		},
 	}
+	// The merged set never occurs in production (the builders run on separate
+	// gateways); it is an intentional stress test of the dedup logic.
 	allRoutes := append(buildAPIRouteSpecs(), buildControlPlaneRouteSpecs()...)
 	allRoutes = append(allRoutes, buildAuthRouteSpecs(providerCfg)...)
-
-	suffixes := ensureUniqueRouteResourceSuffixes(allRoutes)
-	seen := make(map[string]string) // suffix -> first routeKey
-	for i, s := range suffixes {
-		if prev, exists := seen[s]; exists {
-			t.Fatalf("suffix collision: %q used by both %q and %q", s, prev, allRoutes[i].RouteKey)
-		}
-		seen[s] = allRoutes[i].RouteKey
-	}
-	if len(suffixes) != len(allRoutes) {
-		t.Fatalf("suffix count = %d, want %d", len(suffixes), len(allRoutes))
-	}
+	assertUniqueRouteSuffixes(t, allRoutes)
 }
 
 func TestCORSConfigurationIncludesPatch(t *testing.T) {

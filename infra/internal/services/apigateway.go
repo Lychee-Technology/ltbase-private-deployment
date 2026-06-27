@@ -2,7 +2,6 @@ package services
 
 import (
 	"fmt"
-	"hash/fnv"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -338,34 +337,26 @@ func ensureUniqueRouteResourceSuffixes(routes []routeSpec) []string {
 		bases[i] = routeResourceNameSuffix(r.RouteKey)
 		counts[bases[i]]++
 	}
-	colliding := make(map[string]bool)
-	for s, n := range counts {
-		if n > 1 {
-			colliding[s] = true
-		}
-	}
 	result := make([]string, len(routes))
 	used := make(map[string]bool)
 	disambiguator := make(map[string]int)
-	for i, r := range routes {
+	for i := range routes {
 		base := bases[i]
-		if colliding[base] {
-			for {
-				n := disambiguator[base]
-				disambiguator[base]++
-				h := fnv.New32a()
-				h.Write([]byte(r.RouteKey))
-				h.Write([]byte{byte(n), byte(n >> 8)})
-				candidate := fmt.Sprintf("%s-%x", base, h.Sum32())
-				if !used[candidate] {
-					result[i] = candidate
-					used[candidate] = true
-					break
-				}
-			}
-		} else {
+		if counts[base] == 1 {
 			result[i] = base
 			used[base] = true
+			continue
+		}
+		// Multiple route keys normalize to the same suffix; append an
+		// incrementing index until we reach an unused, deterministic name.
+		for {
+			disambiguator[base]++
+			candidate := fmt.Sprintf("%s-%d", base, disambiguator[base])
+			if !used[candidate] {
+				result[i] = candidate
+				used[candidate] = true
+				break
+			}
 		}
 	}
 	return result
