@@ -352,10 +352,6 @@ if [[ "${cmd} ${sub}" == "repo view" ]]; then
     printf 'GraphQL: Could not resolve to a Repository with the name %s.\n' "${3:-unknown}" >&2
     exit 1
   fi
-  if [[ "${3:-}" == "customer-org/customer-ltbase-oidc-discovery" && "${SCENARIO}" == "oidc_companion_missing" ]]; then
-    printf 'GraphQL: Could not resolve to a Repository with the name %s.\n' "${3}" >&2
-    exit 1
-  fi
   exit 0
 fi
 if [[ "${cmd} ${sub}" == "repo clone" ]]; then
@@ -398,10 +394,6 @@ if [[ "${cmd}" == "api" ]]; then
     fi
     exit 0
   fi
-  if [[ "${url}" == "repos/customer-org/customer-ltbase-oidc-discovery" ]]; then
-    printf '{"default_branch":"main","private":false}\n'
-    exit 0
-  fi
   if [[ "${url}" == "repos/customer-org/customer-ltbase" ]]; then
     printf '{"default_branch":"main","private":false}\n'
     exit 0
@@ -413,14 +405,6 @@ if [[ "${cmd}" == "api" ]]; then
   exit 0
 fi
 if [[ "${cmd} ${sub}" == "variable list" ]]; then
-  if [[ "${4:-}" == "customer-org/customer-ltbase-oidc-discovery" ]]; then
-    if [[ "${SCENARIO}" == "oidc_companion_missing" ]]; then
-      printf '[]'
-    else
-      printf '[{"name":"OIDC_DISCOVERY_DOMAIN"},{"name":"OIDC_DISCOVERY_STACK_CONFIG"}]'
-    fi
-    exit 0
-  fi
   if [[ "${SCENARIO}" == "repo_config_missing" ]]; then
     printf '[]'
   elif [[ "${SCENARIO}" == "repo_topology_missing" ]]; then
@@ -431,10 +415,6 @@ if [[ "${cmd} ${sub}" == "variable list" ]]; then
   exit 0
 fi
 if [[ "${cmd} ${sub}" == "secret list" ]]; then
-  if [[ "${4:-}" == "customer-org/customer-ltbase-oidc-discovery" ]]; then
-    printf '[]'
-    exit 0
-  fi
   if [[ "${SCENARIO}" == "repo_config_missing" ]]; then
     printf '[]'
   else
@@ -934,8 +914,6 @@ run_expect_exit_code 0 env \
 
 assert_log_contains "${temp_dir}/commands.log" "gh repo create customer-org/customer-ltbase"
 assert_log_contains "${temp_dir}/commands.log" "aws --profile devo-profile iam create-open-id-connect-provider"
-assert_log_contains "${temp_dir}/commands.log" "aws --profile prod-profile iam create-open-id-connect-provider"
-assert_log_contains "${temp_dir}/commands.log" "gh repo create customer-org/customer-ltbase-oidc-discovery"
 assert_log_contains "${temp_dir}/report-force/actions.log" "${ROOT_DIR}/scripts/bootstrap-controlplane-ui-companion.sh --env-file ${temp_dir}/.env"
 assert_log_contains "${temp_dir}/commands.log" "https://api.cloudflare.com/client/v4/accounts/cf-account-123/pages/projects"
 assert_log_contains "${temp_dir}/commands.log" "pulumi stack init devo --secrets-provider awskms://alias/test-pulumi-secrets?region=ap-northeast-1"

@@ -1,0 +1,83 @@
+name: Publish OIDC Discovery Documents
+
+on:
+  workflow_dispatch:
+    inputs:
+      target_stack:
+        description: "Stack to publish ('all' or a specific stack name)"
+        required: false
+        default: "all"
+        type: string
+
+permissions:
+  contents: read
+  id-token: write
+
+concurrency:
+  group: ${{ github.repository }}-${{ github.workflow }}
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          repository: Lychee-Technology/ltbase-oidc-discovery-template
+          path: oidc-template
+
+      - name: Generate discovery documents
+        env:
+          OIDC_DISCOVERY_DOMAIN: ${{ vars.OIDC_DISCOVERY_DOMAIN }}
+          OIDC_DISCOVERY_STACK_CONFIG: ${{ vars.OIDC_DISCOVERY_STACK_CONFIG }}
+          TARGET_STACK: ${{ inputs.target_stack }}
+          OIDC_DISCOVERY_OUTPUT_DIR: ${{ runner.temp }}/discovery-output
+        working-directory: oidc-template
+        run: scripts/build-discovery.sh
+
+      - name: Deploy to Cloudflare Pages
+        timeout-minutes: 10
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
+          OIDC_DISCOVERY_PAGES_PROJECT: ${{ vars.OIDC_DISCOVERY_PAGES_PROJECT }}
+          OIDC_DISCOVERY_OUTPUT_DIR: ${{ runner.temp }}/discovery-output
+        run: |
+          set -euo pipefail
+
+          output_dir="${OIDC_DISCOVERY_OUTPUT_DIR}"
+
+          if [[ -z "${CLOUDFLARE_API_TOKEN}" ]]; then
+            echo "::error::CLOUDFLARE_API_TOKEN repo secret is not set"
+            exit 1
+          fi
+          if [[ -z "${CLOUDFLARE_ACCOUNT_ID}" ]]; then
+            echo "::error::CLOUDFLARE_ACCOUNT_ID repo variable is not set"
+            exit 1
+          fi
+          if [[ -z "${OIDC_DISCOVERY_PAGES_PROJECT}" ]]; then
+            echo "::error::OIDC_DISCOVERY_PAGES_PROJECT repo variable is not set"
+            exit 1
+          fi
+
+          site_dir=$(mktemp -d)
+
+          shopt -s nullglob
+          for item in "${output_dir}"/*/; do
+            item=${item%/}
+            cp -R "${item}" "${site_dir}/"
+          done
+          for item in "${output_dir}"/_headers; do
+            if [[ -f "${item}" ]]; then
+              cp "${item}" "${site_dir}/"
+            fi
+          done
+          shopt -u nullglob
+
+          if [[ -z "$(ls -A "${site_dir}")" ]]; then
+            echo "::error::No generated stack content found to deploy"
+            exit 1
+          fi
+
+          npm install --global wrangler@3.114.17
+          wrangler pages deploy "${site_dir}" --project-name "${OIDC_DISCOVERY_PAGES_PROJECT}" --branch main

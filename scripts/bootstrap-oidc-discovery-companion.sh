@@ -52,7 +52,7 @@ capture_stdout_quiet() {
   return "${command_status}"
 }
 
-required_vars=(GITHUB_OWNER DEPLOYMENT_REPO_NAME DEPLOYMENT_REPO_VISIBILITY OIDC_DISCOVERY_DOMAIN CLOUDFLARE_ACCOUNT_ID CLOUDFLARE_API_TOKEN CLOUDFLARE_ZONE_ID OIDC_DISCOVERY_TEMPLATE_REPO OIDC_DISCOVERY_REPO_NAME OIDC_DISCOVERY_REPO OIDC_DISCOVERY_PAGES_PROJECT)
+required_vars=(GITHUB_OWNER DEPLOYMENT_REPO_NAME OIDC_DISCOVERY_DOMAIN CLOUDFLARE_ACCOUNT_ID CLOUDFLARE_API_TOKEN CLOUDFLARE_ZONE_ID OIDC_DISCOVERY_PAGES_PROJECT)
 bootstrap_env_require_vars "${required_vars[@]}"
 
 if ! python3 -c 'import re, sys; domain = sys.argv[1]; label = r"(?!-)[a-z0-9-]{1,63}(?<!-)"; pattern = rf"^{label}(\.{label})+$"; sys.exit(0 if re.fullmatch(pattern, domain.lower()) else 1)' "${OIDC_DISCOVERY_DOMAIN}"; then
@@ -67,19 +67,8 @@ done < <(bootstrap_env_each_stack)
 
 mkdir -p "${OUTPUT_DIR}"
 
-local_code_dir="${OUTPUT_DIR}/${OIDC_DISCOVERY_REPO_NAME}"
-bootstrap_env_info "Syncing OIDC discovery template code into ${local_code_dir}"
-rm -rf "${local_code_dir}"
-bootstrap_env_run_quiet gh repo clone "${OIDC_DISCOVERY_TEMPLATE_REPO}" "${local_code_dir}" -- --depth 1
-rm -rf "${local_code_dir}/.git"
-
 companion_summary="${OUTPUT_DIR}/oidc-discovery-companion.env"
 oidc_stack_config="$(bootstrap_env_oidc_discovery_stack_config_json)"
-
-visibility_flag="--private"
-if [[ "${DEPLOYMENT_REPO_VISIBILITY}" == "public" ]]; then
-  visibility_flag="--public"
-fi
 
 cloudflare_headers=(
   -H "Authorization: Bearer ${CLOUDFLARE_API_TOKEN}"
@@ -143,26 +132,6 @@ cloudflare_get_exists() {
     printf '%s\n' "${response}" >&2
   fi
   exit 1
-}
-
-github_repo_missing() {
-  local output="$1"
-
-  python3 -c '
-import sys
-
-output = sys.stdin.read().lower()
-if "could not resolve to a repository" in output:
-    sys.exit(0)
-
-if "http 404" in output and "repo" in output:
-    sys.exit(0)
-
-if "repository was not found" in output:
-    sys.exit(0)
-
-sys.exit(1)
-' <<<"${output}"
 }
 
 cloudflare_post() {
@@ -309,60 +278,19 @@ oidc_pages_target="${OIDC_DISCOVERY_PAGES_PROJECT}.pages.dev"
 dns_records_url="https://api.cloudflare.com/client/v4/zones/${CLOUDFLARE_ZONE_ID}/dns_records"
 dns_lookup_url="${dns_records_url}?name=${OIDC_DISCOVERY_DOMAIN}"
 
-bootstrap_env_info "Ensuring OIDC discovery repository: ${OIDC_DISCOVERY_REPO}"
-repo_view_output=""
-repo_view_error_file="$(mktemp)"
-if gh repo view "${OIDC_DISCOVERY_REPO}" >/dev/null 2>"${repo_view_error_file}"; then
-  rm -f "${repo_view_error_file}"
-  bootstrap_env_info "Companion repo exists, syncing latest template code from ${OIDC_DISCOVERY_TEMPLATE_REPO}"
-  sync_tmp="$(mktemp -d)"
-  bootstrap_env_run_quiet gh repo clone "${OIDC_DISCOVERY_REPO}" "${sync_tmp}/companion" -- --depth 1
-  bootstrap_env_run_quiet gh repo clone "${OIDC_DISCOVERY_TEMPLATE_REPO}" "${sync_tmp}/template" -- --depth 1
-  rsync -a --exclude=.git "${sync_tmp}/template/" "${sync_tmp}/companion/"
-  if git -C "${sync_tmp}/companion" diff --quiet && git -C "${sync_tmp}/companion" diff --cached --quiet; then
-    bootstrap_env_info "Companion repo already up to date"
-  else
-    git -C "${sync_tmp}/companion" add -A
-    git -C "${sync_tmp}/companion" commit -m "Sync from template ${OIDC_DISCOVERY_TEMPLATE_REPO}"
-    git -C "${sync_tmp}/companion" push
-    bootstrap_env_info "Pushed latest template code to ${OIDC_DISCOVERY_REPO}"
-  fi
-  rm -rf "${sync_tmp}"
-else
-  repo_view_output="$(<"${repo_view_error_file}")"
-  rm -f "${repo_view_error_file}"
-  if github_repo_missing "${repo_view_output}"; then
-    bootstrap_env_run_quiet gh repo create "${OIDC_DISCOVERY_REPO}" --template "${OIDC_DISCOVERY_TEMPLATE_REPO}" "${visibility_flag}" --description "LTBase OIDC discovery companion for ${DEPLOYMENT_REPO_NAME}" --clone=false
-  else
-    printf 'GitHub repo lookup failed: %s\n' "${OIDC_DISCOVERY_REPO}" >&2
-    printf '%s\n' "${repo_view_output}" >&2
-    exit 1
-  fi
-fi
-
-capture_stdout_quiet repo_metadata gh api "repos/${OIDC_DISCOVERY_REPO}"
+capture_stdout_quiet repo_metadata gh api "repos/${DEPLOYMENT_REPO}"
 default_branch="$(python3 -c 'import json, sys; data = json.load(sys.stdin); print(data.get("default_branch", "main"))' <<<"${repo_metadata}"
 )"
 
 bootstrap_env_info "Ensuring Pages project: ${OIDC_DISCOVERY_PAGES_PROJECT}"
 if ! cloudflare_get_exists "get Pages project" "${pages_project_url}"; then
-  project_payload="$(python3 - "${OIDC_DISCOVERY_PAGES_PROJECT}" "${GITHUB_OWNER}" "${OIDC_DISCOVERY_REPO_NAME}" "${default_branch}" <<'PY'
+  project_payload="$(python3 - "${OIDC_DISCOVERY_PAGES_PROJECT}" "${default_branch}" <<'PY'
 import json
 import sys
 
 print(json.dumps({
     "name": sys.argv[1],
-    "production_branch": sys.argv[4],
-    "source": {
-        "type": "github",
-        "config": {
-            "owner": sys.argv[2],
-            "repo_name": sys.argv[3],
-            "production_branch": sys.argv[4],
-            "preview_deployment_setting": "none",
-            "production_deployments_enabled": True,
-        },
-    },
+    "production_branch": sys.argv[2],
 }, separators=(",", ":")))
 PY
 )"
@@ -384,12 +312,10 @@ fi
 bootstrap_env_info "Reconciling DNS for OIDC discovery domain: ${OIDC_DISCOVERY_DOMAIN}"
 ensure_oidc_discovery_dns_record
 
-bootstrap_env_info "Configuring companion repository variables and secrets"
-bootstrap_env_run_quiet gh variable set OIDC_DISCOVERY_DOMAIN --repo "${OIDC_DISCOVERY_REPO}" --body "${OIDC_DISCOVERY_DOMAIN}"
-bootstrap_env_run_quiet gh variable set OIDC_DISCOVERY_STACK_CONFIG --repo "${OIDC_DISCOVERY_REPO}" --body "${oidc_stack_config}"
-bootstrap_env_run_quiet gh variable set CLOUDFLARE_ACCOUNT_ID --repo "${OIDC_DISCOVERY_REPO}" --body "${CLOUDFLARE_ACCOUNT_ID}"
-bootstrap_env_run_quiet gh variable set OIDC_DISCOVERY_PAGES_PROJECT --repo "${OIDC_DISCOVERY_REPO}" --body "${OIDC_DISCOVERY_PAGES_PROJECT}"
-bootstrap_env_run_quiet gh secret set CLOUDFLARE_API_TOKEN --repo "${OIDC_DISCOVERY_REPO}" --body "${CLOUDFLARE_API_TOKEN}"
+bootstrap_env_info "Configuring deployment repository variables for OIDC discovery"
+bootstrap_env_run_quiet gh variable set OIDC_DISCOVERY_DOMAIN --repo "${DEPLOYMENT_REPO}" --body "${OIDC_DISCOVERY_DOMAIN}"
+bootstrap_env_run_quiet gh variable set OIDC_DISCOVERY_STACK_CONFIG --repo "${DEPLOYMENT_REPO}" --body "${oidc_stack_config}"
+bootstrap_env_run_quiet gh variable set OIDC_DISCOVERY_PAGES_PROJECT --repo "${DEPLOYMENT_REPO}" --body "${OIDC_DISCOVERY_PAGES_PROJECT}"
 
 create_or_update_discovery_role() {
   local stack="$1"
@@ -423,7 +349,7 @@ create_or_update_discovery_role() {
         },
         "StringLike": {
           "token.actions.githubusercontent.com:sub": [
-            "repo:${OIDC_DISCOVERY_REPO}:ref:refs/heads/${default_branch}"
+            "repo:${DEPLOYMENT_REPO}:ref:refs/heads/${default_branch}"
           ]
         }
       }
@@ -467,8 +393,6 @@ EOF
 
 : >"${companion_summary}"
 cat >>"${companion_summary}" <<EOF
-OIDC_DISCOVERY_REPO=${OIDC_DISCOVERY_REPO}
-OIDC_DISCOVERY_REPO_NAME=${OIDC_DISCOVERY_REPO_NAME}
 OIDC_DISCOVERY_PAGES_PROJECT=${OIDC_DISCOVERY_PAGES_PROJECT}
 OIDC_DISCOVERY_DOMAIN=${OIDC_DISCOVERY_DOMAIN}
 EOF

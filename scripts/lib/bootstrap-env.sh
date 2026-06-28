@@ -310,20 +310,8 @@ bootstrap_env_apply_derivations() {
     PULUMI_BACKEND_URL="s3://${PULUMI_STATE_BUCKET}"
     export PULUMI_BACKEND_URL
   fi
-  if [[ -z "${OIDC_DISCOVERY_TEMPLATE_REPO:-}" ]]; then
-    OIDC_DISCOVERY_TEMPLATE_REPO="Lychee-Technology/ltbase-oidc-discovery-template"
-    export OIDC_DISCOVERY_TEMPLATE_REPO
-  fi
-  if [[ -z "${OIDC_DISCOVERY_REPO_NAME:-}" && -n "${DEPLOYMENT_REPO_NAME:-}" ]]; then
-    OIDC_DISCOVERY_REPO_NAME="${DEPLOYMENT_REPO_NAME}-oidc-discovery"
-    export OIDC_DISCOVERY_REPO_NAME
-  fi
-  if [[ -z "${OIDC_DISCOVERY_REPO:-}" && -n "${GITHUB_OWNER:-}" && -n "${OIDC_DISCOVERY_REPO_NAME:-}" ]]; then
-    OIDC_DISCOVERY_REPO="${GITHUB_OWNER}/${OIDC_DISCOVERY_REPO_NAME}"
-    export OIDC_DISCOVERY_REPO
-  fi
-  if [[ -z "${OIDC_DISCOVERY_PAGES_PROJECT:-}" && -n "${OIDC_DISCOVERY_REPO_NAME:-}" ]]; then
-    OIDC_DISCOVERY_PAGES_PROJECT="${OIDC_DISCOVERY_REPO_NAME}"
+  if [[ -z "${OIDC_DISCOVERY_PAGES_PROJECT:-}" && -n "${DEPLOYMENT_REPO_NAME:-}" ]]; then
+    OIDC_DISCOVERY_PAGES_PROJECT="${DEPLOYMENT_REPO_NAME}-oidc-discovery"
     export OIDC_DISCOVERY_PAGES_PROJECT
   fi
   if [[ -z "${CONTROLPLANE_UI_PAGES_PROJECT:-}" && -n "${DEPLOYMENT_REPO_NAME:-}" ]]; then
