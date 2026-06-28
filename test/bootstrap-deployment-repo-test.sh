@@ -419,7 +419,7 @@ if [[ -x "${SCRIPT_PATH}" ]]; then
   assert_log_contains "${log_file}" "pulumi config set runtimeBucket ltbase-private-deployment-runtime-prod --stack prod"
   assert_log_contains "${log_file}" "pulumi config set schemaBucket ltbase-private-deployment-schema-prod --stack prod"
   assert_log_contains "${log_file}" "pulumi config set apiDomain api.example.com --stack prod"
-  assert_log_contains "${log_file}" "pulumi config set controlPlaneCorsOrigins https://admin.example.com --stack prod"
+  assert_log_contains "${log_file}" "pulumi config set controlPlaneCorsOrigins https://control.example.com,https://admin.example.com --stack prod"
   assert_log_contains "${log_file}" "pulumi config set apiCorsAllowOrigins https://app.example.com,https://admin.example.com --stack prod"
   assert_log_contains "${log_file}" "pulumi config set authCorsAllowOrigins https://auth-ui.example.com,https://admin.example.com --stack prod"
   assert_log_contains "${log_file}" "pulumi config set controlPlaneCorsAllowOrigins https://control.example.com,https://admin.example.com --stack prod"
@@ -492,9 +492,10 @@ if [[ -x "${SCRIPT_PATH}" ]]; then
     fail "expected script to succeed for staging wildcard control-plane CORS, got: ${output}"
   fi
 
-  assert_log_contains "${log_file}" "pulumi config set controlPlaneCorsOrigins https://admin.example.com --stack staging"
+  assert_log_contains "${log_file}" "pulumi config set controlPlaneCorsOrigins * --stack staging"
   assert_log_contains "${log_file}" "pulumi config set controlPlaneCorsAllowOrigins * --stack staging"
   assert_log_not_contains "${log_file}" "pulumi config set controlPlaneCorsAllowOrigins *,https://admin.example.com --stack staging"
+  assert_log_not_contains "${log_file}" "pulumi config set controlPlaneCorsOrigins *,https://admin.example.com --stack staging"
 
   : >"${log_file}"
   if ! output="$(PATH="${fake_bin}:$PATH" "${SCRIPT_PATH}" --env-file "${temp_dir}/firebase-only.env" --stack prod --infra-dir "${temp_dir}/infra" 2>&1)"; then
