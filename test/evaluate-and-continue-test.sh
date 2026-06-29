@@ -465,7 +465,7 @@ case "${SCENARIO}:${command_key}" in
     printf '{"Aliases":[]}'
     exit 0
     ;;
-  oidc_companion_missing:iam\ get-role)
+  oidc_discovery_missing:iam\ get-role)
     if printf '%s\n' "$*" | grep -Fq 'oidc-discovery'; then
       exit 255
     fi
@@ -527,11 +527,11 @@ while [[ ${index} -lt ${#args[@]} ]]; do
       ;;
   esac
 done
-if [[ "${SCENARIO}" == "oidc_companion_missing" && "${method}" == "GET" && "${url}" == *"/pages/projects/customer-ltbase-oidc-discovery" ]]; then
+if [[ "${SCENARIO}" == "oidc_discovery_missing" && "${method}" == "GET" && "${url}" == *"/pages/projects/customer-ltbase-oidc-discovery" ]]; then
   printf 'NOISY_CURL_STDERR expected missing project\n' >&2
   exit 22
 fi
-if [[ "${SCENARIO}" == "oidc_companion_missing" && "${method}" == "GET" && "${url}" == *"/pages/projects/customer-ltbase-oidc-discovery/domains/oidc.customer.example.com" ]]; then
+if [[ "${SCENARIO}" == "oidc_discovery_missing" && "${method}" == "GET" && "${url}" == *"/pages/projects/customer-ltbase-oidc-discovery/domains/oidc.customer.example.com" ]]; then
   printf 'NOISY_CURL_STDERR expected missing domain\n' >&2
   exit 22
 fi
@@ -853,16 +853,16 @@ assert_file_contains "${temp_dir}/report-missing-mtls-stack-config/report.json" 
 run_expect_exit_code 2 env \
   PATH="${temp_dir}/bin:$PATH" \
   COMMAND_LOG="${temp_dir}/commands.log" \
-  SCENARIO="oidc_companion_missing" \
+  SCENARIO="oidc_discovery_missing" \
   "${SCRIPT_PATH}" --env-file "${temp_dir}/.env" --infra-dir "${temp_dir}/infra" --report-dir "${temp_dir}/report-oidc"
 
 assert_file_contains "${temp_dir}/report-oidc/report.json" '"oidcDiscovery"'
-assert_file_contains "${temp_dir}/report-oidc/report.json" '"status": "needs_oidc_companion"'
+assert_file_contains "${temp_dir}/report-oidc/report.json" '"status": "needs_oidc_discovery"'
 
 oidc_missing_output="$(env \
   PATH="${temp_dir}/bin:$PATH" \
   COMMAND_LOG="${temp_dir}/commands.log" \
-  SCENARIO="oidc_companion_missing" \
+  SCENARIO="oidc_discovery_missing" \
   "${SCRIPT_PATH}" --env-file "${temp_dir}/.env" --infra-dir "${temp_dir}/infra" --report-dir "${temp_dir}/report-oidc-quiet" 2>&1 || true)"
 
 assert_log_not_contains <(printf '%s' "${oidc_missing_output}") "NOISY_CURL_STDERR expected missing project"
@@ -874,7 +874,7 @@ run_expect_exit_code 2 env \
   SCENARIO="oidc_missing_dns" \
   "${SCRIPT_PATH}" --env-file "${temp_dir}/.env" --infra-dir "${temp_dir}/infra" --report-dir "${temp_dir}/report-oidc-missing-dns"
 
-assert_file_contains "${temp_dir}/report-oidc-missing-dns/report.json" '"status": "needs_oidc_companion"'
+assert_file_contains "${temp_dir}/report-oidc-missing-dns/report.json" '"status": "needs_oidc_discovery"'
 assert_file_contains "${temp_dir}/report-oidc-missing-dns/report.json" '"pagesDnsPresent": false'
 
 run_expect_exit_code 2 env \
@@ -883,7 +883,7 @@ run_expect_exit_code 2 env \
   SCENARIO="oidc_project_success_false" \
   "${SCRIPT_PATH}" --env-file "${temp_dir}/.env" --infra-dir "${temp_dir}/infra" --report-dir "${temp_dir}/report-oidc-project-success-false"
 
-assert_file_contains "${temp_dir}/report-oidc-project-success-false/report.json" '"status": "needs_oidc_companion"'
+assert_file_contains "${temp_dir}/report-oidc-project-success-false/report.json" '"status": "needs_oidc_discovery"'
 assert_file_contains "${temp_dir}/report-oidc-project-success-false/report.json" '"pagesProjectPresent": false'
 
 run_expect_exit_code 2 env \
@@ -892,7 +892,7 @@ run_expect_exit_code 2 env \
   SCENARIO="oidc_domain_success_false" \
   "${SCRIPT_PATH}" --env-file "${temp_dir}/.env" --infra-dir "${temp_dir}/infra" --report-dir "${temp_dir}/report-oidc-domain-success-false"
 
-assert_file_contains "${temp_dir}/report-oidc-domain-success-false/report.json" '"status": "needs_oidc_companion"'
+assert_file_contains "${temp_dir}/report-oidc-domain-success-false/report.json" '"status": "needs_oidc_discovery"'
 assert_file_contains "${temp_dir}/report-oidc-domain-success-false/report.json" '"pagesDomainPresent": false'
 
 run_expect_exit_code 2 env \
@@ -901,7 +901,7 @@ run_expect_exit_code 2 env \
   SCENARIO="oidc_dns_success_false" \
   "${SCRIPT_PATH}" --env-file "${temp_dir}/.env" --infra-dir "${temp_dir}/infra" --report-dir "${temp_dir}/report-oidc-dns-success-false"
 
-assert_file_contains "${temp_dir}/report-oidc-dns-success-false/report.json" '"status": "needs_oidc_companion"'
+assert_file_contains "${temp_dir}/report-oidc-dns-success-false/report.json" '"status": "needs_oidc_discovery"'
 assert_file_contains "${temp_dir}/report-oidc-dns-success-false/report.json" '"pagesDnsPresent": false'
 
 rm -rf "${temp_dir}/infra"

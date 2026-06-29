@@ -119,7 +119,7 @@ Before you run any bootstrap automation, confirm all of the following:
 - Preflight checks run successfully.
   - Optional review step: `./scripts/render-bootstrap-policies.sh --env-file .env`
   - Recovery-aware preflight: `./scripts/evaluate-and-continue.sh --env-file .env --scope bootstrap --infra-dir infra`
-  - A first-run report that shows `needs_foundation`, `needs_repo_config`, `needs_stack_bootstrap`, or `needs_oidc_companion` is normal.
+  - A first-run report that shows `needs_foundation`, `needs_repo_config`, `needs_stack_bootstrap`, or `needs_oidc_discovery` is normal.
   - Fix hard validation or authentication failures before you add `--force`.
 
 For the detailed step-by-step one-click preparation and preflight process, use:

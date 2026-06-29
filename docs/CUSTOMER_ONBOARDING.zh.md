@@ -120,7 +120,7 @@
 - Preflight 检查可以正常运行。
   - 可选审阅步骤：`./scripts/render-bootstrap-policies.sh --env-file .env`
   - 恢复感知的预检查：`./scripts/evaluate-and-continue.sh --env-file .env --scope bootstrap --infra-dir infra`
-  - 第一次运行时报告里出现 `needs_foundation`、`needs_repo_config`、`needs_stack_bootstrap` 或 `needs_oidc_companion` 是正常的。
+  - 第一次运行时报告里出现 `needs_foundation`、`needs_repo_config`、`needs_stack_bootstrap` 或 `needs_oidc_discovery` 是正常的。
   - 先修复硬性校验错误或认证错误，再加上 `--force`。
 
 关于一键 bootstrap 的详细准备步骤和 preflight 过程，请看：

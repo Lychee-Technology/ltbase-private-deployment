@@ -329,7 +329,7 @@ scan_oidc_discovery_state() {
   local pages_domain_present="false"
   local pages_dns_present="false"
   local roles_present="false"
-  local status="needs_oidc_companion"
+  local status="needs_oidc_discovery"
 
   if [[ "${SCOPE}" == "foundation" ]]; then
     status="skipped"
@@ -513,7 +513,7 @@ report = {
     "oidcDiscovery": {
         "pagesProject": oidc_pages_project,
         "domain": oidc_domain,
-        "status": oidc_values.get("OIDC_DISCOVERY_STATUS", "needs_oidc_companion"),
+        "status": oidc_values.get("OIDC_DISCOVERY_STATUS", "needs_oidc_discovery"),
         "pagesProjectPresent": oidc_values.get("OIDC_DISCOVERY_PAGES_PROJECT_PRESENT", "false") == "true",
         "pagesDomainPresent": oidc_values.get("OIDC_DISCOVERY_PAGES_DOMAIN_PRESENT", "false") == "true",
         "pagesDnsPresent": oidc_values.get("OIDC_DISCOVERY_PAGES_DNS_PRESENT", "false") == "true",
@@ -544,7 +544,7 @@ has_non_complete_status() {
 run_force_actions() {
   local needs_foundation="false"
   local needs_repo="false"
-  local needs_oidc_companion="false"
+  local needs_oidc_discovery="false"
   local has_dsql_reconcile="false"
   local has_needs_rollout="false"
   local first_needs_rollout_stack=""
@@ -573,7 +573,7 @@ run_force_actions() {
   # shellcheck disable=SC1090
   source "${oidc_status_file}"
   if [[ "${OIDC_DISCOVERY_STATUS}" != "complete" && "${OIDC_DISCOVERY_STATUS}" != "skipped" ]]; then
-    needs_oidc_companion="true"
+    needs_oidc_discovery="true"
   fi
 
   if [[ "${needs_foundation}" == "true" ]]; then
@@ -615,8 +615,8 @@ run_force_actions() {
     done < <(bootstrap_env_each_stack "${PROMOTION_PATH}")
   fi
 
-  if [[ "${needs_oidc_companion}" == "true" && "${SCOPE}" != "foundation" ]]; then
-    bootstrap_env_info "Reconciling OIDC discovery companion"
+  if [[ "${needs_oidc_discovery}" == "true" && "${SCOPE}" != "foundation" ]]; then
+    bootstrap_env_info "Reconciling OIDC discovery"
     run_logged "${script_dir}/bootstrap-oidc-discovery-companion.sh" --env-file "${ENV_FILE}"
   fi
 

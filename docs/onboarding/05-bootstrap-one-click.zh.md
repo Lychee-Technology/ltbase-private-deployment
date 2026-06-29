@@ -84,11 +84,11 @@ AWS_PROFILE_STAGING=customer-staging aws sts get-caller-identity
 
 你应该这样理解输出结果：
 
-- 第一次运行时出现 `needs_foundation`、`needs_repo_config`、`needs_stack_bootstrap` 或 `needs_oidc_companion` 是正常的
+- 第一次运行时出现 `needs_foundation`、`needs_repo_config`、`needs_stack_bootstrap` 或 `needs_oidc_discovery` 是正常的
 - 如果出现缺少必填变量这类硬性校验错误，则不正常，应先修复
 - GitHub、AWS、Cloudflare 或 Pulumi 的认证错误都属于阻塞问题，应先修复
 - 该命令还会把机器可读报告写入 `dist/evaluate-and-continue/report.json`
-- OIDC companion 只有在 companion repo、Pages project、自定义域名绑定、所需 `CNAME` 和 discovery IAM roles 都存在时，才会被视为 `complete`
+- OIDC discovery 只有在 Pages project、自定义域名绑定、所需 `CNAME` 和 discovery IAM roles 都存在时，才会被视为 `complete`
 - 当前 Control Plane UI 输入应该在这一步之前就已经填入 `.env`，这样后续 bootstrap 阶段才能发布 companion runtime config 并写入 `ltbase-infra:controlPlaneCorsOrigins`
 
 ## 操作步骤

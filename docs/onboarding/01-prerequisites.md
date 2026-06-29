@@ -83,16 +83,14 @@ If you do not have these permissions, do not guess or keep retrying bootstrap. U
 The authenticated GitHub account must be able to:
 
 - create the deployment repository from template under `GITHUB_OWNER`
-- read repository metadata for the deployment repository and the OIDC discovery companion repository
+- read repository metadata for the deployment repository
 - create GitHub environments for every stack after the first promotion hop
 - write repository variables in the deployment repository
 - write repository secrets in the deployment repository
-- create the OIDC discovery companion repository from template when that repository does not already exist
-- write repository variables in the OIDC discovery companion repository
 
 In practice, this is enough for these bootstrap actions:
 
-- `gh repo create` for the deployment repository and companion repository
+- `gh repo create` for the deployment repository
 - `gh api .../environments/<stack> --method PUT`
 - `gh variable set ...`
 - `gh secret set ...`
@@ -116,7 +114,7 @@ For the first stack account in `PROMOTION_PATH`, the bootstrap operator also nee
 - enable default bucket encryption
 - enable public access block settings
 
-For the OIDC discovery companion flow, the bootstrap operator also needs permission in each stack account to:
+For the OIDC discovery Pages publishing flow, the bootstrap operator also needs permission in each stack account to:
 
 - read or create the OIDC discovery IAM role
 - update that role trust policy

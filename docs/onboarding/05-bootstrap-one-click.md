@@ -84,11 +84,11 @@ Use this step when you want to inspect the trust policies and inline role polici
 
 What to expect:
 
-- first-run statuses such as `needs_foundation`, `needs_repo_config`, `needs_stack_bootstrap`, or `needs_oidc_companion` are normal
+- first-run statuses such as `needs_foundation`, `needs_repo_config`, `needs_stack_bootstrap`, or `needs_oidc_discovery` are normal
 - hard validation failures such as missing required variables are not normal and should be fixed before continuing
 - authentication failures from GitHub, AWS, Cloudflare, or Pulumi are blockers and should be fixed before continuing
 - the command also writes a machine-readable report to `dist/evaluate-and-continue/report.json`
-- the OIDC companion is only `complete` when the companion repo, Pages project, custom domain binding, required `CNAME`, and discovery IAM roles are all present
+- OIDC discovery is only `complete` when the Pages project, custom domain binding, required `CNAME`, and discovery IAM roles are all present
 - the current Control Plane UI inputs should already be in `.env` before this step so later bootstrap stages can publish the companion runtime config and write `ltbase-infra:controlPlaneCorsOrigins`
 
 ## Steps
