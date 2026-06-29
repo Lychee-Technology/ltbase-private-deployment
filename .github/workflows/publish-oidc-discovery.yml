@@ -23,7 +23,8 @@ jobs:
     steps:
       - uses: actions/checkout@v6
         with:
-          repository: Lychee-Technology/ltbase-oidc-discovery-template
+          repository: ${{ vars.OIDC_DISCOVERY_TEMPLATE_REPO }}
+          ref: ${{ vars.OIDC_DISCOVERY_TEMPLATE_REF }}
           path: oidc-template
 
       - name: Generate discovery documents
@@ -35,8 +36,8 @@ jobs:
         working-directory: oidc-template
         run: scripts/build-discovery.sh
 
-      - name: Deploy to Cloudflare Pages
-        timeout-minutes: 10
+      - name: Stage discovery site
+        id: stage
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
@@ -48,15 +49,15 @@ jobs:
           output_dir="${OIDC_DISCOVERY_OUTPUT_DIR}"
 
           if [[ -z "${CLOUDFLARE_API_TOKEN}" ]]; then
-            echo "::error::CLOUDFLARE_API_TOKEN repo secret is not set"
+            echo "CLOUDFLARE_API_TOKEN repo secret is not set" >&2
             exit 1
           fi
           if [[ -z "${CLOUDFLARE_ACCOUNT_ID}" ]]; then
-            echo "::error::CLOUDFLARE_ACCOUNT_ID repo variable is not set"
+            echo "CLOUDFLARE_ACCOUNT_ID repo variable is not set" >&2
             exit 1
           fi
           if [[ -z "${OIDC_DISCOVERY_PAGES_PROJECT}" ]]; then
-            echo "::error::OIDC_DISCOVERY_PAGES_PROJECT repo variable is not set"
+            echo "OIDC_DISCOVERY_PAGES_PROJECT repo variable is not set" >&2
             exit 1
           fi
 
@@ -75,9 +76,19 @@ jobs:
           shopt -u nullglob
 
           if [[ -z "$(ls -A "${site_dir}")" ]]; then
-            echo "::error::No generated stack content found to deploy"
+            echo "No generated stack content found to deploy" >&2
             exit 1
           fi
 
-          npm install --global wrangler@3.114.17
-          wrangler pages deploy "${site_dir}" --project-name "${OIDC_DISCOVERY_PAGES_PROJECT}" --branch main
+          echo "site_dir=${site_dir}" >>"${GITHUB_OUTPUT}"
+
+      - name: Deploy to Cloudflare Pages
+        uses: cloudflare/wrangler-action@v3
+        timeout-minutes: 10
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
+          command: >-
+            pages deploy ${{ steps.stage.outputs.site_dir }}
+            --project-name ${{ vars.OIDC_DISCOVERY_PAGES_PROJECT }}
+            --branch main

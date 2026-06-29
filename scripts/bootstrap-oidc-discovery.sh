@@ -67,7 +67,7 @@ done < <(bootstrap_env_each_stack)
 
 mkdir -p "${OUTPUT_DIR}"
 
-companion_summary="${OUTPUT_DIR}/oidc-discovery-companion.env"
+oidc_discovery_summary="${OUTPUT_DIR}/oidc-discovery.env"
 oidc_stack_config="$(bootstrap_env_oidc_discovery_stack_config_json)"
 
 cloudflare_headers=(
@@ -316,6 +316,8 @@ bootstrap_env_info "Configuring deployment repository variables for OIDC discove
 bootstrap_env_run_quiet gh variable set OIDC_DISCOVERY_DOMAIN --repo "${DEPLOYMENT_REPO}" --body "${OIDC_DISCOVERY_DOMAIN}"
 bootstrap_env_run_quiet gh variable set OIDC_DISCOVERY_STACK_CONFIG --repo "${DEPLOYMENT_REPO}" --body "${oidc_stack_config}"
 bootstrap_env_run_quiet gh variable set OIDC_DISCOVERY_PAGES_PROJECT --repo "${DEPLOYMENT_REPO}" --body "${OIDC_DISCOVERY_PAGES_PROJECT}"
+bootstrap_env_run_quiet gh variable set OIDC_DISCOVERY_TEMPLATE_REPO --repo "${DEPLOYMENT_REPO}" --body "${OIDC_DISCOVERY_TEMPLATE_REPO}"
+bootstrap_env_run_quiet gh variable set OIDC_DISCOVERY_TEMPLATE_REF --repo "${DEPLOYMENT_REPO}" --body "${OIDC_DISCOVERY_TEMPLATE_REF}"
 
 create_or_update_discovery_role() {
   local stack="$1"
@@ -386,13 +388,13 @@ EOF
   bootstrap_env_run_quiet bootstrap_env_aws_command_for_stack "${stack}" iam update-assume-role-policy --role-name "${role_name}" --policy-document "file://${trust_policy_path}"
   bootstrap_env_run_quiet bootstrap_env_aws_command_for_stack "${stack}" iam put-role-policy --role-name "${role_name}" --policy-name LTBaseOIDCDiscoveryAccess --policy-document "file://${role_policy_path}"
 
-  cat >>"${companion_summary}" <<EOF
+  cat >>"${oidc_discovery_summary}" <<EOF
 OIDC_DISCOVERY_AWS_ROLE_ARN_${upper_name}=${role_arn}
 EOF
 }
 
-: >"${companion_summary}"
-cat >>"${companion_summary}" <<EOF
+: >"${oidc_discovery_summary}"
+cat >>"${oidc_discovery_summary}" <<EOF
 OIDC_DISCOVERY_PAGES_PROJECT=${OIDC_DISCOVERY_PAGES_PROJECT}
 OIDC_DISCOVERY_DOMAIN=${OIDC_DISCOVERY_DOMAIN}
 EOF
@@ -400,7 +402,7 @@ EOF
 while IFS= read -r stack; do
   upper_name="$(bootstrap_env_stack_upper "${stack}")"
   create_or_update_discovery_role "${stack}"
-  cat >>"${companion_summary}" <<EOF
+  cat >>"${oidc_discovery_summary}" <<EOF
 OIDC_ISSUER_URL_${upper_name}=$(bootstrap_env_resolve_stack_value OIDC_ISSUER_URL "${stack}")
 JWKS_URL_${upper_name}=$(bootstrap_env_resolve_stack_value JWKS_URL "${stack}")
 EOF

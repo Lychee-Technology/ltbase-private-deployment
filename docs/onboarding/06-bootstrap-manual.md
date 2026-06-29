@@ -144,17 +144,19 @@ Before you run this stage, confirm:
 Run:
 
 ```bash
-./scripts/bootstrap-oidc-discovery-companion.sh --env-file .env
+./scripts/bootstrap-oidc-discovery.sh --env-file .env
 ```
 
 This step creates or updates the OIDC discovery Cloudflare Pages project (direct upload, no companion repository), custom domain binding, the required zone DNS `CNAME` pointing at `${OIDC_DISCOVERY_PAGES_PROJECT}.pages.dev`, and per-stack OIDC discovery IAM roles.
 
 After this step, confirm:
 
-- the deployment repository has GitHub repository variables `OIDC_DISCOVERY_DOMAIN`, `OIDC_DISCOVERY_STACK_CONFIG`, and `OIDC_DISCOVERY_PAGES_PROJECT`
+- the deployment repository has GitHub repository variables `OIDC_DISCOVERY_DOMAIN`, `OIDC_DISCOVERY_STACK_CONFIG`, `OIDC_DISCOVERY_PAGES_PROJECT`, `OIDC_DISCOVERY_TEMPLATE_REPO`, and `OIDC_DISCOVERY_TEMPLATE_REF`
 - the Cloudflare Pages project and custom domain binding were created
 - the Cloudflare zone now contains the expected `CNAME` for `OIDC_DISCOVERY_DOMAIN`
 - the per-stack OIDC discovery IAM roles now exist
+
+> The per-stack OIDC discovery IAM roles trust only `repo:<DEPLOYMENT_REPO>:ref:refs/heads/<default_branch>`. Run the **Publish OIDC Discovery Documents** workflow from the deployment repository's default branch — dispatching it from any other branch fails AWS role assumption.
 
 ### 7. Bootstrap the current Control Plane UI companion setup
 

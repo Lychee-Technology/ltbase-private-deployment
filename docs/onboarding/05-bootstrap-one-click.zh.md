@@ -127,14 +127,14 @@ AWS_PROFILE_STAGING=customer-staging aws sts get-caller-identity
 - `create-deployment-repo.sh`
 - `render-bootstrap-policies.sh`
 - `bootstrap-aws-foundation.sh`
-- `bootstrap-oidc-discovery-companion.sh`
+- `bootstrap-oidc-discovery.sh`
 - `bootstrap-controlplane-ui-companion.sh`
 - `bootstrap-deployment-repo.sh --stack <STACKS 中的每个 stack>`
 - 当设置了 `--release-id` 时，可选执行 `gh workflow run rollout.yml ...`
 
 `bootstrap-aws-foundation.sh` 会先在 `PROMOTION_PATH` 第一个 stack 对应的 AWS 账户中创建一次共享 Pulumi backend bucket，然后为 `STACKS` 中每个 stack 准备各自的 role 和 secrets provider 输入。
 
-`bootstrap-oidc-discovery-companion.sh` 还会为 `OIDC_DISCOVERY_DOMAIN` 创建必需的 Cloudflare DNS `CNAME`，让这个自定义域名直接解析到 `${OIDC_DISCOVERY_PAGES_PROJECT}.pages.dev`。
+`bootstrap-oidc-discovery.sh` 还会为 `OIDC_DISCOVERY_DOMAIN` 创建必需的 Cloudflare DNS `CNAME`，让这个自定义域名直接解析到 `${OIDC_DISCOVERY_PAGES_PROJECT}.pages.dev`。
 
 `bootstrap-controlplane-ui-companion.sh` 当前会创建或更新 control-plane UI companion 仓库，确保其 Cloudflare Pages project 和自定义域名，写入包括 `CONTROLPLANE_UI_STACK_CONFIG` 在内的 companion 仓库变量，并用每个 stack 的 Firebase/Supabase 公开浏览器配置更新 `public/ltbase-controlplane.config.json`。
 

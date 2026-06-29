@@ -617,7 +617,7 @@ run_force_actions() {
 
   if [[ "${needs_oidc_discovery}" == "true" && "${SCOPE}" != "foundation" ]]; then
     bootstrap_env_info "Reconciling OIDC discovery"
-    run_logged "${script_dir}/bootstrap-oidc-discovery-companion.sh" --env-file "${ENV_FILE}"
+    run_logged "${script_dir}/bootstrap-oidc-discovery.sh" --env-file "${ENV_FILE}"
   fi
 
   if [[ "${needs_repo}" == "true" && "${SCOPE}" != "foundation" ]]; then

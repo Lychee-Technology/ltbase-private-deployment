@@ -3,7 +3,7 @@
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
-SCRIPT_PATH="${ROOT_DIR}/scripts/bootstrap-oidc-discovery-companion.sh"
+SCRIPT_PATH="${ROOT_DIR}/scripts/bootstrap-oidc-discovery.sh"
 
 fail() {
   printf 'FAIL: %s\n' "$1" >&2
@@ -248,6 +248,8 @@ assert_log_not_contains "${log_file}" "gh repo view"
 assert_log_contains "${log_file}" "gh variable set OIDC_DISCOVERY_DOMAIN --repo customer-org/customer-ltbase --body oidc.customer.example.com"
 assert_log_contains "${log_file}" "gh variable set OIDC_DISCOVERY_STACK_CONFIG --repo customer-org/customer-ltbase"
 assert_log_contains "${log_file}" "gh variable set OIDC_DISCOVERY_PAGES_PROJECT --repo customer-org/customer-ltbase --body customer-ltbase-oidc-discovery"
+assert_log_contains "${log_file}" "gh variable set OIDC_DISCOVERY_TEMPLATE_REPO --repo customer-org/customer-ltbase --body Lychee-Technology/ltbase-oidc-discovery-template"
+assert_log_contains "${log_file}" "gh variable set OIDC_DISCOVERY_TEMPLATE_REF --repo customer-org/customer-ltbase --body main"
 assert_log_not_contains "${log_file}" "gh secret set"
 assert_log_not_contains "${log_file}" "gh repo clone"
 assert_log_not_contains "${log_file}" "gh repo view"
@@ -255,6 +257,19 @@ assert_log_not_contains "${log_file}" "gh repo view"
 # Should still manage Pages, domain, DNS, IAM
 assert_log_contains "${log_file}" "https://api.cloudflare.com/client/v4/accounts/cf-account-123/pages/projects"
 assert_log_contains "${log_file}" "https://api.cloudflare.com/client/v4/accounts/cf-account-123/pages/projects/customer-ltbase-oidc-discovery/domains"
+
+# Pages project must be created as a direct-upload project (no GitHub source block)
+pages_create_line="$(grep -F "/pages/projects --data" "${log_file}" || true)"
+if [[ -z "${pages_create_line}" ]]; then
+  fail "expected a Pages project create POST with a payload"
+fi
+case "${pages_create_line}" in
+  *'"production_branch"'*) ;;
+  *) fail "expected production_branch in Pages project create payload" ;;
+esac
+case "${pages_create_line}" in
+  *'"source"'*) fail "Pages project must be created as direct upload (no source block)" ;;
+esac
 assert_log_contains "${log_file}" "https://api.cloudflare.com/client/v4/zones/zone-123/dns_records?name=oidc.customer.example.com"
 assert_log_contains "${log_file}" "https://api.cloudflare.com/client/v4/zones/zone-123/dns_records"
 assert_log_contains "${log_file}" "aws --profile devo-profile iam create-role --role-name customer-ltbase-oidc-discovery-devo"
@@ -265,13 +280,13 @@ assert_log_contains "${log_file}" "aws --profile devo-profile iam put-role-polic
 assert_log_contains "${log_file}" "gh api repos/customer-org/customer-ltbase"
 
 # Summary should NOT contain companion repo references
-assert_file_contains "${temp_dir}/dist/oidc-discovery-companion.env" "OIDC_DISCOVERY_PAGES_PROJECT=customer-ltbase-oidc-discovery"
-assert_file_contains "${temp_dir}/dist/oidc-discovery-companion.env" "OIDC_DISCOVERY_DOMAIN=oidc.customer.example.com"
-assert_file_contains "${temp_dir}/dist/oidc-discovery-companion.env" "OIDC_ISSUER_URL_DEVO=https://oidc.customer.example.com/devo"
-assert_file_contains "${temp_dir}/dist/oidc-discovery-companion.env" "JWKS_URL_PROD=https://oidc.customer.example.com/prod/.well-known/jwks.json"
+assert_file_contains "${temp_dir}/dist/oidc-discovery.env" "OIDC_DISCOVERY_PAGES_PROJECT=customer-ltbase-oidc-discovery"
+assert_file_contains "${temp_dir}/dist/oidc-discovery.env" "OIDC_DISCOVERY_DOMAIN=oidc.customer.example.com"
+assert_file_contains "${temp_dir}/dist/oidc-discovery.env" "OIDC_ISSUER_URL_DEVO=https://oidc.customer.example.com/devo"
+assert_file_contains "${temp_dir}/dist/oidc-discovery.env" "JWKS_URL_PROD=https://oidc.customer.example.com/prod/.well-known/jwks.json"
 
 # Summary should NOT contain companion repo or repo name
-if grep -q "OIDC_DISCOVERY_REPO=" "${temp_dir}/dist/oidc-discovery-companion.env"; then
+if grep -q "OIDC_DISCOVERY_REPO=" "${temp_dir}/dist/oidc-discovery.env"; then
   fail "summary should not contain OIDC_DISCOVERY_REPO"
 fi
 
@@ -416,4 +431,4 @@ assert_log_contains "${temp_dir}/cloudflare-success-false-get.log" "Cloudflare A
 assert_log_contains "${temp_dir}/cloudflare-success-false-get.log" "project lookup failed"
 assert_log_not_contains "${log_file}" "https://api.cloudflare.com/client/v4/accounts/cf-account-123/pages/projects --data"
 
-printf 'PASS: bootstrap-oidc-discovery-companion tests\n'
+printf 'PASS: bootstrap-oidc-discovery tests\n'

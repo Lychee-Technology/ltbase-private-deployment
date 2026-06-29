@@ -143,16 +143,19 @@ source dist/foundation.env
 执行：
 
 ```bash
-./scripts/bootstrap-oidc-discovery-companion.sh --env-file .env
+./scripts/bootstrap-oidc-discovery.sh --env-file .env
 ```
 
 该步骤会创建或更新 OIDC discovery Cloudflare Pages 项目（直接上传，无 companion 仓库）、自定义域名绑定、所需的 zone DNS `CNAME`（指向 `${OIDC_DISCOVERY_PAGES_PROJECT}.pages.dev`），以及每个 stack 对应的 OIDC discovery IAM role。
 
 执行后检查：
 
-- 部署仓库中已经配置 GitHub repository variables `OIDC_DISCOVERY_DOMAIN`、`OIDC_DISCOVERY_STACK_CONFIG` 和 `OIDC_DISCOVERY_PAGES_PROJECT`
+- 部署仓库中已经配置 GitHub repository variables `OIDC_DISCOVERY_DOMAIN`、`OIDC_DISCOVERY_STACK_CONFIG`、`OIDC_DISCOVERY_PAGES_PROJECT`、`OIDC_DISCOVERY_TEMPLATE_REPO` 和 `OIDC_DISCOVERY_TEMPLATE_REF`
 - Cloudflare Pages 项目与自定义域名绑定已经创建
+- Cloudflare zone 中已经包含 `OIDC_DISCOVERY_DOMAIN` 对应的 `CNAME`
 - 每个 stack 对应的 OIDC discovery IAM role 已存在
+
+> 每个 stack 的 OIDC discovery IAM role 只信任 `repo:<DEPLOYMENT_REPO>:ref:refs/heads/<default_branch>`。请从部署仓库的默认分支运行 **Publish OIDC Discovery Documents** 工作流——从其他分支触发会导致 AWS 角色假设失败。
 
 ### 7. 初始化当前 Control Plane UI companion setup
 

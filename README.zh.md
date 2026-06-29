@@ -78,7 +78,7 @@ onboarding 文档支持通用多 stack 拓扑。文中出现 `devo`、`prod` 等
 - `scripts/render-bootstrap-policies.sh`
 - `scripts/create-deployment-repo.sh`
 - `scripts/bootstrap-aws-foundation.sh`
-- `scripts/bootstrap-oidc-discovery-companion.sh`
+- `scripts/bootstrap-oidc-discovery.sh`
 - `scripts/bootstrap-controlplane-ui-companion.sh`
 - `scripts/bootstrap-pulumi-backend.sh`
 - `scripts/bootstrap-deployment-repo.sh`
@@ -93,7 +93,7 @@ onboarding 文档支持通用多 stack 拓扑。文中出现 `devo`、`prod` 等
 - `./scripts/evaluate-and-continue.sh --env-file .env --scope bootstrap --force`
 - `./scripts/evaluate-and-continue.sh --env-file .env --scope bootstrap --force --release-id <release>`
 
-当前 bootstrap 流程还会自动管理客户专属的 `*-oidc-discovery` companion repo、对应的 Cloudflare Pages project 与自定义域名，以及 companion publish workflow 需要假设的每个 stack 的只读 discovery role。
+当前 bootstrap 流程还会管理 OIDC discovery Cloudflare Pages 项目（以直接上传方式创建，无 companion 仓库）、其自定义域名绑定、指向 `${OIDC_DISCOVERY_PAGES_PROJECT}.pages.dev` 的 zone 级 `CNAME`，以及每个 stack 的只读 discovery role。随后由部署仓库自身的 `publish-oidc-discovery.yml` 工作流生成 discovery 文档，并通过 `wrangler pages deploy` 发布。
 
 在当前仓库版本中，`scripts/bootstrap-controlplane-ui-companion.sh` 还会管理客户专属的 `*-controlplane-ui` companion repo、对应的 Cloudflare Pages project、自定义域名绑定、指向 `${CONTROLPLANE_UI_PAGES_PROJECT}.pages.dev` 的 zone 级 `CNAME`，以及通过 companion 仓库变量 `CONTROLPLANE_UI_STACK_CONFIG` 发布到 `public/ltbase-controlplane.config.json` 的 runtime config JSON。
 

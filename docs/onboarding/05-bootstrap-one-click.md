@@ -127,14 +127,14 @@ The one-click script runs these stages in order:
 - `create-deployment-repo.sh`
 - `render-bootstrap-policies.sh`
 - `bootstrap-aws-foundation.sh`
-- `bootstrap-oidc-discovery-companion.sh`
+- `bootstrap-oidc-discovery.sh`
 - `bootstrap-controlplane-ui-companion.sh`
 - `bootstrap-deployment-repo.sh --stack <each stack in STACKS>`
 - optional `gh workflow run rollout.yml ...` when `--release-id` is set
 
 `bootstrap-aws-foundation.sh` creates the shared Pulumi backend bucket once in the AWS account for the first stack in `PROMOTION_PATH`, then prepares per-stack role and secrets-provider inputs for every stack in `STACKS`.
 
-`bootstrap-oidc-discovery-companion.sh` also creates the required Cloudflare DNS `CNAME` for `OIDC_DISCOVERY_DOMAIN` so the custom domain resolves directly to `${OIDC_DISCOVERY_PAGES_PROJECT}.pages.dev`.
+`bootstrap-oidc-discovery.sh` also creates the required Cloudflare DNS `CNAME` for `OIDC_DISCOVERY_DOMAIN` so the custom domain resolves directly to `${OIDC_DISCOVERY_PAGES_PROJECT}.pages.dev`.
 
 `bootstrap-controlplane-ui-companion.sh` currently creates or updates the control-plane UI companion repository, ensures its Cloudflare Pages project and custom domain, writes companion repository variables including `CONTROLPLANE_UI_STACK_CONFIG`, and updates `public/ltbase-controlplane.config.json` with per-stack public browser config for Firebase and Supabase.
 

@@ -80,7 +80,7 @@ Important files and scripts:
 - `scripts/render-bootstrap-policies.sh`
 - `scripts/create-deployment-repo.sh`
 - `scripts/bootstrap-aws-foundation.sh`
-- `scripts/bootstrap-oidc-discovery-companion.sh`
+- `scripts/bootstrap-oidc-discovery.sh`
 - `scripts/bootstrap-controlplane-ui-companion.sh`
 - `scripts/bootstrap-pulumi-backend.sh`
 - `scripts/bootstrap-deployment-repo.sh`
