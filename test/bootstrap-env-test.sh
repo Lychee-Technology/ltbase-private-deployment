@@ -76,4 +76,32 @@ assert_eq 'unchanged' "${captured}" 'bootstrap_env_capture_quiet should not over
 assert_file_eq '' "${stdout_file}" 'bootstrap_env_capture_quiet should not replay output to stdout on failure'
 assert_file_eq $'capture failed stdout\ncapture failed stderr' "${stderr_file}" 'bootstrap_env_capture_quiet should replay combined output to stderr on failure'
 
+# ---------- derivation regression: no OIDC_DISCOVERY_TEMPLATE_* defaults ----------
+
+env_file="${temp_dir}/test-env"
+cat >"${env_file}" <<'ENVEOF'
+STACKS=devo
+PROMOTION_PATH=devo
+GITHUB_OWNER=customer-org
+DEPLOYMENT_REPO_NAME=customer-ltbase
+PULUMI_STATE_BUCKET=test-bucket
+AWS_REGION_DEVO=ap-northeast-1
+AWS_ACCOUNT_ID_DEVO=123456789012
+AWS_ROLE_NAME_DEVO=ltbase-deploy-devo
+PULUMI_KMS_ALIAS=alias/ltbase-pulumi-secrets
+OIDC_DISCOVERY_DOMAIN=oidc.customer.example.com
+ENVEOF
+
+bootstrap_env_load "${env_file}"
+
+if [[ -n "${OIDC_DISCOVERY_TEMPLATE_REPO:-}" ]]; then
+  fail "OIDC_DISCOVERY_TEMPLATE_REPO should not be derived by bootstrap_env_load"
+fi
+if [[ -n "${OIDC_DISCOVERY_TEMPLATE_REF:-}" ]]; then
+  fail "OIDC_DISCOVERY_TEMPLATE_REF should not be derived by bootstrap_env_load"
+fi
+if [[ "${OIDC_DISCOVERY_PAGES_PROJECT:-}" != "customer-ltbase-oidc-discovery" ]]; then
+  fail "OIDC_DISCOVERY_PAGES_PROJECT should still be derived: expected customer-ltbase-oidc-discovery, got ${OIDC_DISCOVERY_PAGES_PROJECT:-}"
+fi
+
 printf 'PASS: bootstrap-env tests\n'

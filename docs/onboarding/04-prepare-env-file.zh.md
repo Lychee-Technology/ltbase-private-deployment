@@ -171,7 +171,7 @@
 - preview 与 rollout 需要每个 stack 都有有效的 `SCHEMA_BUCKET_<STACK>` repository variable；bootstrap 会根据 `.env` 或推导默认值写入这些值
 - bootstrap 会把 `ltbase-infra:controlPlaneCorsOrigins=https://<CONTROLPLANE_UI_DOMAIN>` 写入 stack 配置，让部署后的 control-plane API 接受来自 admin UI 域名的浏览器请求
 - 在操作者尝试使用 admin UI 前，先在身份提供方中允许 `https://<CONTROLPLANE_UI_DOMAIN>/auth/callback`，并至少为目标 LTBase project 绑定一个管理员用户或管理员用户组
-- 以下变量由 `scripts/lib/bootstrap-env.sh` 自动派生，通常不需要手动填写：`DEPLOYMENT_REPO`、`PULUMI_BACKEND_URL`、`PULUMI_SECRETS_PROVIDER_*`、`AWS_ROLE_ARN_*`、`OIDC_ISSUER_URL_*`、`JWKS_URL_*`、`RUNTIME_BUCKET_*`、`TABLE_NAME_*`、`GITHUB_ORG`、`GITHUB_REPO`、`OIDC_DISCOVERY_PAGES_PROJECT`、`OIDC_DISCOVERY_TEMPLATE_REPO`、`OIDC_DISCOVERY_TEMPLATE_REF`、`OIDC_DISCOVERY_AWS_ROLE_NAME_*`、`OIDC_DISCOVERY_AWS_ROLE_ARN_*`、`PREVIEW_DEFAULT_STACK`
+- 以下变量由 `scripts/lib/bootstrap-env.sh` 自动派生，通常不需要手动填写：`DEPLOYMENT_REPO`、`PULUMI_BACKEND_URL`、`PULUMI_SECRETS_PROVIDER_*`、`AWS_ROLE_ARN_*`、`OIDC_ISSUER_URL_*`、`JWKS_URL_*`、`RUNTIME_BUCKET_*`、`TABLE_NAME_*`、`GITHUB_ORG`、`GITHUB_REPO`、`OIDC_DISCOVERY_PAGES_PROJECT`、`OIDC_DISCOVERY_AWS_ROLE_NAME_*`、`OIDC_DISCOVERY_AWS_ROLE_ARN_*`、`PREVIEW_DEFAULT_STACK`
 
 ## 预期结果
 

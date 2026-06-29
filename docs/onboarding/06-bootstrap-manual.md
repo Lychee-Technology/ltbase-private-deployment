@@ -151,7 +151,7 @@ This step creates or updates the OIDC discovery Cloudflare Pages project (direct
 
 After this step, confirm:
 
-- the deployment repository has GitHub repository variables `OIDC_DISCOVERY_DOMAIN`, `OIDC_DISCOVERY_STACK_CONFIG`, `OIDC_DISCOVERY_PAGES_PROJECT`, `OIDC_DISCOVERY_TEMPLATE_REPO`, and `OIDC_DISCOVERY_TEMPLATE_REF`
+- the deployment repository has GitHub repository variables `OIDC_DISCOVERY_DOMAIN`, `OIDC_DISCOVERY_STACK_CONFIG`, and `OIDC_DISCOVERY_PAGES_PROJECT`
 - the Cloudflare Pages project and custom domain binding were created
 - the Cloudflare zone now contains the expected `CNAME` for `OIDC_DISCOVERY_DOMAIN`
 - the per-stack OIDC discovery IAM roles now exist
