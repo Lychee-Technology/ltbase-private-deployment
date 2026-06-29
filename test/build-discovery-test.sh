@@ -207,6 +207,40 @@ if KMS_PUBLIC_KEY_B64="${kms_public_key_b64}" \
   fail "expected failure with unknown target stack"
 fi
 
+# ---------- Test 6b: stack config missing a required inner field ----------
+
+output_dir="${temp_dir}/missing-field"
+mkdir -p "${output_dir}"
+missing_field_config='{"devo":{"aws_region":"us-east-1","kms_auth_key_alias":"alias/ltbase-devo-auth"}}'
+if KMS_PUBLIC_KEY_B64="${kms_public_key_b64}" \
+   OIDC_DISCOVERY_DOMAIN="oidc.example.com" \
+   OIDC_DISCOVERY_STACK_CONFIG="${missing_field_config}" \
+   OIDC_DISCOVERY_OUTPUT_DIR="${output_dir}" \
+   ACTIONS_ID_TOKEN_REQUEST_TOKEN="fake-github-token" \
+   ACTIONS_ID_TOKEN_REQUEST_URL="https://pipelines.actions.githubusercontent.com/abcdef/" \
+   PATH="${fake_bin}:$PATH" \
+   "${BUILD_SCRIPT}" 2>/dev/null; then
+  fail "expected failure when a stack config entry omits a required field"
+fi
+
+# ---------- Test 6c: empty KMS public key ----------
+# The fake aws echoes KMS_PUBLIC_KEY_B64 into PublicKey; an empty value must be
+# rejected rather than passed on to generate-jwks.py.
+
+output_dir="${temp_dir}/empty-kms-key"
+mkdir -p "${output_dir}"
+if KMS_PUBLIC_KEY_B64="" \
+   OIDC_DISCOVERY_DOMAIN="oidc.example.com" \
+   OIDC_DISCOVERY_STACK_CONFIG="${stack_config}" \
+   OIDC_DISCOVERY_OUTPUT_DIR="${output_dir}" \
+   TARGET_STACK="devo" \
+   ACTIONS_ID_TOKEN_REQUEST_TOKEN="fake-github-token" \
+   ACTIONS_ID_TOKEN_REQUEST_URL="https://pipelines.actions.githubusercontent.com/abcdef/" \
+   PATH="${fake_bin}:$PATH" \
+   "${BUILD_SCRIPT}" 2>/dev/null; then
+  fail "expected failure when KMS returns an empty PublicKey"
+fi
+
 # ---------- Test 7: openid-configuration content ----------
 
 output_dir="${temp_dir}/config-content"

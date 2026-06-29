@@ -12,7 +12,7 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 GENERATE_JWKS="${SCRIPT_DIR}/generate-jwks.py"
 
 fail() {
-  printf '::error::%s\n' "$1" >&2
+  printf '%s\n' "$1" >&2
   exit 1
 }
 
@@ -62,11 +62,20 @@ current_stack_manifest="$(mktemp)"
 trap 'rm -f "${current_stack_manifest}"' EXIT
 
 for stack in "${stacks[@]}"; do
-  echo "::group::${stack}"
+  echo "Generating discovery documents for ${stack}"
 
   aws_region=$(echo "${OIDC_DISCOVERY_STACK_CONFIG}" | jq -r --arg s "${stack}" '.[$s].aws_region')
   aws_role_arn=$(echo "${OIDC_DISCOVERY_STACK_CONFIG}" | jq -r --arg s "${stack}" '.[$s].aws_role_arn')
   kms_alias=$(echo "${OIDC_DISCOVERY_STACK_CONFIG}" | jq -r --arg s "${stack}" '.[$s].kms_auth_key_alias')
+
+  # Each missing JSON key yields the literal string "null" from jq -r; reject it
+  # before it flows into AWS calls as a bogus --role-arn / --key-id argument.
+  [[ -n "${aws_region}" && "${aws_region}" != "null" ]] \
+    || fail "Stack '${stack}' is missing required field 'aws_region' in OIDC_DISCOVERY_STACK_CONFIG"
+  [[ -n "${aws_role_arn}" && "${aws_role_arn}" != "null" ]] \
+    || fail "Stack '${stack}' is missing required field 'aws_role_arn' in OIDC_DISCOVERY_STACK_CONFIG"
+  [[ -n "${kms_alias}" && "${kms_alias}" != "null" ]] \
+    || fail "Stack '${stack}' is missing required field 'kms_auth_key_alias' in OIDC_DISCOVERY_STACK_CONFIG"
 
   # Obtain a fresh GitHub OIDC token and assume the stack IAM role.
   oidc_token_response=$(curl -sS -f \
@@ -96,6 +105,13 @@ for stack in "${stacks[@]}"; do
   public_key_b64=$(echo "${public_key_json}" | jq -r '.PublicKey')
   key_id=$(echo "${public_key_json}" | jq -r '.KeyId')
 
+  if [[ -z "${public_key_b64}" || "${public_key_b64}" == "null" ]]; then
+    fail "KMS get-public-key returned no PublicKey for ${kms_alias}"
+  fi
+  if [[ -z "${key_id}" || "${key_id}" == "null" ]]; then
+    fail "KMS get-public-key returned no KeyId for ${kms_alias}"
+  fi
+
   # Generate JWKS.
   mkdir -p "${OIDC_DISCOVERY_OUTPUT_DIR}/${stack}/.well-known"
   python3 "${GENERATE_JWKS}" \
@@ -124,8 +140,6 @@ print(json.dumps({
 
   # Clear per-stack credentials.
   unset AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY AWS_SESSION_TOKEN AWS_DEFAULT_REGION
-
-  echo "::endgroup::"
 done
 
 # --- generate _headers ---
