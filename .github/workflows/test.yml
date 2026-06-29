@@ -1,0 +1,52 @@
+name: Test
+
+on:
+  workflow_dispatch:
+  pull_request:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    if: github.repository == 'Lychee-Technology/ltbase-private-deployment'
+    runs-on: ubuntu-24.04-arm
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Ensure test dependencies
+        run: |
+          set -euo pipefail
+          if ! command -v jq >/dev/null 2>&1; then
+            sudo apt-get update && sudo apt-get install -y jq
+          fi
+          command -v python3 >/dev/null 2>&1 || {
+            echo "python3 is required to run the test suite" >&2
+            exit 1
+          }
+
+      - name: Run test suite
+        run: |
+          set -euo pipefail
+          shopt -s nullglob
+
+          tests=(test/*-test.sh)
+          if [[ ${#tests[@]} -eq 0 ]]; then
+            echo "No test/*-test.sh files found" >&2
+            exit 1
+          fi
+
+          status=0
+          for test in "${tests[@]}"; do
+            echo "::group::${test}"
+            if ! bash "${test}"; then
+              status=1
+              echo "::error file=${test}::test failed"
+            fi
+            echo "::endgroup::"
+          done
+
+          exit "${status}"
