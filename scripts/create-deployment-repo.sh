@@ -37,9 +37,10 @@ capture_stdout_quiet() {
     rm -f "${stderr_file}"
     printf -v "${destination_var}" '%s' "${output}"
     return 0
+  else
+    command_status=$?
   fi
 
-  command_status=$?
   if [[ -s "${stderr_file}" ]]; then
     cat "${stderr_file}" >&2
   fi
