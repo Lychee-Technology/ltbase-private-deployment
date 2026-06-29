@@ -150,7 +150,7 @@ source dist/foundation.env
 
 执行后检查：
 
-- 部署仓库中已经配置 GitHub repository variables `OIDC_DISCOVERY_DOMAIN`、`OIDC_DISCOVERY_STACK_CONFIG`、`OIDC_DISCOVERY_PAGES_PROJECT`、`OIDC_DISCOVERY_TEMPLATE_REPO` 和 `OIDC_DISCOVERY_TEMPLATE_REF`
+- 部署仓库中已经配置 GitHub repository variables `OIDC_DISCOVERY_DOMAIN`、`OIDC_DISCOVERY_STACK_CONFIG` 和 `OIDC_DISCOVERY_PAGES_PROJECT`
 - Cloudflare Pages 项目与自定义域名绑定已经创建
 - Cloudflare zone 中已经包含 `OIDC_DISCOVERY_DOMAIN` 对应的 `CNAME`
 - 每个 stack 对应的 OIDC discovery IAM role 已存在

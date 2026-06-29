@@ -314,14 +314,7 @@ bootstrap_env_apply_derivations() {
     OIDC_DISCOVERY_PAGES_PROJECT="${DEPLOYMENT_REPO_NAME}-oidc-discovery"
     export OIDC_DISCOVERY_PAGES_PROJECT
   fi
-  if [[ -z "${OIDC_DISCOVERY_TEMPLATE_REPO:-}" ]]; then
-    OIDC_DISCOVERY_TEMPLATE_REPO="Lychee-Technology/ltbase-oidc-discovery-template"
-    export OIDC_DISCOVERY_TEMPLATE_REPO
-  fi
-  if [[ -z "${OIDC_DISCOVERY_TEMPLATE_REF:-}" ]]; then
-    OIDC_DISCOVERY_TEMPLATE_REF="main"
-    export OIDC_DISCOVERY_TEMPLATE_REF
-  fi
+
   if [[ -z "${CONTROLPLANE_UI_PAGES_PROJECT:-}" && -n "${DEPLOYMENT_REPO_NAME:-}" ]]; then
     CONTROLPLANE_UI_PAGES_PROJECT="${DEPLOYMENT_REPO_NAME}-controlplane-ui"
     export CONTROLPLANE_UI_PAGES_PROJECT

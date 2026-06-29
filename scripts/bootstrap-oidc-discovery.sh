@@ -317,9 +317,6 @@ bootstrap_env_info "Configuring deployment repository variables for OIDC discove
 bootstrap_env_run_quiet gh variable set OIDC_DISCOVERY_DOMAIN --repo "${DEPLOYMENT_REPO}" --body "${OIDC_DISCOVERY_DOMAIN}"
 bootstrap_env_run_quiet gh variable set OIDC_DISCOVERY_STACK_CONFIG --repo "${DEPLOYMENT_REPO}" --body "${oidc_stack_config}"
 bootstrap_env_run_quiet gh variable set OIDC_DISCOVERY_PAGES_PROJECT --repo "${DEPLOYMENT_REPO}" --body "${OIDC_DISCOVERY_PAGES_PROJECT}"
-bootstrap_env_run_quiet gh variable set OIDC_DISCOVERY_TEMPLATE_REPO --repo "${DEPLOYMENT_REPO}" --body "${OIDC_DISCOVERY_TEMPLATE_REPO}"
-bootstrap_env_run_quiet gh variable set OIDC_DISCOVERY_TEMPLATE_REF --repo "${DEPLOYMENT_REPO}" --body "${OIDC_DISCOVERY_TEMPLATE_REF}"
-
 create_or_update_discovery_role() {
   local stack="$1"
   local upper_name account_id region role_name role_arn provider_arn
