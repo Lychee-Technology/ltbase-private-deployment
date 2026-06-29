@@ -134,7 +134,7 @@ AWS_PROFILE_STAGING=customer-staging aws sts get-caller-identity
 
 `bootstrap-aws-foundation.sh` 会先在 `PROMOTION_PATH` 第一个 stack 对应的 AWS 账户中创建一次共享 Pulumi backend bucket，然后为 `STACKS` 中每个 stack 准备各自的 role 和 secrets provider 输入。
 
-`bootstrap-oidc-discovery.sh` 还会为 `OIDC_DISCOVERY_DOMAIN` 创建必需的 Cloudflare DNS `CNAME`，让这个自定义域名直接解析到 `${OIDC_DISCOVERY_PAGES_PROJECT}.pages.dev`。
+`bootstrap-oidc-discovery.sh` 会创建 OIDC discovery Cloudflare Pages 项目（直接上传，无 companion 仓库）、其自定义域名绑定、所需的 zone DNS `CNAME`（指向 `${OIDC_DISCOVERY_PAGES_PROJECT}.pages.dev`），以及每个 stack 对应的 OIDC discovery IAM role。随后由部署仓库自身的 `publish-oidc-discovery.yml` 工作流生成 discovery 文档，并通过 `wrangler pages deploy` 发布。
 
 `bootstrap-controlplane-ui-companion.sh` 当前会创建或更新 control-plane UI companion 仓库，确保其 Cloudflare Pages project 和自定义域名，写入包括 `CONTROLPLANE_UI_STACK_CONFIG` 在内的 companion 仓库变量，并用每个 stack 的 Firebase/Supabase 公开浏览器配置更新 `public/ltbase-controlplane.config.json`。
 

@@ -32,6 +32,7 @@ Use this guide to create the local `.env` file that drives the bootstrap scripts
     - `CONTROLPLANE_UI_DOMAIN`
     - `CLOUDFLARE_ACCOUNT_ID`
     - Source: your Cloudflare account and the custom domains you want to use for OIDC discovery and the control-plane UI admin site
+    - OIDC discovery uses a direct-upload Cloudflare Pages project managed entirely by the deployment repository. Bootstrap creates the Pages project, custom domain binding, and per-stack IAM roles; the `publish-oidc-discovery.yml` workflow generates discovery documents and deploys them with `wrangler pages deploy`. No OIDC discovery companion repository or template repository is created or required.
     - In the current repository version, the Control Plane UI bootstrap uses `CONTROLPLANE_UI_DOMAIN` when it provisions the control-plane UI companion Pages site and when it later writes `ltbase-infra:controlPlaneCorsOrigins=https://<CONTROLPLANE_UI_DOMAIN>` into each Pulumi stack.
 5. Fill in AWS environment values (one pair per stack):
    - `AWS_REGION_<STACK>`
