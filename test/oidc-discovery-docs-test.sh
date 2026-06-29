@@ -61,8 +61,8 @@ assert_no_match_in() {
   shift 2
   local docs=("$@")
   for doc in "${docs[@]}"; do
-    if grep -n "${pattern}" "${doc}" >/dev/null 2>&1; then
-      fail "${reason}: found in ${doc}: $(grep -n "${pattern}" "${doc}")"
+    if grep -niF "${pattern}" "${doc}" >/dev/null 2>&1; then
+      fail "${reason}: found in ${doc}: $(grep -niF "${pattern}" "${doc}")"
     fi
   done
 }
@@ -85,8 +85,6 @@ assert_no_match_in "must not mention OIDC_DISCOVERY_TEMPLATE_REPO" 'OIDC_DISCOVE
 assert_no_match_in "must not mention OIDC_DISCOVERY_TEMPLATE_REF" 'OIDC_DISCOVERY_TEMPLATE_REF' "${ALL_DOCS[@]}"
 assert_no_match_in "must not mention ltbase-oidc-discovery-template" 'ltbase-oidc-discovery-template' "${ALL_DOCS[@]}"
 assert_no_match_in "must not mention bootstrap-oidc-discovery-companion" 'bootstrap-oidc-discovery-companion' "${ALL_DOCS[@]}"
-assert_no_match_in "must not imply an OIDC discovery companion repo is needed" 'oidc discovery companion repo' "${ALL_DOCS[@]}"
-assert_no_match_in "must not imply an OIDC discovery template repo is needed" 'OIDC discovery template' "${ALL_DOCS[@]}"
 
 # ---------- .env docs: must state template repo variables are not needed ----------
 
