@@ -61,7 +61,7 @@ script_dir="$(cd "$(dirname "$0")" && pwd)"
 source "${script_dir}/lib/bootstrap-env.sh"
 bootstrap_env_load "${ENV_FILE}"
 
-required_vars=(TEMPLATE_REPO GITHUB_OWNER DEPLOYMENT_REPO_NAME DEPLOYMENT_REPO_VISIBILITY DEPLOYMENT_REPO_DESCRIPTION DEPLOYMENT_REPO PULUMI_STATE_BUCKET PULUMI_KMS_ALIAS PULUMI_BACKEND_URL LTBASE_RELEASES_REPO LTBASE_RELEASE_ID LTBASE_RELEASES_TOKEN CLOUDFLARE_API_TOKEN CLOUDFLARE_ACCOUNT_ID OIDC_DISCOVERY_DOMAIN OIDC_DISCOVERY_TEMPLATE_REPO OIDC_DISCOVERY_REPO OIDC_DISCOVERY_PAGES_PROJECT CONTROLPLANE_UI_DOMAIN CONTROLPLANE_UI_PAGES_PROJECT GEMINI_API_KEY CLOUDFLARE_ZONE_ID GITHUB_ORG GITHUB_REPO GEMINI_MODEL DSQL_PORT DSQL_DB DSQL_USER DSQL_PROJECT_SCHEMA MTLS_TRUSTSTORE_FILE MTLS_TRUSTSTORE_KEY)
+required_vars=(TEMPLATE_REPO GITHUB_OWNER DEPLOYMENT_REPO_NAME DEPLOYMENT_REPO_VISIBILITY DEPLOYMENT_REPO_DESCRIPTION DEPLOYMENT_REPO PULUMI_STATE_BUCKET PULUMI_KMS_ALIAS PULUMI_BACKEND_URL LTBASE_RELEASES_REPO LTBASE_RELEASE_ID LTBASE_RELEASES_TOKEN CLOUDFLARE_API_TOKEN CLOUDFLARE_ACCOUNT_ID OIDC_DISCOVERY_DOMAIN OIDC_DISCOVERY_PAGES_PROJECT CONTROLPLANE_UI_DOMAIN CONTROLPLANE_UI_PAGES_PROJECT GEMINI_API_KEY CLOUDFLARE_ZONE_ID GITHUB_ORG GITHUB_REPO GEMINI_MODEL DSQL_PORT DSQL_DB DSQL_USER DSQL_PROJECT_SCHEMA MTLS_TRUSTSTORE_FILE MTLS_TRUSTSTORE_KEY)
 bootstrap_env_require_vars "${required_vars[@]}"
 while IFS= read -r stack; do
   bootstrap_env_require_stack_values "${stack}" AWS_REGION AWS_ACCOUNT_ID AWS_ROLE_NAME AWS_ROLE_ARN PULUMI_SECRETS_PROVIDER API_DOMAIN CONTROL_DOMAIN AUTH_DOMAIN PROJECT_ID AUTH_PROVIDER_CONFIG_FILE OIDC_DISCOVERY_AWS_ROLE_NAME OIDC_DISCOVERY_AWS_ROLE_ARN OIDC_ISSUER_URL JWKS_URL RUNTIME_BUCKET TABLE_NAME
@@ -182,10 +182,6 @@ repo_exists() {
   bootstrap_env_run_quiet gh repo view "${DEPLOYMENT_REPO}" >/dev/null 2>&1
 }
 
-oidc_companion_repo_exists() {
-  bootstrap_env_run_quiet gh repo view "${OIDC_DISCOVERY_REPO}" >/dev/null 2>&1
-}
-
 promotion_environments_present() {
   local promotion_index=0
   local stack
@@ -236,24 +232,6 @@ repo_config_present() {
   done < <(bootstrap_env_each_stack)
 
   if ! promotion_environments_present; then
-    return 1
-  fi
-
-  return 0
-}
-
-oidc_companion_repo_config_present() {
-  local variable_json
-
-  if ! oidc_companion_repo_exists; then
-    return 1
-  fi
-
-  capture_stdout_quiet variable_json gh variable list --repo "${OIDC_DISCOVERY_REPO}" --json name
-  if ! json_name_list_contains "${variable_json}" "OIDC_DISCOVERY_DOMAIN"; then
-    return 1
-  fi
-  if ! json_name_list_contains "${variable_json}" "OIDC_DISCOVERY_STACK_CONFIG"; then
     return 1
   fi
 
@@ -347,23 +325,15 @@ oidc_discovery_roles_present() {
 }
 
 scan_oidc_discovery_state() {
-  local repo_present="false"
-  local repo_config_present="false"
   local pages_project_present="false"
   local pages_domain_present="false"
   local pages_dns_present="false"
   local roles_present="false"
-  local status="needs_oidc_companion"
+  local status="needs_oidc_discovery"
 
   if [[ "${SCOPE}" == "foundation" ]]; then
     status="skipped"
   else
-    if oidc_companion_repo_exists; then
-      repo_present="true"
-    fi
-    if oidc_companion_repo_config_present; then
-      repo_config_present="true"
-    fi
     if cloudflare_pages_project_present; then
       pages_project_present="true"
     fi
@@ -377,15 +347,13 @@ scan_oidc_discovery_state() {
       roles_present="true"
     fi
 
-    if [[ "${repo_present}" == "true" && "${repo_config_present}" == "true" && "${pages_project_present}" == "true" && "${pages_domain_present}" == "true" && "${pages_dns_present}" == "true" && "${roles_present}" == "true" ]]; then
+    if [[ "${pages_project_present}" == "true" && "${pages_domain_present}" == "true" && "${pages_dns_present}" == "true" && "${roles_present}" == "true" ]]; then
       status="complete"
     fi
   fi
 
   cat >"${oidc_status_file}" <<EOF
 OIDC_DISCOVERY_STATUS=${status}
-OIDC_DISCOVERY_REPO_PRESENT=${repo_present}
-OIDC_DISCOVERY_REPO_CONFIG_PRESENT=${repo_config_present}
 OIDC_DISCOVERY_PAGES_PROJECT_PRESENT=${pages_project_present}
 OIDC_DISCOVERY_PAGES_DOMAIN_PRESENT=${pages_domain_present}
 OIDC_DISCOVERY_PAGES_DNS_PRESENT=${pages_dns_present}
@@ -506,7 +474,7 @@ scan_state() {
 }
 
 write_report() {
-  python3 - "${state_file}" "${oidc_status_file}" "${report_file}" "${DEPLOYMENT_REPO}" "${OIDC_DISCOVERY_REPO}" "${OIDC_DISCOVERY_PAGES_PROJECT}" "${OIDC_DISCOVERY_DOMAIN}" "${STACKS}" "${PROMOTION_PATH}" "${SCOPE}" <<'PY'
+  python3 - "${state_file}" "${oidc_status_file}" "${report_file}" "${DEPLOYMENT_REPO}" "${OIDC_DISCOVERY_PAGES_PROJECT}" "${OIDC_DISCOVERY_DOMAIN}" "${STACKS}" "${PROMOTION_PATH}" "${SCOPE}" <<'PY'
 import json
 import os
 import sys
@@ -516,12 +484,11 @@ state_path = Path(sys.argv[1])
 oidc_state_path = Path(sys.argv[2])
 report_path = Path(sys.argv[3])
 deployment_repo = sys.argv[4]
-oidc_repo = sys.argv[5]
-oidc_pages_project = sys.argv[6]
-oidc_domain = sys.argv[7]
-stacks = [item for item in sys.argv[8].split(",") if item]
-promotion_path = [item for item in sys.argv[9].split(",") if item]
-scope = sys.argv[10]
+oidc_pages_project = sys.argv[5]
+oidc_domain = sys.argv[6]
+stacks = [item for item in sys.argv[7].split(",") if item]
+promotion_path = [item for item in sys.argv[8].split(",") if item]
+scope = sys.argv[9]
 
 items = []
 with state_path.open() as handle:
@@ -544,12 +511,9 @@ with oidc_state_path.open() as handle:
 report = {
     "deploymentRepo": deployment_repo,
     "oidcDiscovery": {
-        "repo": oidc_repo,
         "pagesProject": oidc_pages_project,
         "domain": oidc_domain,
-        "status": oidc_values.get("OIDC_DISCOVERY_STATUS", "needs_oidc_companion"),
-        "repoPresent": oidc_values.get("OIDC_DISCOVERY_REPO_PRESENT", "false") == "true",
-        "repoConfigPresent": oidc_values.get("OIDC_DISCOVERY_REPO_CONFIG_PRESENT", "false") == "true",
+        "status": oidc_values.get("OIDC_DISCOVERY_STATUS", "needs_oidc_discovery"),
         "pagesProjectPresent": oidc_values.get("OIDC_DISCOVERY_PAGES_PROJECT_PRESENT", "false") == "true",
         "pagesDomainPresent": oidc_values.get("OIDC_DISCOVERY_PAGES_DOMAIN_PRESENT", "false") == "true",
         "pagesDnsPresent": oidc_values.get("OIDC_DISCOVERY_PAGES_DNS_PRESENT", "false") == "true",
@@ -580,7 +544,7 @@ has_non_complete_status() {
 run_force_actions() {
   local needs_foundation="false"
   local needs_repo="false"
-  local needs_oidc_companion="false"
+  local needs_oidc_discovery="false"
   local has_dsql_reconcile="false"
   local has_needs_rollout="false"
   local first_needs_rollout_stack=""
@@ -609,7 +573,7 @@ run_force_actions() {
   # shellcheck disable=SC1090
   source "${oidc_status_file}"
   if [[ "${OIDC_DISCOVERY_STATUS}" != "complete" && "${OIDC_DISCOVERY_STATUS}" != "skipped" ]]; then
-    needs_oidc_companion="true"
+    needs_oidc_discovery="true"
   fi
 
   if [[ "${needs_foundation}" == "true" ]]; then
@@ -651,9 +615,9 @@ run_force_actions() {
     done < <(bootstrap_env_each_stack "${PROMOTION_PATH}")
   fi
 
-  if [[ "${needs_oidc_companion}" == "true" && "${SCOPE}" != "foundation" ]]; then
-    bootstrap_env_info "Reconciling OIDC discovery companion"
-    run_logged "${script_dir}/bootstrap-oidc-discovery-companion.sh" --env-file "${ENV_FILE}"
+  if [[ "${needs_oidc_discovery}" == "true" && "${SCOPE}" != "foundation" ]]; then
+    bootstrap_env_info "Reconciling OIDC discovery"
+    run_logged "${script_dir}/bootstrap-oidc-discovery.sh" --env-file "${ENV_FILE}"
   fi
 
   if [[ "${needs_repo}" == "true" && "${SCOPE}" != "foundation" ]]; then

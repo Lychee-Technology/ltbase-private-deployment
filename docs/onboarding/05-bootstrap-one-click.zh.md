@@ -84,11 +84,11 @@ AWS_PROFILE_STAGING=customer-staging aws sts get-caller-identity
 
 你应该这样理解输出结果：
 
-- 第一次运行时出现 `needs_foundation`、`needs_repo_config`、`needs_stack_bootstrap` 或 `needs_oidc_companion` 是正常的
+- 第一次运行时出现 `needs_foundation`、`needs_repo_config`、`needs_stack_bootstrap` 或 `needs_oidc_discovery` 是正常的
 - 如果出现缺少必填变量这类硬性校验错误，则不正常，应先修复
 - GitHub、AWS、Cloudflare 或 Pulumi 的认证错误都属于阻塞问题，应先修复
 - 该命令还会把机器可读报告写入 `dist/evaluate-and-continue/report.json`
-- OIDC companion 只有在 companion repo、Pages project、自定义域名绑定、所需 `CNAME` 和 discovery IAM roles 都存在时，才会被视为 `complete`
+- OIDC discovery 只有在 Pages project、自定义域名绑定、所需 `CNAME` 和 discovery IAM roles 都存在时，才会被视为 `complete`
 - 当前 Control Plane UI 输入应该在这一步之前就已经填入 `.env`，这样后续 bootstrap 阶段才能发布 companion runtime config 并写入 `ltbase-infra:controlPlaneCorsOrigins`
 
 ## 操作步骤
@@ -127,14 +127,14 @@ AWS_PROFILE_STAGING=customer-staging aws sts get-caller-identity
 - `create-deployment-repo.sh`
 - `render-bootstrap-policies.sh`
 - `bootstrap-aws-foundation.sh`
-- `bootstrap-oidc-discovery-companion.sh`
+- `bootstrap-oidc-discovery.sh`
 - `bootstrap-controlplane-ui-companion.sh`
 - `bootstrap-deployment-repo.sh --stack <STACKS 中的每个 stack>`
 - 当设置了 `--release-id` 时，可选执行 `gh workflow run rollout.yml ...`
 
 `bootstrap-aws-foundation.sh` 会先在 `PROMOTION_PATH` 第一个 stack 对应的 AWS 账户中创建一次共享 Pulumi backend bucket，然后为 `STACKS` 中每个 stack 准备各自的 role 和 secrets provider 输入。
 
-`bootstrap-oidc-discovery-companion.sh` 还会为 `OIDC_DISCOVERY_DOMAIN` 创建必需的 Cloudflare DNS `CNAME`，让这个自定义域名直接解析到 `${OIDC_DISCOVERY_PAGES_PROJECT}.pages.dev`。
+`bootstrap-oidc-discovery.sh` 还会为 `OIDC_DISCOVERY_DOMAIN` 创建必需的 Cloudflare DNS `CNAME`，让这个自定义域名直接解析到 `${OIDC_DISCOVERY_PAGES_PROJECT}.pages.dev`。
 
 `bootstrap-controlplane-ui-companion.sh` 当前会创建或更新 control-plane UI companion 仓库，确保其 Cloudflare Pages project 和自定义域名，写入包括 `CONTROLPLANE_UI_STACK_CONFIG` 在内的 companion 仓库变量，并用每个 stack 的 Firebase/Supabase 公开浏览器配置更新 `public/ltbase-controlplane.config.json`。
 

@@ -83,16 +83,14 @@ AWS_PROFILE_STAGING=customer-staging aws sts get-caller-identity
 当前认证的 GitHub 账号至少需要能够：
 
 - 在 `GITHUB_OWNER` 下从模板创建部署仓库
-- 读取部署仓库和 OIDC discovery companion 仓库的元数据
+- 读取部署仓库的元数据
 - 为 `PROMOTION_PATH` 中第一个之后的每个 stack 创建 GitHub environments
 - 在部署仓库中写入 repository variables
 - 在部署仓库中写入 repository secrets
-- 在 OIDC discovery companion 仓库不存在时，从模板创建该仓库
-- 在 OIDC discovery companion 仓库中写入 repository variables
 
 实际对应的 bootstrap 动作主要是：
 
-- 为部署仓库和 companion 仓库执行 `gh repo create`
+- 为部署仓库执行 `gh repo create`
 - 执行 `gh api .../environments/<stack> --method PUT`
 - 执行 `gh variable set ...`
 - 执行 `gh secret set ...`
@@ -116,7 +114,7 @@ AWS_PROFILE_STAGING=customer-staging aws sts get-caller-identity
 - 开启默认 bucket encryption
 - 开启 public access block 设置
 
-如果使用 OIDC discovery companion 流程，bootstrap 操作者还需要在每个 stack 对应账户中能够：
+对于 OIDC discovery Pages 发布流程，bootstrap 操作者还需要在每个 stack 对应账户中能够：
 
 - 读取或创建 OIDC discovery IAM role
 - 更新该 role 的 trust policy

@@ -19,7 +19,7 @@ The manual path is a better fit when:
 
 - you want to review each GitHub, AWS, and Cloudflare change stage by stage
 - you do not want one command to create every required resource automatically
-- you need to separate repository creation, AWS foundation, stack bootstrap, OIDC discovery companion setup, and current Control Plane UI companion setup
+- you need to separate repository creation, AWS foundation, stack bootstrap, OIDC discovery setup, and current Control Plane UI companion setup
 
 The main rule of the manual path is simple: finish one stage, verify the result, then continue.
 
@@ -134,28 +134,29 @@ After each stack, confirm:
 - GitHub repository secret `AWS_ROLE_ARN_<STACK>` was written for that stack
 - shared repository configuration such as `PULUMI_BACKEND_URL`, `LTBASE_RELEASE_ID`, `LTBASE_RELEASES_TOKEN`, and `CLOUDFLARE_API_TOKEN` is present
 
-### 6. Bootstrap OIDC discovery companion
+### 6. Bootstrap OIDC discovery
 
 Before you run this stage, confirm:
 
 - `OIDC_DISCOVERY_DOMAIN`, `CLOUDFLARE_ACCOUNT_ID`, `CLOUDFLARE_ZONE_ID`, and `CLOUDFLARE_API_TOKEN` in `.env` are correct
-- you are ready for the script to create or update the companion repository, Pages project, custom domain binding, and required DNS `CNAME`
+- you are ready for the script to create or update the Pages project, custom domain binding, and required DNS `CNAME`
 
 Run:
 
 ```bash
-./scripts/bootstrap-oidc-discovery-companion.sh --env-file .env
+./scripts/bootstrap-oidc-discovery.sh --env-file .env
 ```
 
-This step creates or updates the OIDC discovery companion repository, Cloudflare Pages project, custom domain binding, the required zone DNS `CNAME` pointing at `${OIDC_DISCOVERY_PAGES_PROJECT}.pages.dev`, and per-stack OIDC discovery IAM roles.
+This step creates or updates the OIDC discovery Cloudflare Pages project (direct upload, no companion repository), custom domain binding, the required zone DNS `CNAME` pointing at `${OIDC_DISCOVERY_PAGES_PROJECT}.pages.dev`, and per-stack OIDC discovery IAM roles.
 
 After this step, confirm:
 
-- the OIDC discovery companion repository now exists
-- that repository has GitHub repository variables `OIDC_DISCOVERY_DOMAIN` and `OIDC_DISCOVERY_STACK_CONFIG`
+- the deployment repository has GitHub repository variables `OIDC_DISCOVERY_DOMAIN`, `OIDC_DISCOVERY_STACK_CONFIG`, `OIDC_DISCOVERY_PAGES_PROJECT`, `OIDC_DISCOVERY_TEMPLATE_REPO`, and `OIDC_DISCOVERY_TEMPLATE_REF`
 - the Cloudflare Pages project and custom domain binding were created
 - the Cloudflare zone now contains the expected `CNAME` for `OIDC_DISCOVERY_DOMAIN`
 - the per-stack OIDC discovery IAM roles now exist
+
+> The per-stack OIDC discovery IAM roles trust only `repo:<DEPLOYMENT_REPO>:ref:refs/heads/<default_branch>`. Run the **Publish OIDC Discovery Documents** workflow from the deployment repository's default branch — dispatching it from any other branch fails AWS role assumption.
 
 ### 7. Bootstrap the current Control Plane UI companion setup
 
@@ -189,7 +190,7 @@ At minimum, confirm all of the following:
 
 - the deployment repository now contains the required GitHub secrets and variables
 - every stack in `infra/` now has initialized Pulumi configuration
-- if you used the companion flow, the OIDC discovery repository and Cloudflare resources are ready
+- the OIDC discovery Cloudflare resources (Pages project, custom domain, `CNAME`) and per-stack discovery IAM roles are ready
 - if you used the current Control Plane UI companion flow, the admin domain, runtime config inputs, redirect URI setup, and Control Plane CORS assumptions are ready for first operator use
 
 If you want one final summary check before first deploy, run:
@@ -198,7 +199,7 @@ If you want one final summary check before first deploy, run:
 ./scripts/evaluate-and-continue.sh --env-file .env --scope bootstrap --infra-dir infra
 ```
 
-In the manual path, this is a good way to confirm there are no remaining gaps such as `needs_repo_config`, `needs_stack_bootstrap`, or `needs_oidc_companion`.
+In the manual path, this is a good way to confirm there are no remaining gaps such as `needs_repo_config`, `needs_stack_bootstrap`, or `needs_oidc_discovery`.
 
 ## Expected Result
 

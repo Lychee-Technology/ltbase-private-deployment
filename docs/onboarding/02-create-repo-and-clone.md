@@ -34,7 +34,7 @@ The recovery-aware scripts can create a missing remote repository when needed, b
    - `scripts/render-bootstrap-policies.sh`
    - `scripts/bootstrap-aws-foundation.sh`
    - `scripts/bootstrap-pulumi-backend.sh`
-   - `scripts/bootstrap-oidc-discovery-companion.sh`
+   - `scripts/bootstrap-oidc-discovery.sh`
    - `scripts/bootstrap-deployment-repo.sh`
    - `scripts/bootstrap-all.sh`
    - `scripts/evaluate-and-continue.sh`

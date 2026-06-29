@@ -80,7 +80,7 @@ Important files and scripts:
 - `scripts/render-bootstrap-policies.sh`
 - `scripts/create-deployment-repo.sh`
 - `scripts/bootstrap-aws-foundation.sh`
-- `scripts/bootstrap-oidc-discovery-companion.sh`
+- `scripts/bootstrap-oidc-discovery.sh`
 - `scripts/bootstrap-controlplane-ui-companion.sh`
 - `scripts/bootstrap-pulumi-backend.sh`
 - `scripts/bootstrap-deployment-repo.sh`
@@ -95,7 +95,7 @@ Preferred recovery-aware bootstrap entrypoint:
 - `./scripts/evaluate-and-continue.sh --env-file .env --scope bootstrap --force`
 - `./scripts/evaluate-and-continue.sh --env-file .env --scope bootstrap --force --release-id <release>`
 
-The bootstrap flow now also manages the customer-specific `*-oidc-discovery` companion repository, its Cloudflare Pages project, its custom domain binding, the required zone-level CNAME pointing at `${OIDC_DISCOVERY_PAGES_PROJECT}.pages.dev`, and the per-stack read-only discovery roles that the companion publish workflow assumes.
+The bootstrap flow also manages the OIDC discovery Cloudflare Pages project (created as a direct-upload project, no companion repository), its custom domain binding, the required zone-level CNAME pointing at `${OIDC_DISCOVERY_PAGES_PROJECT}.pages.dev`, and the per-stack read-only discovery roles. The deployment repository's own `publish-oidc-discovery.yml` workflow then generates the discovery documents and publishes them with `wrangler pages deploy`.
 
 In the current repository version, `scripts/bootstrap-controlplane-ui-companion.sh` also manages a customer-specific `*-controlplane-ui` companion repository, its Cloudflare Pages project, its custom domain binding, the required zone-level CNAME pointing at `${CONTROLPLANE_UI_PAGES_PROJECT}.pages.dev`, and the runtime config JSON published to `public/ltbase-controlplane.config.json` from the companion repository variable `CONTROLPLANE_UI_STACK_CONFIG`.
 

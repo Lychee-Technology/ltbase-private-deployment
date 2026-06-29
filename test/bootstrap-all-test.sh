@@ -117,7 +117,7 @@ CLOUDFLARE_API_TOKEN=test-cloudflare-token
 LTBASE_RELEASES_TOKEN=test-release-token
 EOF
 
-for name in render-bootstrap-policies.sh create-deployment-repo.sh bootstrap-aws-foundation.sh bootstrap-oidc-discovery-companion.sh bootstrap-controlplane-ui-companion.sh bootstrap-deployment-repo.sh reconcile-managed-dsql-endpoint.sh; do
+for name in render-bootstrap-policies.sh create-deployment-repo.sh bootstrap-aws-foundation.sh bootstrap-oidc-discovery.sh bootstrap-controlplane-ui-companion.sh bootstrap-deployment-repo.sh reconcile-managed-dsql-endpoint.sh; do
   create_stub "${name}"
 done
 
@@ -130,7 +130,7 @@ if [[ -x "${SCRIPT_PATH}" ]]; then
   assert_log_contains <(printf '%s' "${output}") "[info] ensuring deployment repository"
   assert_log_contains <(printf '%s' "${output}") "[info] rendering bootstrap policies"
   assert_log_contains <(printf '%s' "${output}") "[info] bootstrapping AWS foundation"
-  assert_log_contains <(printf '%s' "${output}") "[info] ensuring OIDC discovery companion"
+  assert_log_contains <(printf '%s' "${output}") "[info] ensuring OIDC discovery"
   assert_log_contains <(printf '%s' "${output}") "[info] ensuring Control Plane UI Pages assets"
   assert_log_contains <(printf '%s' "${output}") "[info] configuring stack devo"
   assert_log_contains <(printf '%s' "${output}") "[info] configuring stack staging"
@@ -141,7 +141,7 @@ if [[ -x "${SCRIPT_PATH}" ]]; then
   assert_log_contains "${log_file}" "create-deployment-repo.sh --env-file ${temp_dir}/.env"
   assert_log_contains "${log_file}" "render-bootstrap-policies.sh --env-file ${temp_dir}/.env"
   assert_log_contains "${log_file}" "bootstrap-aws-foundation.sh --env-file ${temp_dir}/.env"
-  assert_log_contains "${log_file}" "bootstrap-oidc-discovery-companion.sh --env-file ${temp_dir}/.env"
+  assert_log_contains "${log_file}" "bootstrap-oidc-discovery.sh --env-file ${temp_dir}/.env"
   assert_log_contains "${log_file}" "bootstrap-controlplane-ui-companion.sh --env-file ${temp_dir}/.env"
   assert_log_contains "${log_file}" "bootstrap-deployment-repo.sh --env-file ${temp_dir}/.env --stack devo --infra-dir ${temp_dir}/infra"
   assert_log_contains "${log_file}" "bootstrap-deployment-repo.sh --env-file ${temp_dir}/.env --stack staging --infra-dir ${temp_dir}/infra"

@@ -19,7 +19,7 @@
 
 - 你希望逐段审阅脚本将创建的 GitHub、AWS、Cloudflare 资源
 - 你没有权限让一键流程自动创建全部资源，但可以分阶段完成
-- 你想把仓库创建、AWS foundation、stack 初始化、OIDC discovery 配套资源，以及当前 Control Plane UI companion setup 拆开执行
+- 你想把仓库创建、AWS foundation、stack 初始化、OIDC discovery 设置，以及当前 Control Plane UI companion setup 拆开执行
 
 手动路径的关键点是：每一阶段做完后先检查结果，再进入下一阶段。
 
@@ -133,27 +133,29 @@ source dist/foundation.env
 - GitHub 仓库中对应 stack 的 `AWS_REGION_<STACK>`、`PULUMI_SECRETS_PROVIDER_<STACK>`、`AWS_ROLE_ARN_<STACK>` 已写入
 - 通用变量和 secrets 例如 `PULUMI_BACKEND_URL`、`LTBASE_RELEASE_ID`、`LTBASE_RELEASES_TOKEN`、`CLOUDFLARE_API_TOKEN` 已写入
 
-### 6. 初始化 OIDC discovery 配套资源
+### 6. 初始化 OIDC discovery
 
 执行前确认：
 
 - `.env` 中的 `OIDC_DISCOVERY_DOMAIN`、`CLOUDFLARE_ACCOUNT_ID`、`CLOUDFLARE_ZONE_ID`、`CLOUDFLARE_API_TOKEN` 已确认无误
-- 你已经准备好让脚本创建或更新 Cloudflare Pages 项目、自定义域名绑定和 companion 仓库
+- 你已经准备好让脚本创建或更新 Cloudflare Pages 项目、自定义域名绑定和所需的 DNS `CNAME`
 
 执行：
 
 ```bash
-./scripts/bootstrap-oidc-discovery-companion.sh --env-file .env
+./scripts/bootstrap-oidc-discovery.sh --env-file .env
 ```
 
-该步骤会创建或更新 OIDC discovery 配套仓库、Cloudflare Pages 项目、自定义域名绑定，以及每个 stack 对应的 OIDC discovery IAM role。
+该步骤会创建或更新 OIDC discovery Cloudflare Pages 项目（直接上传，无 companion 仓库）、自定义域名绑定、所需的 zone DNS `CNAME`（指向 `${OIDC_DISCOVERY_PAGES_PROJECT}.pages.dev`），以及每个 stack 对应的 OIDC discovery IAM role。
 
 执行后检查：
 
-- OIDC discovery companion 仓库已存在
-- companion 仓库中已经配置 GitHub repository variables `OIDC_DISCOVERY_DOMAIN` 和 `OIDC_DISCOVERY_STACK_CONFIG`
+- 部署仓库中已经配置 GitHub repository variables `OIDC_DISCOVERY_DOMAIN`、`OIDC_DISCOVERY_STACK_CONFIG`、`OIDC_DISCOVERY_PAGES_PROJECT`、`OIDC_DISCOVERY_TEMPLATE_REPO` 和 `OIDC_DISCOVERY_TEMPLATE_REF`
 - Cloudflare Pages 项目与自定义域名绑定已经创建
+- Cloudflare zone 中已经包含 `OIDC_DISCOVERY_DOMAIN` 对应的 `CNAME`
 - 每个 stack 对应的 OIDC discovery IAM role 已存在
+
+> 每个 stack 的 OIDC discovery IAM role 只信任 `repo:<DEPLOYMENT_REPO>:ref:refs/heads/<default_branch>`。请从部署仓库的默认分支运行 **Publish OIDC Discovery Documents** 工作流——从其他分支触发会导致 AWS 角色假设失败。
 
 ### 7. 初始化当前 Control Plane UI companion setup
 
@@ -187,7 +189,7 @@ source dist/foundation.env
 
 - 部署仓库中已经出现所需 GitHub secrets 和 variables
 - `infra/` 中每个 stack 的 Pulumi 配置都已初始化
-- 如果你使用了 companion 流程，OIDC discovery 相关仓库和 Cloudflare 资源已经准备好
+- OIDC discovery 的 Cloudflare 资源（Pages 项目、自定义域名、`CNAME`）和每个 stack 的 discovery IAM role 已经准备好
 - 如果你使用了当前的 Control Plane UI companion 流程，admin 域名、runtime config 输入、redirect URI 设置，以及 Control Plane CORS 前提也已经准备好
 
 如果你希望在进入首次部署前做一次汇总检查，可以运行：
@@ -196,7 +198,7 @@ source dist/foundation.env
 ./scripts/evaluate-and-continue.sh --env-file .env --scope bootstrap --infra-dir infra
 ```
 
-在手动路径下，这个检查适合用来确认是否还存在 `needs_repo_config`、`needs_stack_bootstrap` 或 `needs_oidc_companion` 之类的缺口。
+在手动路径下，这个检查适合用来确认是否还存在 `needs_repo_config`、`needs_stack_bootstrap` 或 `needs_oidc_discovery` 之类的缺口。
 
 ## 预期结果
 

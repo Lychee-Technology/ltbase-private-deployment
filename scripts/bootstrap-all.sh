@@ -51,8 +51,8 @@ bootstrap_env_run_quiet "${script_dir}/render-bootstrap-policies.sh" --env-file 
 bootstrap_env_info "bootstrapping AWS foundation"
 bootstrap_env_run_quiet "${script_dir}/bootstrap-aws-foundation.sh" --env-file "${ENV_FILE}"
 
-bootstrap_env_info "ensuring OIDC discovery companion"
-bootstrap_env_run_quiet "${script_dir}/bootstrap-oidc-discovery-companion.sh" --env-file "${ENV_FILE}"
+bootstrap_env_info "ensuring OIDC discovery"
+bootstrap_env_run_quiet "${script_dir}/bootstrap-oidc-discovery.sh" --env-file "${ENV_FILE}"
 
 bootstrap_env_info "ensuring Control Plane UI Pages assets"
 bootstrap_env_run_quiet "${script_dir}/bootstrap-controlplane-ui-companion.sh" --env-file "${ENV_FILE}"
