@@ -94,11 +94,15 @@ source dist/foundation.env
 gh workflow run preview.yml -f target_stack=devo --ref main
 ```
 
+For full inputs and examples, see [`GITHUB_ACTIONS.md`](GITHUB_ACTIONS.md#previewyml--preview-ltbase-blueprint).
+
 ### 8. Rollout
 
 ```bash
 gh workflow run rollout.yml -f release_id=v1.0.23 --ref main
 ```
+
+For full inputs and examples, see [`GITHUB_ACTIONS.md`](GITHUB_ACTIONS.md#rolloutyml--rollout-ltbase-release).
 
 ### 9. Publish OIDC Discovery (must be after that stack's first rollout)
 
@@ -111,6 +115,8 @@ gh workflow run publish-oidc-discovery.yml -f target_stack=devo --ref main
 # Refresh all stacks once they have all completed their first rollout
 gh workflow run publish-oidc-discovery.yml -f target_stack=all --ref main
 ```
+
+For full inputs and examples, see [`GITHUB_ACTIONS.md`](GITHUB_ACTIONS.md#publish-oidc-discoveryyml--publish-oidc-discovery-documents).
 
 ### 10. Verify
 

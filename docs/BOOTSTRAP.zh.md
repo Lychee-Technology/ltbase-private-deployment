@@ -94,11 +94,15 @@ source dist/foundation.env
 gh workflow run preview.yml -f target_stack=devo --ref main
 ```
 
+完整参数与示例见 [`GITHUB_ACTIONS.zh.md`](GITHUB_ACTIONS.zh.md#previewyml--preview-ltbase-blueprint)。
+
 ### 8. Rollout
 
 ```bash
 gh workflow run rollout.yml -f release_id=v1.0.23 --ref main
 ```
+
+完整参数与示例见 [`GITHUB_ACTIONS.zh.md`](GITHUB_ACTIONS.zh.md#rolloutyml--rollout-ltbase-release)。
 
 ### 9. 发布 OIDC Discovery（必须在对应 stack 首次 rollout 之后）
 
@@ -111,6 +115,8 @@ gh workflow run publish-oidc-discovery.yml -f target_stack=devo --ref main
 # 全部 stack 都完成首次 rollout 后可一次性刷新
 gh workflow run publish-oidc-discovery.yml -f target_stack=all --ref main
 ```
+
+完整参数与示例见 [`GITHUB_ACTIONS.zh.md`](GITHUB_ACTIONS.zh.md#publish-oidc-discoveryyml--publish-oidc-discovery-documents)。
 
 ### 10. 验证
 

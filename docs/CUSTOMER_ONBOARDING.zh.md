@@ -1117,4 +1117,5 @@ pulumi stack output --stack "org/customer-ltbase/prod" -C infra
 | [onboarding/06-bootstrap-manual.zh.md](onboarding/06-bootstrap-manual.zh.md) | 手动 bootstrap 详细说明 |
 | [onboarding/07-first-deploy-and-managed-dsql.zh.md](onboarding/07-first-deploy-and-managed-dsql.zh.md) | 首次部署和 DSQL 处理 |
 | [onboarding/08-day-2-operations.zh.md](onboarding/08-day-2-operations.zh.md) | 日常运维详细说明 |
+| [GITHUB_ACTIONS.zh.md](GITHUB_ACTIONS.zh.md) | 逐个工作流的 GitHub Actions 参考 |
 | [CONTROLPLANE_UI_DEPLOYMENT_CHECKLIST.md](CONTROLPLANE_UI_DEPLOYMENT_CHECKLIST.md) | Control Plane UI 部署检查清单 |

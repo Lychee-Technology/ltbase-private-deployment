@@ -1118,4 +1118,5 @@ pulumi stack output --stack "org/customer-ltbase/prod" -C infra
 | [onboarding/06-bootstrap-manual.md](onboarding/06-bootstrap-manual.md) | Manual bootstrap details |
 | [onboarding/07-first-deploy-and-managed-dsql.md](onboarding/07-first-deploy-and-managed-dsql.md) | First deploy and DSQL handling |
 | [onboarding/08-day-2-operations.md](onboarding/08-day-2-operations.md) | Day-2 operations details |
+| [GITHUB_ACTIONS.md](GITHUB_ACTIONS.md) | Per-workflow GitHub Actions reference |
 | [CONTROLPLANE_UI_DEPLOYMENT_CHECKLIST.md](CONTROLPLANE_UI_DEPLOYMENT_CHECKLIST.md) | Control Plane UI deployment checklist |
