@@ -112,7 +112,7 @@ LTBASE_RELEASES_TOKEN=test-release-token
 EOF
 }
 
-write_env_without_mtls() {
+write_env_without_required() {
   local path="$1"
   cat >"${path}" <<'EOF'
 STACKS=devo,staging,prod
@@ -174,12 +174,6 @@ JWKS_URL_STAGING=https://issuer.example.com/staging/jwks.json
 JWKS_URL_PROD=https://issuer.example.com/prod/jwks.json
 OIDC_DISCOVERY_DOMAIN=oidc.customer.example.com
 CLOUDFLARE_ACCOUNT_ID=cf-account-123
-GEMINI_MODEL=gemini-3.1-flash-lite
-DSQL_PORT=5432
-DSQL_DB=postgres
-DSQL_USER=admin
-DSQL_PROJECT_SCHEMA=ltbase
-GEMINI_API_KEY=test-gemini-key
 CLOUDFLARE_API_TOKEN=test-cloudflare-token
 LTBASE_RELEASES_TOKEN=test-release-token
 EOF
@@ -757,13 +751,13 @@ write_env_firebase_only "${temp_dir}/firebase-only.env"
 write_env_partial_firebase "${temp_dir}/partial-firebase.env"
 setup_fake_bin "${temp_dir}/bin" "${temp_dir}/commands.log"
 
-write_env_without_mtls "${temp_dir}/missing-mtls.env"
+write_env_without_required "${temp_dir}/missing-required.env"
 
 run_expect_exit_code 1 env \
   PATH="${temp_dir}/bin:$PATH" \
   COMMAND_LOG="${temp_dir}/commands.log" \
   SCENARIO="rollout_mix" \
-  "${SCRIPT_PATH}" --env-file "${temp_dir}/missing-mtls.env" --infra-dir "${temp_dir}/infra" --report-dir "${temp_dir}/report-missing-mtls-env"
+  "${SCRIPT_PATH}" --env-file "${temp_dir}/missing-required.env" --infra-dir "${temp_dir}/infra" --report-dir "${temp_dir}/report-missing-required-env"
 
 run_expect_exit_code 2 env \
   PATH="${temp_dir}/bin:$PATH" \

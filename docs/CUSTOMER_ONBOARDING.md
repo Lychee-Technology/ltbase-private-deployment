@@ -1,243 +1,1121 @@
 > **中文版：[CUSTOMER_ONBOARDING.zh.md](CUSTOMER_ONBOARDING.zh.md)**
 
-# LTBase Customer Onboarding Runbook
+# LTBase Customer Deployment Guide
 
-This document is the main entry point for customers deploying LTBase with the private deployment template.
+This document is the complete LTBase private deployment runbook. Follow the steps in order to deploy LTBase from scratch.
 
-## What This Document Is For
+If you need a quick reference for steps you already know, use the [bootstrap checklist](BOOTSTRAP.md).
 
-- explain the overall deployment model
-- show the full onboarding order from preparation to first promotion-path rollout
-- link to detailed step-by-step guides for every longer operation
+## Table of Contents
+
+1. [Deployment Model](#deployment-model)
+2. [End State](#end-state)
+3. [Pre-Deployment Decisions](#1-pre-deployment-decisions)
+4. [Prepare AWS](#2-prepare-aws)
+5. [Prepare GitHub](#3-prepare-github)
+6. [Prepare Cloudflare](#4-prepare-cloudflare)
+7. [Prepare LTBase Inputs](#5-prepare-ltbase-inputs)
+8. [Create Deployment Repository and Clone](#6-create-deployment-repository-and-clone)
+9. [Fill in .env](#7-fill-in-env)
+10. [Preflight Check](#8-preflight-check)
+11. [Run Bootstrap](#9-run-bootstrap)
+12. [Preview](#10-preview)
+13. [Rollout](#11-rollout)
+14. [Publish OIDC Discovery](#12-publish-oidc-discovery)
+15. [First Deployment Verification](#13-first-deployment-verification)
+16. [Common Errors and Recovery](#14-common-errors-and-recovery)
+17. [Day-2 Operations](#15-day-2-operations)
+18. [Related Documents](#related-documents)
+
+---
 
 ## Deployment Model
 
-Your LTBase deployment uses three repositories:
+Your LTBase deployment involves three repositories:
 
-- `ltbase-deploy-workflows`
-  - reusable public GitHub Actions workflows maintained by LTBase
-- `ltbase-releases`
-  - private release repository containing official LTBase application artifacts
-- your deployment repository
-  - a private repository created from `ltbase-private-deployment`
-  - your customer-owned repo that stores workflows, bootstrap scripts, and Pulumi stack configuration
+| Repository | Role | Do you manage it? |
+|------------|------|-------------------|
+| `ltbase-deploy-workflows` | Reusable public GitHub Actions workflows maintained by LTBase | No, referenced by your deployment repo |
+| `ltbase-releases` | Private release repository with official LTBase application artifacts | No, you have read-only token access |
+| **Your deployment repository** | A private repo created from the `ltbase-private-deployment` template | **This is the only repo you operate and maintain** |
 
-Your deployment repository does not build LTBase application source code. It downloads an official LTBase release and deploys it into your AWS account.
+Your deployment repository **does not build LTBase application source code**. It downloads an official LTBase release and deploys it into your AWS account with Pulumi.
 
-In the current repository version, the deployment repository is also the operator-facing source of truth for Control Plane UI inputs such as `CONTROLPLANE_UI_DOMAIN`, public browser auth settings, auth provider name alignment, and Control Plane CORS inputs. Some bootstrap scripts still publish those values through a companion-style `*-controlplane-ui` repository, so the docs below describe that current behavior conservatively.
+### Deployment Flow Overview
 
-This onboarding set supports generic multi-stack deployments. Names such as `devo` and `prod` are examples, not hard-coded requirements.
+```
+You prepare .env and prerequisites
+       ↓
+Bootstrap scripts (one-click or manual) create IAM roles, Pulumi backend, OIDC discovery, Control Plane UI Pages
+       ↓
+Manually trigger GitHub Actions preview workflow to validate Pulumi changes
+       ↓
+Manually trigger rollout workflow to deploy across PROMOTION_PATH
+       ↓
+Protected environments require approval in GitHub before advancing
+       ↓
+After each stack's first rollout, manually trigger publish-oidc-discovery.yml to publish OIDC Discovery documents (see section 12)
+       ↓
+Deployment complete; API, Auth, Control Plane, and UI are all reachable
+```
+
+### Current Control Plane UI Model
+
+In the current repository version:
+
+- **Bootstrap** phase: `bootstrap-controlplane-ui-companion.sh` creates the Cloudflare Pages project, custom domain binding, and DNS CNAME (it creates no repository; "companion" in the script name is historical naming); the browser runtime config (`CONTROLPLANE_UI_STACK_CONFIG`) is written by `bootstrap-deployment-repo.sh` as a **deployment-repo GitHub variable**.
+- **Preview** phase: Infrastructure-only preview; **does not** publish the Control Plane UI.
+- **Rollout** phase: Downloads the official `ltbase-controlplane-ui.tar.gz` from the release artifact, combines it with runtime config from the deployment repo, and publishes to Cloudflare Pages.
+- The deployment repository is the operator-facing source of truth for all UI inputs, including `CONTROLPLANE_UI_DOMAIN`, stack browser config, auth provider name alignment, and Control Plane CORS configuration.
+
+### Multi-Stack Topology
+
+Stack names like `devo` and `prod` in this document are **examples**. You may choose any names as long as they are consistent across `STACKS` and `PROMOTION_PATH`.
+
+---
 
 ## End State
 
-When onboarding is complete, you should have:
+When deployment is complete, you should have:
 
-- one private deployment repository based on this template
-- one GitHub OIDC trust relationship in each AWS account used for deployment
-- one deploy role per configured stack in `STACKS`
-- one shared Pulumi state bucket in the AWS account for the first stack in `PROMOTION_PATH`
-- one KMS alias for Pulumi secrets encryption
+- One private deployment repository based on this template
+- GitHub OIDC trust relationships in each AWS account used for deployment
+- One deploy role per stack in `STACKS`
+- One shared Pulumi state bucket in the AWS account for the first stack in `PROMOTION_PATH`
+- One KMS alias for Pulumi secrets encryption
 - GitHub repository secrets and variables configured
-- a first promotion stack ready for preview and deployment
-- each later stack in `PROMOTION_PATH` ready for protected promotion after the previous hop is validated
-- one control-plane UI admin domain that is allowed by control-plane CORS and matched to the operator identity-provider redirect setup
-- browser-safe Firebase and Supabase Control Plane UI values prepared for every stack that will expose operator login
-- at least one operator login path whose provider name matches the deployment-owned auth provider records for that stack
+- A first promotion stack ready for preview and deployment
+- Each later stack in `PROMOTION_PATH` ready for protected promotion after the previous hop is validated
+- A Control Plane UI admin site reachable via Cloudflare-proxied custom domain
+- An admin domain allowed by Control Plane CORS
+- Operator identity provider configured with the redirect URI and user binding
 
-## Before You Start
+---
 
-You will need:
+## 1. Pre-Deployment Decisions
 
-- a GitHub organization or account that can host a private repository
-- one or more AWS accounts that will host the stacks listed in `STACKS`
-- a Cloudflare zone for your domains
-- permission to create or update IAM roles, IAM OIDC providers, S3 buckets, and KMS keys
-- a customer-specific `LTBASE_RELEASES_TOKEN`
-- a Gemini API key
+Before any operations, finalize these topology decisions. They drive all subsequent configuration.
 
-For the detailed preparation checklist, use:
+### 1.1 Decide Stack Topology
 
-- [`docs/onboarding/01-prerequisites.md`](onboarding/01-prerequisites.md)
+| Decision | Description | Example |
+|----------|-------------|---------|
+| `STACKS` | All environment names, comma-separated | `devo,prod` or `dev,staging,prod` |
+| `PROMOTION_PATH` | Deployment promotion order, comma-separated | `devo,prod` (usually same as STACKS) |
 
-## Full Onboarding Order
+> **Current limitation (parallel deployment)**: `PROMOTION_PATH` currently supports only a **flat, comma-separated ordered list**, and rollout advances one stack at a time (`devo` → `prod-na` → `prod-eu`, sequentially). Parallel stage syntax like `devo,(prod-na,prod-eu)` (deploy `prod-na` and `prod-eu` simultaneously when promoting from `devo`) is **not supported** today. Deploying multiple stacks in parallel within one stage would require follow-up workflow changes (stage parsing, matrix rollout, and a fan-in that dispatches the next stage only after all parallel stacks succeed). Use lowercase letters, digits, and hyphens for stack names.
 
-Follow the steps in this order:
+### 1.2 Decide AWS Configuration Per Stack
 
-### Step 1 - Prepare prerequisites
+For each stack, determine:
 
-- Read: [`docs/onboarding/01-prerequisites.md`](onboarding/01-prerequisites.md)
-- Covers: accounts, permissions, tokens, domains, local tools
+| Config | Example |
+|--------|---------|
+| AWS region | `ap-northeast-1` |
+| AWS account ID | `123456789012` |
+| Deploy role name | `ltbase-deploy-devo` |
 
-### Step 2 - Create the deployment repository and clone it
+> **Note**: Multiple stacks using the same AWS account with different regions is allowed. If using different AWS accounts, ensure you can switch AWS credentials locally.
 
-- Read: [`docs/onboarding/02-create-repo-and-clone.md`](onboarding/02-create-repo-and-clone.md)
-- Covers: creating the private repo from template, cloning locally, verifying repository layout
-- Recommended even if you plan to use one-click bootstrap, because later bootstrap writes local Pulumi stack files into this checkout
+### 1.3 Decide Domains
 
-### Step 3 - Prepare OIDC and deploy roles
+For each stack, determine these domains. They must all be in the same Cloudflare zone:
 
-- Read: [`docs/onboarding/03-create-oidc-and-deploy-roles.md`](onboarding/03-create-oidc-and-deploy-roles.md)
-- Covers: OIDC provider, per-stack deploy roles, trust policy, permissions policy
-- If using one-click bootstrap, review only; the script creates these automatically
+| Domain | Purpose | Example |
+|--------|---------|---------|
+| API domain | Data plane API | `api.devo.customer.example.com` |
+| Control domain | Control Plane API | `control.devo.customer.example.com` |
+| Auth domain | Auth Service | `auth.devo.customer.example.com` |
+| OIDC Discovery domain | OIDC discovery endpoint | `oidc.customer.example.com` |
+| Control Plane UI domain | Admin UI | `admin.customer.example.com` |
 
-### Step 4 - Prepare the local `.env` file
+> **Note**: OIDC Discovery and Control Plane UI domains are global (shared by all stacks), while API/Control/Auth domains are per-stack.
 
-- Read: [`docs/onboarding/04-prepare-env-file.md`](onboarding/04-prepare-env-file.md)
-- Covers: every required `.env` field, where each value comes from, what must not be edited manually
+### 1.4 Decide Pulumi Backend Resource Names
 
-### Step 5 - Complete the pre-bootstrap readiness check
+| Config | Description |
+|--------|-------------|
+| Pulumi state bucket name | Globally unique S3 bucket name for Pulumi state |
+| Pulumi KMS alias | KMS alias for Pulumi secrets encryption |
 
-Before you run any bootstrap automation, confirm all of the following:
+---
 
-- GitHub access is ready.
-  - Run `gh auth status`.
-  - Confirm the authenticated account can create private repositories under `GITHUB_OWNER`.
-  - Confirm the same account can write repository secrets, repository variables, and GitHub environments in the target deployment repository.
-  - Review the minimum bootstrap permissions in [`docs/onboarding/01-prerequisites.md`](onboarding/01-prerequisites.md) before choosing the one-click path.
-- AWS account mapping is final.
-  - Confirm every stack in `STACKS` has a final AWS account ID, region, and deploy role name.
-  - If different stacks use different AWS accounts, confirm you already know how you will switch credentials locally, usually with `AWS_PROFILE_<STACK>` values in `.env`.
-  - Test each account access before bootstrap, for example `AWS_PROFILE_STAGING=customer-staging aws sts get-caller-identity`.
-  - Remember that the shared Pulumi backend bucket is created in the AWS account for the first stack in `PROMOTION_PATH`, so the credentials for that stack must be able to create and manage the bucket.
-- Cloudflare inputs are ready.
-  - Confirm `CLOUDFLARE_ACCOUNT_ID`, `CLOUDFLARE_ZONE_ID`, `CLOUDFLARE_API_TOKEN`, and `OIDC_DISCOVERY_DOMAIN` are final in `.env` before bootstrap.
-  - Confirm the token can manage the Pages project and custom domain that bootstrap creates for OIDC discovery.
-  - If you are using the current Control Plane UI companion bootstrap flow, confirm the same Cloudflare account and zone are also ready for the Control Plane UI Pages project, custom domain, and required CNAME.
-  - If the operator account or token does not meet the minimum permission matrix, use the manual path instead of one-click bootstrap.
-  - Confirm the zone can proxy the `api`, `auth`, and `control-plane` hostnames through Cloudflare.
-  - Plan to keep Cloudflare SSL mode on `Full (strict)` and enable Authenticated Origin Pulls before sending production traffic.
-- Release and application inputs are ready.
-  - Confirm `LTBASE_RELEASES_REPO`, `LTBASE_RELEASE_ID`, `LTBASE_RELEASES_TOKEN`, and `GEMINI_API_KEY` are available before you continue.
-  - Confirm the current Control Plane UI inputs are final before bootstrap: `CONTROLPLANE_UI_DOMAIN`, `FIREBASE_API_KEY_<STACK>`, `FIREBASE_PROJECT_ID_<STACK>`, `SUPABASE_URL_<STACK>`, and `SUPABASE_ANON_KEY_<STACK>`.
-  - Confirm those Firebase and Supabase values are public browser settings only. Do not place secrets, service-role keys, or other server-side credentials into the Control Plane UI runtime config.
-  - Confirm the provider names in each `infra/auth-providers.<stack>.json` file line up with the browser providers you expect operators to use. The current companion runtime config generation reuses matching deployment-owned provider names when it renders `public/ltbase-controlplane.config.json`.
-  - Confirm admin login prerequisites are ready in the identity provider before first use, including the redirect URI `https://<CONTROLPLANE_UI_DOMAIN>/auth/callback` and any required admin-user or group binding for the target LTBase project.
-- `.env` is clean.
-  - Fill customer-controlled values yourself.
-  - Leave derived values such as `PULUMI_BACKEND_URL`, `PULUMI_SECRETS_PROVIDER_<STACK>`, `AWS_ROLE_ARN_<STACK>`, `OIDC_ISSUER_URL_<STACK>`, and `JWKS_URL_<STACK>` unset unless you intentionally need an override.
-  - Do not set `DSQL_ENDPOINT` manually for managed deployments.
-- Preflight checks run successfully.
-  - Optional review step: `./scripts/render-bootstrap-policies.sh --env-file .env`
-  - Recovery-aware preflight: `./scripts/evaluate-and-continue.sh --env-file .env --scope bootstrap --infra-dir infra`
-  - A first-run report that shows `needs_foundation`, `needs_repo_config`, `needs_stack_bootstrap`, or `needs_oidc_discovery` is normal.
-  - Fix hard validation or authentication failures before you add `--force`.
+## 2. Prepare AWS
 
-For the detailed step-by-step one-click preparation and preflight process, use:
+### 2.1 Create or Confirm AWS Accounts
 
-- [`docs/onboarding/05-bootstrap-one-click.md`](onboarding/05-bootstrap-one-click.md)
+You need one or more AWS accounts to host LTBase stacks.
 
-### Step 6 - Choose a bootstrap path
+**If you do not have an AWS account:**
 
-If you have enough GitHub and AWS permissions, use the one-click path:
+1. Visit https://aws.amazon.com to create an account.
+2. Consider [creating an AWS Organization](https://docs.aws.amazon.com/organizations/latest/userguide/orgs_tutorials_basic.html) for unified multi-account management (not a hard requirement for LTBase).
+3. Record the account ID (12 digits) for each account, found in the top-right account menu of the AWS Console.
 
-- [`docs/onboarding/05-bootstrap-one-click.md`](onboarding/05-bootstrap-one-click.md)
+**If you already have AWS accounts:**
 
-If you want to control each stage manually, use the manual path:
+Confirm account IDs and regions are finalized, and you have sufficient permissions to create IAM resources, S3 buckets, and KMS keys.
 
-- [`docs/onboarding/06-bootstrap-manual.md`](onboarding/06-bootstrap-manual.md)
+### 2.2 Prepare Operator AWS Identity
 
-### Step 7 - Run the first preview and deployment
+You need an AWS identity that can operate on your accounts. Use IAM Identity Center (SSO) and avoid long-lived access keys.
 
-- Read: [`docs/onboarding/07-first-deploy-and-managed-dsql.md`](onboarding/07-first-deploy-and-managed-dsql.md)
-- Covers: infra-only preview, promotion-path rollout, protected-environment approvals, Control Plane UI operator validation, managed DSQL post-bootstrap handling
+#### Configure a profile with `aws configure sso`
 
-### Step 8 - Day-2 operations
+If you use AWS Organizations / IAM Identity Center, run the `aws configure sso` interactive wizard to configure a local profile:
 
-- Read: [`docs/onboarding/08-day-2-operations.md`](onboarding/08-day-2-operations.md)
-- Covers: release upgrades, repeated previews, deployment rhythm, operational reminders
+```bash
+aws configure sso
+```
 
-## Required GitHub Secrets and Variables
+The wizard prompts for the following, explained item by item:
 
-Set these repository secrets in your deployment repository:
+| Prompt | What to enter | Notes |
+|--------|---------------|-------|
+| `SSO session name` | e.g. `customer-ltbase` | A session name so multiple profiles can reuse the same SSO login |
+| `SSO start URL` | e.g. `https://your-org.awsapps.com/start` | From the AWS access portal / IAM Identity Center console |
+| `SSO region` | e.g. `us-east-1` | The region hosting IAM Identity Center; **not necessarily** the stack deployment region |
+| `SSO registration scopes` | `sso:account:access` | Default scope for listing accounts/roles; if the prompt already shows `[sso:account:access]`, just press Enter |
 
-- `AWS_ROLE_ARN_<STACK>` for every stack in `STACKS`
-- `LTBASE_RELEASES_TOKEN`
-- `CLOUDFLARE_API_TOKEN`
+After you press Enter, the browser opens an authorization page. Once authorized, the wizard continues:
 
-Set these repository variables in your deployment repository:
+| Prompt | What to enter | Notes |
+|--------|---------------|-------|
+| Select AWS account | Choose the target stack's account from the list | Auto-selected if only one account is available |
+| Select permission set / role | Choose a role with sufficient permissions | Auto-selected if only one role is available |
+| `Default client Region` | The AWS region for this profile's stack, e.g. `ap-northeast-1` | The default region this profile operates in |
+| `CLI default output format` | `json` recommended | CLI output format |
+| `Profile name` | e.g. `customer-devo` | Use the stack name so it aligns with `AWS_PROFILE_<STACK>` in `.env` |
 
-- `AWS_REGION_<STACK>` for every stack in `STACKS`
-- `PULUMI_BACKEND_URL`
-- `PULUMI_SECRETS_PROVIDER_<STACK>` for every stack in `STACKS`
-- `LTBASE_RELEASES_REPO`
-- `LTBASE_RELEASE_ID`
-- `STACKS`
-- `PROMOTION_PATH`
-- `PREVIEW_DEFAULT_STACK`
+Log in (or re-login after the token expires):
 
-The bootstrap scripts write these values for you when `.env` is correct.
+```bash
+aws sso login --profile customer-devo
+```
 
-## Recommended Working Pattern For One-Click Bootstrap
+#### Multiple AWS accounts
 
-- Recommended path:
-  - create the real deployment repository first
-  - clone that repository locally
-  - prepare `.env`
-  - run one-click bootstrap from that cloned repository root
-- Recovery path:
-  - the recovery-aware bootstrap flow can create a missing remote repository and continue
-  - if you use that path, clone the new repository before you review or commit generated local Pulumi stack files
+If different stacks use different AWS accounts, configure one profile per account (they can reuse the same `SSO session name`) and set the matching `AWS_PROFILE_<STACK>` in `.env`:
 
-## Important Managed DSQL Note
+```bash
+aws configure sso   # profile name: customer-devo
+aws configure sso   # profile name: customer-prod
+```
 
-For managed deployments, do not manually provide an external `dsqlHost`, `dsqlEndpoint`, or `dsqlPassword`.
+```bash
+# .env
+AWS_PROFILE_DEVO=customer-devo
+AWS_PROFILE_PROD=customer-prod
+```
 
-At the time of writing, this repository's bootstrap scripts use a bootstrap-safe split: bootstrap prepares GitHub and Pulumi state first, and `scripts/reconcile-managed-dsql-endpoint.sh` publishes the managed DSQL endpoint after infrastructure exists.
+### 2.3 Test AWS Access
 
-Aurora DSQL itself is created by the Pulumi blueprint. You do not supply an external `dsqlHost`, `dsqlEndpoint`, or `dsqlPassword` for managed deployments.
+For each stack's AWS account, verify credentials:
 
-The managed DSQL cluster uses the following default connection values set by the Lambda environment:
+```bash
+# For each stack
+aws sts get-caller-identity --profile customer-devo
+# Expected output: Account, Arn, UserId
+```
 
-- `DSQL_DB=postgres`
-- `DSQL_USER=admin`
+If the SSO token has expired, log in again before testing:
 
-These are the authoritative defaults for managed deployments.
+```bash
+aws sso login --profile customer-devo
+aws sts get-caller-identity --profile customer-devo
+```
 
-The current repository version uses a bootstrap-safe flow:
+### 2.4 Prepare Bootstrap Operator Permissions
 
-- `bootstrap-all.sh` and `bootstrap-deployment-repo.sh` prepare configuration only
-- the first real infrastructure apply creates the managed DSQL cluster
-- official deploy workflows also reconcile the authservice `project info` DynamoDB record after `pulumi up` by using the deployed `projectId`, `apiId`, `apiBaseUrl`, and current AWS account id
-- official deploy workflows reconcile the authoritative endpoint from AWS by using the Pulumi-exported `dsqlClusterIdentifier`
-- the reconcile step publishes the resolved endpoint into stack config as `dsqlEndpoint`
-- the same official rollout path then runs a second apply so Lambda environment configuration picks up the managed endpoint in that workflow run
-- `scripts/reconcile-managed-dsql-endpoint.sh` remains available as a recovery path when you need to repair an existing stack outside the official workflow
+Bootstrap scripts need to create AWS resources. You have two options:
 
-## Operational Constraints
+#### Option A: Run bootstrap directly (you have admin permissions)
 
-- `LTBASE_RELEASES_TOKEN` is only for downloading official LTBase releases
-- local `.env` files contain secrets and must never be committed
-- the template repository does not auto-run preview on pull requests because it has no live customer credentials
-- generated customer deployment repositories do not publish prebuilt infra binaries; the copied `build-infra-binary.yml` workflow is expected to be skipped outside `Lychee-Technology/ltbase-private-deployment`
-- customer repositories now carry `__ref__/template-provenance.json`, which records the upstream template commit and `build_fingerprint` used for prebuilt infra binary lookup
-- official workflows only install a prebuilt infra binary when that provenance and `build_fingerprint` exactly match an upstream-published manifest; otherwise they intentionally fall back to source build
-- manual preview only supports the first stack in `PROMOTION_PATH`
-- protected promotions happen in your own repository through per-stack GitHub environment gates
-- the current repository still contains companion-style Control Plane UI bootstrap and config publishing steps, so this runbook documents those current scripts rather than a future UI deployment model that has not been fully verified here
+If the operator has sufficient AWS permissions (e.g., AdministratorAccess), run bootstrap directly. The scripts will automatically create the OIDC provider, deploy roles, Pulumi backend bucket, KMS alias, etc.
 
-## Cloudflare mTLS Rollout Notes
+See the "Bootstrap minimum permissions" section below for details.
 
-- `api`, `auth`, and `control-plane` are expected to use Cloudflare-proxied custom domains.
-- API Gateway custom domains are configured for mutual TLS with the template's built-in Cloudflare Authenticated Origin Pull truststore.
-- Operators still need to enable Authenticated Origin Pulls in Cloudflare. This version documents that requirement but does not toggle it through IaC.
-- Direct `https://<api-id>.execute-api.<region>.amazonaws.com/...` access is expected to fail after rollout because the default API Gateway endpoints are disabled.
-- A `403` from the custom domain usually means Cloudflare is not presenting the expected client certificate chain or the truststore/config is out of sync.
-- A `526` from Cloudflare usually means the origin TLS configuration is not compatible with `Full (strict)` or the custom domain certificate is not valid yet.
-- Recommended rollout order:
-  - apply the infra change in a lower environment first
-  - confirm the DNS records are proxied in Cloudflare
-  - confirm Authenticated Origin Pulls is enabled
-  - verify the custom domain succeeds through Cloudflare
-  - verify direct `execute-api` access fails
+#### Option B: Generate minimal policies for a platform admin to grant
+
+If the operator lacks direct IAM creation permissions, a platform admin must grant minimal permissions first.
+
+> This depends on `.env` values. **After filling in `.env` in step 7**, run:
+>
+> ```bash
+> ./scripts/render-bootstrap-policies.sh --env-file .env
+> ```
+>
+> This generates the following policy files in `dist/`:
+>
+> | File | Purpose |
+> |------|---------|
+> | `dist/bootstrap-operator-<stack>-policy.json` | Permissions needed for each stack account |
+> | `dist/bootstrap-operator-first-stack-s3-policy.json` | Additional S3 permissions for the first stack (owns the shared Pulumi backend bucket) |
+>
+> Give these policy files to the platform admin to grant in the corresponding AWS accounts.
+
+### 2.5 Bootstrap Minimum Permissions Reference
+
+If you need to create AWS resources manually (instead of letting bootstrap scripts do it), here are the minimum permissions:
+
+**All stack accounts require:**
+
+- `iam:GetOpenIDConnectProvider`
+- `iam:CreateOpenIDConnectProvider`
+- `iam:GetRole`
+- `iam:CreateRole`
+- `iam:UpdateAssumeRolePolicy`
+- `iam:PutRolePolicy`
+- `iam:ListAliases` (KMS)
+- `kms:CreateKey`
+- `kms:CreateAlias`
+
+**The first stack account (`PROMOTION_PATH` first entry) additionally requires:**
+
+- `s3:HeadBucket`
+- `s3:CreateBucket`
+- `s3:PutBucketVersioning`
+- `s3:PutBucketEncryption`
+- `s3:PutPublicAccessBlock`
+- `s3:GetBucketPolicy`
+- `s3:PutBucketPolicy`
+
+### 2.6 Cross-Account Pulumi Backend Access
+
+The shared Pulumi state bucket (`PULUMI_STATE_BUCKET`) is created only in the AWS account of the first stack in `PROMOTION_PATH`. All stacks share that single backend bucket.
+
+In a multi-account topology this causes a common problem: **an identity in another account cannot access the first account's backend bucket by default**. For example, when `prod` lives in its own account and you operate locally with `AWS_PROFILE_PROD`, it cannot read/write the Pulumi state S3 objects in the `devo` account, and `pulumi` fails with `AccessDenied`.
+
+`bootstrap-aws-foundation.sh` solves this by writing a **resource-based bucket policy** on the first stack account's backend bucket:
+
+- It automatically grants every stack's deploy role (`AWS_ROLE_ARN_<STACK>`) `s3:ListBucket`, `s3:GetObject`, `s3:PutObject`, and `s3:DeleteObject` on the backend bucket.
+- Rollout in GitHub Actions uses the deploy role (via OIDC assume of `AWS_ROLE_ARN_<STACK>`), so the CI path is covered automatically by this policy.
+
+If you run `pulumi` **locally** with a non-first-account profile (e.g. `AWS_PROFILE_PROD`), the IAM/SSO role behind that profile is not a deploy role. **Bootstrap handles this automatically**: `bootstrap-aws-foundation.sh` runs `aws sts get-caller-identity` for every stack that sets `AWS_PROFILE_<STACK>`, resolves the IAM role ARN behind that profile (including the `aws-reserved/sso.amazonaws.com/<region>/...` path for IAM Identity Center / SSO roles), and adds it to the backend bucket policy. You usually do not need to set anything manually.
+
+Only when an identity **cannot** be resolved automatically from `AWS_PROFILE_<STACK>` (for example, you operate locally with a role that is not in the `.env` profile list) do you add its role ARN to `PULUMI_BACKEND_ACCESS_PRINCIPAL_ARNS` in `.env` (comma-separated); bootstrap will include it in the bucket policy:
+
+```bash
+# .env
+# Allow the role behind the local prod operator profile to access the shared
+# backend bucket in the devo account.
+PULUMI_BACKEND_ACCESS_PRINCIPAL_ARNS=arn:aws:iam::210987654321:role/aws-reserved/sso.amazonaws.com/us-west-2/AWSReservedSSO_Admin_abc123
+```
+
+> **How to find the SSO role ARN**: A profile configured with `aws configure sso` uses an SSO assumed-role. Run `aws sts get-caller-identity --profile customer-prod --query Arn --output text` to get an ARN like `arn:aws:sts::<account>:assumed-role/AWSReservedSSO_Admin_abc123/<user>`; the corresponding trusted principal role ARN is `arn:aws:iam::<account>:role/aws-reserved/sso.amazonaws.com/<sso-region>/AWSReservedSSO_Admin_abc123`.
+
+> **Note**: If all stacks live in the same AWS account, the backend bucket and all identities share that account, so you usually do not need `PULUMI_BACKEND_ACCESS_PRINCIPAL_ARNS`.
+
+---
+
+## 3. Prepare GitHub
+
+### 3.1 Confirm GitHub Account
+
+You need a GitHub organization or personal account that can host a private repository.
+
+```bash
+# Confirm CLI is authenticated
+gh auth status
+
+# If not authenticated, log in
+gh auth login
+```
+
+### 3.2 Confirm Permissions
+
+The authenticated GitHub account must be able to:
+
+- Create private repositories under `GITHUB_OWNER`
+- Write repository secrets and variables in the deployment repository
+- Create GitHub environments in the deployment repository (for protected environment approval gates)
+
+### 3.3 Confirm GITHUB_OWNER
+
+`GITHUB_OWNER` in `.env` is your GitHub organization name or personal username.
+
+```bash
+# If using an organization, confirm membership
+gh api user/orgs --jq '.[].login'
+```
+
+---
+
+## 4. Prepare Cloudflare
+
+### 4.1 Confirm Cloudflare Zone
+
+You need a Cloudflare zone for your domains.
+
+```bash
+# List your zones
+curl -s -H "Authorization: Bearer ${CLOUDFLARE_API_TOKEN}" \
+  "https://api.cloudflare.com/client/v4/zones" | jq '.result[] | {name, id}'
+```
+
+Record these two values:
+
+| Value | Description |
+|-------|-------------|
+| Cloudflare account ID | Visible at the bottom of the Cloudflare Dashboard sidebar |
+| Cloudflare zone ID | The `id` field from the command above |
+
+### 4.2 Create Cloudflare API Token
+
+In Cloudflare Dashboard → My Profile → API Tokens → Create Token.
+
+**Required permissions:**
+
+| Resource | Permission |
+|----------|-----------|
+| Account - Cloudflare Pages | Edit |
+| Zone - DNS | Edit |
+| Zone - Zone Settings | Read |
+| Zone - Custom Domains (Pages) | Edit |
+
+> Zone Settings Read is required for the mTLS audit step in preview/rollout workflows.
+
+### 4.3 Cloudflare SSL and Authenticated Origin Pulls Requirements
+
+After deployment, all LTBase services (`api`, `auth`, `control-plane`) must be accessed through Cloudflare proxying with API Gateway mutual TLS enabled.
+
+Before deployment, confirm:
+- The Cloudflare zone uses `Full (strict)` SSL mode
+- You plan to enable Authenticated Origin Pulls for API hostnames after deployment
+
+---
+
+## 5. Prepare LTBase Inputs
+
+### 5.1 LTBase Releases Token
+
+Obtain a customer-specific `LTBASE_RELEASES_TOKEN` from the LTBase team. This token is only used to download official release artifacts.
+
+### 5.2 Gemini API Key
+
+Obtain a Gemini API key from [Google AI Studio](https://aistudio.google.com/apikey).
+
+### 5.3 Determine Release ID
+
+Confirm the first LTBase release version you will deploy, e.g. `v1.0.23`. Obtain the available release ID from the LTBase team.
+
+### 5.4 Prepare Firebase and Supabase Browser Config (Control Plane UI)
+
+The Control Plane UI requires public Firebase and Supabase browser configuration for each stack. These are **public values** and must not contain secrets.
+
+| Variable | Description | Example |
+|----------|-------------|---------|
+| `FIREBASE_API_KEY_<STACK>` | Firebase browser API key | `AIzaSy...` |
+| `FIREBASE_PROJECT_ID_<STACK>` | Firebase project ID | `my-project` |
+| `SUPABASE_URL_<STACK>` | Supabase project URL | `https://xxx.supabase.co` |
+| `SUPABASE_ANON_KEY_<STACK>` | Supabase anonymous key | `eyJh...` |
+
+> **Warning**: These values are delivered to browsers in the Control Plane UI runtime config. **Do not** put Firebase admin SDK private keys, Supabase service-role keys, or other secrets here.
+
+### 5.5 Prepare Auth Provider Config
+
+Copy the example files and edit the real auth provider configuration:
+
+```bash
+cp infra/auth-providers.devo.json.example infra/auth-providers.devo.json
+cp infra/auth-providers.prod.json.example infra/auth-providers.prod.json
+```
+
+Edit the `.json` files to configure your JWT issuer, audience, etc.
+
+> **Important**: Keep the provider names in `auth-providers.<stack>.json` aligned with the browser providers visible in the Control Plane UI. The bootstrap scripts reuse matching names when generating runtime config.
+
+---
+
+## 6. Create Deployment Repository and Clone
+
+### 6.1 Create Repository from Template
+
+On GitHub, create a **new private repository** from the `Lychee-Technology/ltbase-private-deployment` template.
+
+```bash
+gh repo create "${GITHUB_OWNER}/customer-ltbase" \
+  --template Lychee-Technology/ltbase-private-deployment \
+  --private \
+  --description "Customer LTBase deployment repo"
+```
+
+### 6.2 Clone Locally
+
+```bash
+gh repo clone "${GITHUB_OWNER}/customer-ltbase"
+cd customer-ltbase
+```
+
+### 6.3 Verify Repository Layout
+
+Confirm these files and directories exist:
+
+```bash
+ls infra/
+ls .github/workflows/
+ls env.template
+ls scripts/bootstrap-all.sh
+ls scripts/evaluate-and-continue.sh
+ls scripts/render-bootstrap-policies.sh
+```
+
+---
+
+## 7. Fill in .env
+
+The `.env` file is the input for all bootstrap and deployment configuration.
+
+### 7.1 Create .env
+
+```bash
+cp env.template .env
+```
+
+**Never** commit `.env` to Git. It contains tokens and secrets.
+
+### 7.2 Minimal .env Example
+
+The example below contains only the variables you **must** fill in manually. Any variable that `scripts/lib/bootstrap-env.sh` can derive or that has a constant default is omitted here unless you want to override it (see 7.3).
+
+```bash
+# ============ Stack Topology ============
+STACKS=devo,prod
+# PROMOTION_PATH defaults to STACKS; set it only for a different order
+
+# ============ Repository Identity ============
+GITHUB_OWNER=customer-org
+DEPLOYMENT_REPO_NAME=customer-ltbase
+
+# ============ Domains (global) ============
+OIDC_DISCOVERY_DOMAIN=oidc.customer.example.com
+CONTROLPLANE_UI_DOMAIN=admin.customer.example.com
+
+# ============ Cloudflare ============
+CLOUDFLARE_ACCOUNT_ID=abc123def456
+CLOUDFLARE_ZONE_ID=zone-abc123
+CLOUDFLARE_API_TOKEN=your-api-token-here
+
+# ============ AWS Environment (one set per stack) ============
+AWS_REGION_DEVO=ap-northeast-1
+AWS_ACCOUNT_ID_DEVO=123456789012
+AWS_REGION_PROD=us-west-2
+AWS_ACCOUNT_ID_PROD=210987654321
+# Set AWS_PROFILE_<STACK> when stacks use different AWS accounts
+# AWS_PROFILE_DEVO=customer-devo
+# AWS_PROFILE_PROD=customer-prod
+
+# ============ Pulumi Backend ============
+PULUMI_STATE_BUCKET=replace-with-pulumi-state-bucket
+
+# ============ Domains (one set per stack) ============
+API_DOMAIN_DEVO=api.devo.customer.example.com
+API_DOMAIN_PROD=api.customer.example.com
+CONTROL_DOMAIN_DEVO=control.devo.customer.example.com
+CONTROL_DOMAIN_PROD=control.customer.example.com
+AUTH_DOMAIN_DEVO=auth.devo.customer.example.com
+AUTH_DOMAIN_PROD=auth.customer.example.com
+
+# ============ LTBase Application Config ============
+PROJECT_ID=11111111-1111-4111-8111-111111111111
+
+# ============ Release Config ============
+LTBASE_RELEASE_ID=v1.0.23
+LTBASE_RELEASES_TOKEN=your-releases-token-here
+
+# ============ Control Plane UI Browser Config ============
+FIREBASE_API_KEY_DEVO=public-firebase-api-key
+FIREBASE_API_KEY_PROD=public-firebase-api-key
+FIREBASE_PROJECT_ID_DEVO=firebase-project-id
+FIREBASE_PROJECT_ID_PROD=firebase-project-id
+SUPABASE_URL_DEVO=https://project.supabase.co
+SUPABASE_URL_PROD=https://project.supabase.co
+SUPABASE_ANON_KEY_DEVO=public-anon-key
+SUPABASE_ANON_KEY_PROD=public-anon-key
+
+# ============ Gemini ============
+GEMINI_API_KEY=your-gemini-api-key
+```
+
+### 7.3 Field-by-Field Reference
+
+#### Must Fill Manually (cannot be derived)
+
+| Variable | Where to get it |
+|----------|----------------|
+| `STACKS` | Your deployment topology decision |
+| `GITHUB_OWNER` | Your GitHub organization or username |
+| `DEPLOYMENT_REPO_NAME` | Desired repository name |
+| `OIDC_DISCOVERY_DOMAIN` | Your domain plan |
+| `CONTROLPLANE_UI_DOMAIN` | Your domain plan |
+| `CLOUDFLARE_ACCOUNT_ID` | Cloudflare Dashboard |
+| `CLOUDFLARE_ZONE_ID` | Cloudflare Dashboard |
+| `CLOUDFLARE_API_TOKEN` | Cloudflare API token you created |
+| `AWS_REGION_<STACK>` | Target region for each stack |
+| `AWS_ACCOUNT_ID_<STACK>` | AWS account ID for each stack |
+| `PULUMI_STATE_BUCKET` | Globally unique bucket name |
+| `API_DOMAIN_<STACK>` | Your domain plan |
+| `CONTROL_DOMAIN_<STACK>` | Your domain plan |
+| `AUTH_DOMAIN_<STACK>` | Your domain plan |
+| `PROJECT_ID` | LTBase project ID (UUID format) |
+| `LTBASE_RELEASE_ID` | Release version to deploy |
+| `LTBASE_RELEASES_TOKEN` | From LTBase team |
+| `GEMINI_API_KEY` | From Google AI Studio |
+| `FIREBASE_API_KEY_<STACK>` | Firebase project settings (browser-public) |
+| `FIREBASE_PROJECT_ID_<STACK>` | Firebase project settings (browser-public) |
+| `SUPABASE_URL_<STACK>` | Supabase project settings (browser-public) |
+| `SUPABASE_ANON_KEY_<STACK>` | Supabase project settings (browser-public) |
+
+> `AWS_PROFILE_<STACK>` is not required, but is mandatory in multi-account topologies (see 7.4).
+
+#### Derived by Bootstrap (leave empty by default)
+
+| Variable | Derivation Rule |
+|----------|----------------|
+| `PROMOTION_PATH` | Defaults to `STACKS` |
+| `TEMPLATE_REPO` | Defaults to `Lychee-Technology/ltbase-private-deployment` |
+| `DEPLOYMENT_REPO` | `${GITHUB_OWNER}/${DEPLOYMENT_REPO_NAME}` |
+| `DEPLOYMENT_REPO_VISIBILITY` | Defaults to `private` |
+| `DEPLOYMENT_REPO_DESCRIPTION` | Defaults to `Customer LTBase deployment repo` |
+| `GITHUB_ORG` / `GITHUB_REPO` | Derived from above |
+| `AWS_ROLE_NAME_<STACK>` | Defaults to `ltbase-deploy-<stack>` |
+| `AWS_ROLE_ARN_<STACK>` | `arn:aws:iam::${AWS_ACCOUNT_ID_<STACK>}:role/${AWS_ROLE_NAME_<STACK>}` |
+| `PULUMI_KMS_ALIAS` | Defaults to `alias/ltbase-pulumi-secrets` |
+| `PULUMI_BACKEND_URL` | `s3://${PULUMI_STATE_BUCKET}` |
+| `PULUMI_SECRETS_PROVIDER_<STACK>` | `awskms://${PULUMI_KMS_ALIAS}?region=${AWS_REGION_<STACK>}` |
+| `LTBASE_RELEASES_REPO` | Defaults to `Lychee-Technology/ltbase-releases` |
+| `AUTH_PROVIDER_CONFIG_FILE_<STACK>` | Defaults to `infra/auth-providers.<stack>.json` |
+| `OIDC_ISSUER_URL_<STACK>` | `https://${OIDC_DISCOVERY_DOMAIN}/<stack>` |
+| `JWKS_URL_<STACK>` | `https://${OIDC_DISCOVERY_DOMAIN}/<stack>/.well-known/jwks.json` |
+| `OIDC_DISCOVERY_PAGES_PROJECT` | `<DEPLOYMENT_REPO_NAME>-oidc-discovery` |
+| `CONTROLPLANE_UI_PAGES_PROJECT` | `<DEPLOYMENT_REPO_NAME>-controlplane-ui` |
+| `RUNTIME_BUCKET_<STACK>` | `<DEPLOYMENT_REPO_NAME>-runtime-<stack>` |
+| `SCHEMA_BUCKET_<STACK>` | `<DEPLOYMENT_REPO_NAME>-schema-<stack>` |
+| `TABLE_NAME_<STACK>` | `<DEPLOYMENT_REPO_NAME>-<stack>` |
+| `PREVIEW_DEFAULT_STACK` | First stack in `PROMOTION_PATH` |
+| `PULUMI_BACKEND_ACCESS_PRINCIPAL_ARNS` | Auto-derived from `AWS_PROFILE_<STACK>` (see 7.4); set manually only for identities bootstrap cannot resolve |
+
+#### Constant Defaults (usually left unset)
+
+| Variable | Default | Notes |
+|----------|---------|-------|
+| `MTLS_TRUSTSTORE_FILE` | `infra/certs/cloudflare-origin-pull-ca.pem` | Cloudflare official AOP truststore |
+| `MTLS_TRUSTSTORE_KEY` | `mtls/cloudflare-origin-pull-ca.pem` | truststore key in runtime bucket |
+| `GEMINI_MODEL` | `gemini-3.1-flash-lite` | Default model |
+| `DSQL_PORT` / `DSQL_DB` / `DSQL_USER` / `DSQL_PROJECT_SCHEMA` | `5432` / `postgres` / `admin` / `ltbase` | DSQL connection defaults |
+| `DSQL_HOST` / `DSQL_ENDPOINT` / `DSQL_PASSWORD` | **Do not set** | Managed deployments are auto-resolved |
+
+### 7.4 Multi-Account Notes
+
+If different stacks use different AWS accounts, set `AWS_PROFILE_<STACK>` for each:
+
+```bash
+AWS_PROFILE_DEVO=customer-devo
+AWS_PROFILE_PROD=customer-prod
+```
+
+Test each profile:
+
+```bash
+aws sts get-caller-identity --profile customer-devo
+aws sts get-caller-identity --profile customer-prod
+```
+
+> **Important**: The Pulumi shared backend bucket is created in the AWS account for the first stack in `PROMOTION_PATH`. That account's credentials must be able to create and manage the bucket.
+
+> **Cross-account access is handled automatically**: `bootstrap-aws-foundation.sh` runs `aws sts get-caller-identity` for every stack that sets `AWS_PROFILE_<STACK>` and adds the IAM role behind that profile (including the `aws-reserved/sso.amazonaws.com/<region>/...` path for IAM Identity Center / SSO roles) to the shared backend bucket policy. You therefore usually do **not** need to set `PULUMI_BACKEND_ACCESS_PRINCIPAL_ARNS`; provide it only when an identity cannot be resolved automatically (see 2.6).
+
+---
+
+## 8. Preflight Check
+
+Before running bootstrap, perform preflight checks to ensure all prerequisites are met.
+
+### 8.1 Check GitHub Access
+
+```bash
+gh auth status
+```
+
+### 8.2 Check AWS Access
+
+```bash
+# For each account per stack
+aws sts get-caller-identity --profile customer-devo
+```
+
+### 8.3 Review Bootstrap IAM Policies (Optional but recommended)
+
+```bash
+./scripts/render-bootstrap-policies.sh --env-file .env
+```
+
+Review the generated files in `dist/` to confirm policy content and scope match expectations.
+
+### 8.4 Run Bootstrap Scan (without --force)
+
+```bash
+./scripts/evaluate-and-continue.sh --env-file .env --scope bootstrap --infra-dir infra
+```
+
+**Normal output**: Shows statuses like `needs_foundation`, `needs_repo_config`, `needs_stack_bootstrap`, `needs_oidc_discovery`. All steps showing "needs" means nothing has run yet — this is normal.
+
+**Abnormal output**:
+
+- Authentication failures (GitHub, AWS, Cloudflare, Pulumi)
+- `missing required variable` → `.env` is missing required fields
+- Hard exit → environment does not meet bootstrap prerequisites
+
+**If preflight reports errors**: Fix `.env` or permissions based on the error messages, then rerun preflight until no hard errors remain.
+
+---
+
+## 9. Run Bootstrap
+
+### 9.1 One-Click Bootstrap (Recommended)
+
+If you have sufficient GitHub, AWS, and Cloudflare permissions, use one-click bootstrap:
+
+```bash
+# For split AWS accounts, ensure profile is correct first
+export AWS_PROFILE=customer-devo  # or confirm AWS_PROFILE_<STACK> is in .env
+
+./scripts/evaluate-and-continue.sh --env-file .env --scope bootstrap --force --infra-dir infra
+```
+
+**One-click bootstrap runs these stages in order:**
+
+1. `create-deployment-repo.sh` — Ensures the remote repository exists
+2. `render-bootstrap-policies.sh` — Generates IAM policy artifacts
+3. `bootstrap-aws-foundation.sh` — Creates GitHub OIDC provider, deploy roles, Pulumi backend bucket, KMS alias
+4. `bootstrap-oidc-discovery.sh` — Creates OIDC discovery Cloudflare Pages project and DNS
+5. `bootstrap-controlplane-ui-companion.sh` — Creates the Control Plane UI Cloudflare Pages project, custom domain, and DNS CNAME (creates no repository)
+6. `bootstrap-deployment-repo.sh` — Configures Pulumi and GitHub values/secrets for each stack
+
+**Verify after completion:**
+
+```bash
+# Check GitHub repository variables
+gh variable list --repo "${GITHUB_OWNER}/customer-ltbase"
+
+# Check GitHub repository secrets (lists names only)
+gh secret list --repo "${GITHUB_OWNER}/customer-ltbase"
+
+# Check Pulumi stack files
+ls infra/Pulumi.*.yaml
+
+# Verify each Pulumi stack file includes control plane CORS config
+grep -l 'controlPlaneCorsOrigins' infra/Pulumi.*.yaml
+```
+
+> **Recovery-aware**: `evaluate-and-continue.sh` is idempotent. If it fails mid-way, fix the error and rerun — it skips already-completed steps.
+
+### 9.2 Manual Bootstrap (When Permissions Are Limited)
+
+If you lack permissions for automated resource creation, or want to control each stage:
+
+#### Create Repository
+
+```bash
+./scripts/create-deployment-repo.sh --env-file .env
+```
+
+#### Bootstrap AWS Foundation
+
+```bash
+# Ensure AWS credentials are ready
+./scripts/bootstrap-aws-foundation.sh --env-file .env
+
+# Source generated values into current shell
+source dist/foundation.env
+```
+
+#### Bootstrap OIDC Discovery
+
+```bash
+./scripts/bootstrap-oidc-discovery.sh --env-file .env
+```
+
+#### Bootstrap Control Plane UI Companion
+
+```bash
+./scripts/bootstrap-controlplane-ui-companion.sh --env-file .env
+```
+
+#### Configure Pulumi for Each Stack
+
+```bash
+./scripts/bootstrap-deployment-repo.sh --env-file .env --stack devo --infra-dir infra
+./scripts/bootstrap-deployment-repo.sh --env-file .env --stack prod --infra-dir infra
+```
+
+#### Final Confirmation
+
+```bash
+./scripts/evaluate-and-continue.sh --env-file .env --scope bootstrap --infra-dir infra
+```
+
+Confirm all statuses show `complete`.
+
+---
+
+## 10. Preview
+
+The preview workflow validates Pulumi stack configuration, checks customer schemas, and runs `pulumi preview`. It **only** performs infrastructure preview and **does not** publish the Control Plane UI.
+
+Preview **only** supports the first stack in `PROMOTION_PATH`.
+
+### Via CLI
+
+```bash
+gh workflow run preview.yml \
+  -f target_stack=devo \
+  --ref main
+```
+
+Check run status:
+
+```bash
+gh run list --workflow="Preview LTBase Blueprint" --limit 3
+```
+
+Watch progress:
+
+```bash
+gh run watch $(gh run list --workflow="Preview LTBase Blueprint" --limit 1 --json databaseId --jq '.[0].databaseId')
+```
+
+### Preview Output Review
+
+After the preview workflow completes, inspect the GitHub Actions run page:
+
+1. **validate_config** step: Pulumi stack config validation passed
+2. **preview** step: Pulumi preview output, confirm changes are within expected scope
+3. **audit_mtls** step: Cloudflare mTLS configuration audit
+
+If preview results do not match expectations, fix the configuration or bootstrap gap before starting rollout.
+
+---
+
+## 11. Rollout
+
+The rollout workflow deploys across `PROMOTION_PATH` one hop at a time. Protected environments trigger a GitHub environment approval gate after each hop.
+
+- The first stack in `PROMOTION_PATH` deploys automatically, no approval needed.
+- Each subsequent hop requires your approval in the GitHub environment gate.
+- Each hop automatically reconciles managed DSQL endpoint and authservice project info after `pulumi up`.
+
+### 11.1 Trigger via CLI
+
+```bash
+gh workflow run rollout.yml \
+  -f release_id=v1.0.23 \
+  --ref main
+```
+
+Check run status:
+
+```bash
+gh run list --workflow="Rollout LTBase Release" --limit 3
+```
+
+### 11.2 Approve Protected Environments
+
+When rollout reaches a hop requiring approval, GitHub pauses and waits.
+
+You will be notified via Slack/Email, or check via CLI:
+
+```bash
+gh run list --workflow="Rollout LTBase Release" --status=waiting
+```
+
+In the GitHub Actions run page, click Review pending deployments to approve.
+
+### 11.3 Deploy Only the Start Stack (No Auto-Promotion)
+
+To deploy only the first stack in `PROMOTION_PATH` without auto-promotion:
+
+```bash
+gh workflow run deploy-devo.yml -f release_id=v1.0.23 --ref main
+```
+
+### 11.4 Manually Promote a Single Hop
+
+If the auto-promotion chain breaks, or you need to promote a single hop:
+
+```bash
+gh workflow run promote-prod.yml \
+  -f release_id=v1.0.23 \
+  -f from_stack=devo \
+  -f to_stack=prod \
+  --ref main
+```
+
+> **Note**: `from_stack` and `to_stack` must be adjacent in `PROMOTION_PATH`.
+
+### 11.5 What Each Rollout Hop Does Automatically
+
+Each rollout hop:
+
+1. Runs `pulumi up`
+2. Reconciles managed DSQL endpoint (fetches authoritative endpoint from AWS, writes to Pulumi config)
+3. Runs a second `pulumi up` (so Lambda environment variables pick up the managed DSQL endpoint)
+4. Reconciles authservice `project info` DynamoDB record
+5. Publishes customer schemas to stack schema bucket
+6. Publishes Control Plane UI to Cloudflare Pages (if `CONTROLPLANE_UI_PAGES_PROJECT` is configured)
+7. Runs Cloudflare mTLS audit
+
+---
+
+## 12. Publish OIDC Discovery
+
+OIDC Discovery serves each stack's `openid-configuration` and `jwks.json` for external JWT verification.
+
+### Why after Rollout
+
+OIDC Discovery documents are derived from each stack's authservice signing KMS key. **That KMS key is created by Pulumi during deployment** (see `alias/ltbase-oidc-discovery-<stack>-authservice`). So publishing OIDC Discovery must happen **after** that stack's first rollout; triggering it before rollout fails because the KMS key does not exist yet.
+
+### Current Publish Model
+
+- There is no OIDC Discovery companion repository or standalone repository.
+- Bootstrap (step 9) already prepares the hosting resources: the Cloudflare Pages project, custom domain, DNS CNAME, deployment repo variables (`OIDC_DISCOVERY_DOMAIN`, `OIDC_DISCOVERY_STACK_CONFIG`, `OIDC_DISCOVERY_PAGES_PROJECT`), and per-stack OIDC discovery IAM roles.
+- Generating and uploading the discovery documents is done by the deployment repo's built-in `publish-oidc-discovery.yml` workflow: it runs `scripts/build-discovery.sh` to generate the documents, then **direct-uploads** them to the `${OIDC_DISCOVERY_PAGES_PROJECT}` Cloudflare Pages project via `wrangler pages deploy`.
+
+> **Note**: In the current version, neither bootstrap nor rollout automatically triggers `publish-oidc-discovery.yml`. You must trigger it manually once after each stack's first rollout completes.
+
+### Trigger via GitHub Actions UI
+
+In your repository's Actions tab, select **Publish OIDC Discovery Documents**, click Run workflow, Branch `main`, set `target_stack` to the stack that has completed rollout (or `all` once every target stack has been rolled out).
+
+### Trigger via CLI
+
+```bash
+# Publish only a stack that has completed rollout (recommended after each hop)
+gh workflow run publish-oidc-discovery.yml \
+  -f target_stack=devo \
+  --ref main
+
+# Once every target stack has completed its first rollout, refresh them all
+gh workflow run publish-oidc-discovery.yml \
+  -f target_stack=all \
+  --ref main
+```
+
+Check run status:
+
+```bash
+gh run list --workflow=publish-oidc-discovery.yml --limit 3
+```
+
+> **Note**: Cloudflare Pages direct upload is a whole-site deploy. When publishing a single stack, `build-discovery.sh` only regenerates that stack's documents; publish each stack after its first rollout, or use `target_stack=all` once all rollouts are complete, to avoid missing a stack.
+
+> **Note**: OIDC discovery IAM roles only trust workflows dispatched from the default branch (`repo:<DEPLOYMENT_REPO>:ref:refs/heads/<default_branch>`). Dispatching from any other branch causes AWS role assumption to fail.
+
+### Ideal State (Future Work)
+
+Ideally, OIDC Discovery would be published automatically during rollout instead of requiring a separate manual trigger. The plan is to add a job after the `rollout-hop.yml` rollout succeeds that direct-uploads the subset of already-deployed stacks in `PROMOTION_PATH` from the start up to the current target stack. That is a follow-up code change; this document will be updated once it lands.
+
+---
+
+## 13. First Deployment Verification
+
+After rollout completes, verify each item:
+
+### 13.1 Basic Verification
+
+```bash
+# Check Pulumi stack outputs
+pulumi stack output --stack "org/customer-ltbase/devo" -C infra
+
+# Verify OIDC discovery endpoint is reachable
+curl -s "https://${OIDC_DISCOVERY_DOMAIN}/devo/.well-known/openid-configuration" | jq
+
+# Verify API custom domain is reachable (4xx is normal, means DNS and proxying work)
+curl -s -o /dev/null -w "%{http_code}" "https://${API_DOMAIN_DEVO}/health"
+```
+
+### 13.2 Control Plane UI Verification
+
+- Visit `https://${CONTROLPLANE_UI_DOMAIN}` in a browser
+- Confirm `/ltbase-controlplane.config.json` is accessible
+- Confirm Firebase / Supabase login options are visible
+- Confirm the redirect URI is configured in the identity provider: `https://${CONTROLPLANE_UI_DOMAIN}/auth/callback`
+
+### 13.3 Cloudflare mTLS Verification
+
+```bash
+./scripts/check-cloudflare-mtls.sh --env-file .env --stack devo
+```
+
+Check items:
+
+- `api`, `auth`, `control-plane` DNS records are orange-clouded (proxied) in Cloudflare
+- Cloudflare SSL mode is `Full (strict)`
+- Cloudflare Authenticated Origin Pulls is enabled
+- truststore object exists in the stack runtime bucket
+- API Gateway custom domain has mutual TLS configured
+
+### 13.4 Schema Verification
+
+Confirm the schema bucket has the correct published records:
+
+```bash
+# List schema bucket contents (requires AWS credentials)
+aws s3 ls "s3://${SCHEMA_BUCKET_DEVO}/schemas/releases/" --profile customer-devo
+
+# Check published manifest
+aws s3 cp "s3://${SCHEMA_BUCKET_DEVO}/schemas/published/manifest.json" - --profile customer-devo | jq
+```
+
+### 13.5 Managed DSQL Verification
+
+Confirm the managed DSQL endpoint is correctly set:
+
+```bash
+# Check dsqlEndpoint in Pulumi stack config
+pulumi stack output --stack "org/customer-ltbase/devo" -C infra | grep -i dsql
+```
+
+If the DSQL endpoint is empty or incorrect, manually reconcile:
+
+```bash
+./scripts/reconcile-managed-dsql-endpoint.sh --env-file .env --stack devo --infra-dir infra
+```
+
+### 13.6 Auth Service Project Info Verification
+
+If the auth service project info record is missing or incorrect, manually reconcile:
+
+```bash
+./scripts/reconcile-project-info.sh --env-file .env --stack devo --infra-dir infra
+```
+
+---
+
+## 14. Common Errors and Recovery
+
+### 14.1 AWS Credential Errors
+
+**Symptom**: bootstrap or preview reports `InvalidClientTokenId` or `AccessDenied`
+
+```bash
+# Confirm credentials
+aws sts get-caller-identity --profile customer-devo
+# Confirm SSO session is not expired
+aws sso login --profile customer-devo
+```
+
+### 14.2 Cloudflare API Token Insufficient Permissions
+
+**Symptom**: bootstrap fails to create Pages or DNS records
+
+Check token permissions:
+- Account: Cloudflare Pages — Edit
+- Zone: DNS — Edit
+- Zone: Zone Settings — Read
+
+### 14.3 Pulumi Config Drift
+
+**Symptom**: preview or rollout fails with missing key in validate_config step
+
+Fix by re-bootstrapping the stack's Pulumi config based on the missing key in the error:
+
+```bash
+# Re-bootstrap Pulumi config for a stack
+./scripts/bootstrap-deployment-repo.sh --env-file .env --stack devo --infra-dir infra
+```
+
+### 14.4 Control Plane UI Operator Login Failure
+
+Check in order:
+
+1. `CONTROLPLANE_UI_DOMAIN` still points to the correct Cloudflare Pages domain
+2. Identity provider allows `https://${CONTROLPLANE_UI_DOMAIN}/auth/callback`
+3. Provider names in `infra/auth-providers.<stack>.json` match the browser-visible providers
+4. Control Plane API CORS includes `https://${CONTROLPLANE_UI_DOMAIN}`
+5. Firebase / Supabase values are correct (public client values, no secrets)
+
+### 14.5 Managed DSQL Endpoint Incomplete
+
+**Symptom**: Lambda cannot connect to DSQL
+
+```bash
+# Manual reconcile
+./scripts/reconcile-managed-dsql-endpoint.sh --env-file .env --stack devo --infra-dir infra
+
+# Then re-rollout or single deploy
+gh workflow run deploy-devo.yml -f release_id=v1.0.23 --ref main
+```
+
+### 14.6 mTLS 403 / 526 Errors
+
+- **403**: Cloudflare may not be presenting the expected client certificate chain, or the truststore has drifted
+- **526**: Origin TLS is incompatible with `Full (strict)`, or the custom domain certificate is not yet valid
+
+Confirm:
+- Cloudflare SSL mode is `Full (strict)`
+- Cloudflare Authenticated Origin Pulls is enabled
+- Direct `execute-api` access fails (this is expected when mTLS is active)
+
+---
+
+## 15. Day-2 Operations
+
+### 15.1 Upgrade to a New LTBase Release
+
+```bash
+# 1. Sync latest template tooling (optional, on main branch)
+./scripts/update-sync-template-tooling.sh
+./scripts/sync-template-upstream.sh
+
+# 2. Update LTBASE_RELEASE_ID GitHub variable
+gh variable set LTBASE_RELEASE_ID --body "v1.0.24" \
+  --repo "${GITHUB_OWNER}/customer-ltbase"
+
+# 3. Run preview for the first stack
+gh workflow run preview.yml -f target_stack=devo --ref main
+
+# 4. After confirming preview is correct, run rollout
+gh workflow run rollout.yml -f release_id=v1.0.24 --ref main
+```
+
+### 15.2 Verify mTLS Configuration
+
+```bash
+./scripts/check-cloudflare-mtls.sh --env-file .env --stack devo
+```
+
+### 15.3 View Stack Outputs
+
+```bash
+pulumi stack output --stack "org/customer-ltbase/devo" -C infra
+pulumi stack output --stack "org/customer-ltbase/prod" -C infra
+```
+
+### 15.4 Operational Constraints
+
+| Constraint | Notes |
+|------------|-------|
+| Do not build the application yourself | The deployment repo downloads official releases only |
+| Do not commit .env | `.env` contains secrets and tokens |
+| Do not bypass the approval gate | Production environment protected gates must be approved |
+| Do not change release ID mid-rollout | The entire promotion path uses one release ID |
+| Do not manually set DSQL endpoint | Managed deployments are auto-reconciled |
+| Keep Cloudflare SSL at Full (strict) | Never downgrade SSL mode |
+
+---
 
 ## Related Documents
 
-- quick checklist: [`docs/BOOTSTRAP.md`](BOOTSTRAP.md)
-- prerequisites: [`docs/onboarding/01-prerequisites.md`](onboarding/01-prerequisites.md)
-- create repo and clone: [`docs/onboarding/02-create-repo-and-clone.md`](onboarding/02-create-repo-and-clone.md)
-- create OIDC and roles: [`docs/onboarding/03-create-oidc-and-deploy-roles.md`](onboarding/03-create-oidc-and-deploy-roles.md)
-- prepare `.env`: [`docs/onboarding/04-prepare-env-file.md`](onboarding/04-prepare-env-file.md)
-- one-click bootstrap: [`docs/onboarding/05-bootstrap-one-click.md`](onboarding/05-bootstrap-one-click.md)
-- manual bootstrap: [`docs/onboarding/06-bootstrap-manual.md`](onboarding/06-bootstrap-manual.md)
-- first deploy: [`docs/onboarding/07-first-deploy-and-managed-dsql.md`](onboarding/07-first-deploy-and-managed-dsql.md)
-- day-2 operations: [`docs/onboarding/08-day-2-operations.md`](onboarding/08-day-2-operations.md)
+| Document | Purpose |
+|----------|---------|
+| [BOOTSTRAP.md](BOOTSTRAP.md) | Quick bootstrap checklist |
+| [onboarding/01-prerequisites.md](onboarding/01-prerequisites.md) | Detailed prerequisites checklist |
+| [onboarding/02-create-repo-and-clone.md](onboarding/02-create-repo-and-clone.md) | Repository creation details |
+| [onboarding/03-create-oidc-and-deploy-roles.md](onboarding/03-create-oidc-and-deploy-roles.md) | OIDC and role details |
+| [onboarding/04-prepare-env-file.md](onboarding/04-prepare-env-file.md) | .env field reference |
+| [onboarding/05-bootstrap-one-click.md](onboarding/05-bootstrap-one-click.md) | One-click bootstrap details |
+| [onboarding/06-bootstrap-manual.md](onboarding/06-bootstrap-manual.md) | Manual bootstrap details |
+| [onboarding/07-first-deploy-and-managed-dsql.md](onboarding/07-first-deploy-and-managed-dsql.md) | First deploy and DSQL handling |
+| [onboarding/08-day-2-operations.md](onboarding/08-day-2-operations.md) | Day-2 operations details |
+| [CONTROLPLANE_UI_DEPLOYMENT_CHECKLIST.md](CONTROLPLANE_UI_DEPLOYMENT_CHECKLIST.md) | Control Plane UI deployment checklist |

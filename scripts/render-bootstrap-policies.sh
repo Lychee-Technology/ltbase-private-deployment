@@ -236,7 +236,9 @@ cat >"${OUTPUT_DIR}/bootstrap-operator-first-stack-s3-policy.json" <<EOF
         "s3:GetEncryptionConfiguration",
         "s3:PutEncryptionConfiguration",
         "s3:GetBucketPublicAccessBlock",
-        "s3:PutBucketPublicAccessBlock"
+        "s3:PutBucketPublicAccessBlock",
+        "s3:GetBucketPolicy",
+        "s3:PutBucketPolicy"
       ],
       "Resource": "arn:aws:s3:::${PULUMI_STATE_BUCKET}"
     },
@@ -275,3 +277,17 @@ cat >"${OUTPUT_DIR}/pulumi-kms-policy.json" <<EOF
   ]
 }
 EOF
+
+# The shared Pulumi backend bucket lives in the first stack's AWS account. Every
+# other stack's deploy role, and any local split-account operator identity in
+# PULUMI_BACKEND_ACCESS_PRINCIPAL_ARNS, must be granted access through a
+# resource-based bucket policy on that account, or cross-account `pulumi`
+# operations against the backend fail with AccessDenied. Derive the operator
+# identities behind AWS_PROFILE_<STACK> first so the rendered policy matches
+# what bootstrap-aws-foundation.sh applies; stacks whose credentials cannot be
+# resolved here are simply left out.
+bootstrap_env_derive_backend_principals_from_profiles
+backend_principals_json="$(bootstrap_env_pulumi_backend_principal_arns_json)"
+bootstrap_env_pulumi_backend_bucket_policy_json "${PULUMI_STATE_BUCKET}" "${backend_principals_json}" \
+  >"${OUTPUT_DIR}/pulumi-backend-bucket-policy.json"
+

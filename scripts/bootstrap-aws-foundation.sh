@@ -53,7 +53,7 @@ capture_stdout_quiet() {
   return "${command_status}"
 }
 
-required_vars=(DEPLOYMENT_REPO AWS_REGION_DEVO AWS_REGION_PROD AWS_ACCOUNT_ID_DEVO AWS_ACCOUNT_ID_PROD AWS_ROLE_NAME_DEVO AWS_ROLE_NAME_PROD PULUMI_STATE_BUCKET PULUMI_KMS_ALIAS)
+required_vars=(DEPLOYMENT_REPO PULUMI_STATE_BUCKET PULUMI_KMS_ALIAS)
 for name in "${required_vars[@]}"; do
   if [[ -z "${!name:-}" ]]; then
     echo "${name} is required" >&2
@@ -65,9 +65,13 @@ while IFS= read -r stack; do
   bootstrap_env_require_stack_values "${stack}" AWS_REGION AWS_ACCOUNT_ID AWS_ROLE_NAME
 done < <(bootstrap_env_each_stack)
 
+first_stack="$(bootstrap_env_csv_first "${PROMOTION_PATH:-${STACKS}}")"
+first_region="$(bootstrap_env_resolve_stack_value AWS_REGION "${first_stack}")"
+first_account_id="$(bootstrap_env_resolve_stack_value AWS_ACCOUNT_ID "${first_stack}")"
+
 while IFS= read -r stack; do
   stack_account_id="$(bootstrap_env_resolve_stack_value AWS_ACCOUNT_ID "${stack}")"
-  if [[ "${stack_account_id}" != "${AWS_ACCOUNT_ID_DEVO}" ]]; then
+  if [[ "${stack_account_id}" != "${first_account_id}" ]]; then
     stack_upper="$(bootstrap_env_stack_upper "${stack}")"
     profile_name="AWS_PROFILE_${stack_upper}"
     if [[ -z "${!profile_name:-}" ]]; then
@@ -83,8 +87,6 @@ cat >"${summary_path}" <<EOF
 PULUMI_BACKEND_URL=s3://${PULUMI_STATE_BUCKET}
 EOF
 
-first_stack="$(bootstrap_env_csv_first "${PROMOTION_PATH:-${STACKS}}")"
-first_region="$(bootstrap_env_resolve_stack_value AWS_REGION "${first_stack}")"
 
 while IFS= read -r stack; do
   bootstrap_env_info "Validating AWS credentials for stack: ${stack}"
@@ -206,3 +208,18 @@ fi
 bootstrap_env_run_quiet bootstrap_env_aws_command_for_stack "${first_stack}" s3api put-bucket-versioning --bucket "${PULUMI_STATE_BUCKET}" --versioning-configuration Status=Enabled
 bootstrap_env_run_quiet bootstrap_env_aws_command_for_stack "${first_stack}" s3api put-bucket-encryption --bucket "${PULUMI_STATE_BUCKET}" --server-side-encryption-configuration '{"Rules":[{"ApplyServerSideEncryptionByDefault":{"SSEAlgorithm":"AES256"}}]}'
 bootstrap_env_run_quiet bootstrap_env_aws_command_for_stack "${first_stack}" s3api put-public-access-block --bucket "${PULUMI_STATE_BUCKET}" --public-access-block-configuration BlockPublicAcls=true,IgnorePublicAcls=true,BlockPublicPolicy=true,RestrictPublicBuckets=true
+
+# Fold the local operator identity behind each AWS_PROFILE_<STACK> into
+# PULUMI_BACKEND_ACCESS_PRINCIPAL_ARNS before rendering the bucket policy.
+bootstrap_env_derive_backend_principals_from_profiles
+
+# Grant every stack deploy role, and any local split-account operator identity
+# in PULUMI_BACKEND_ACCESS_PRINCIPAL_ARNS, cross-account access to the shared
+# Pulumi backend bucket that lives in the first stack's account. Without this
+# resource-based policy, a later stack's role or a local AWS_PROFILE for another
+# account cannot read/write the backend and `pulumi` fails with AccessDenied.
+bootstrap_env_info "Applying shared Pulumi backend bucket policy: ${PULUMI_STATE_BUCKET}"
+backend_principals_json="$(bootstrap_env_pulumi_backend_principal_arns_json)"
+backend_bucket_policy_path="${OUTPUT_DIR}/pulumi-backend-bucket-policy.json"
+bootstrap_env_pulumi_backend_bucket_policy_json "${PULUMI_STATE_BUCKET}" "${backend_principals_json}" >"${backend_bucket_policy_path}"
+bootstrap_env_run_quiet bootstrap_env_aws_command_for_stack "${first_stack}" s3api put-bucket-policy --bucket "${PULUMI_STATE_BUCKET}" --policy "file://${backend_bucket_policy_path}"

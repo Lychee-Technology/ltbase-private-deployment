@@ -20,12 +20,10 @@ Use this guide to create the local `.env` file that drives the bootstrap scripts
    - `STACKS` — comma-separated list of environment names, e.g. `devo,prod`
    - `PROMOTION_PATH` — promotion order, e.g. `devo,prod`
    - Source: your agreed deployment topology and promotion order
-3. Fill in template and repository identity:
-   - `TEMPLATE_REPO`
+3. Fill in repository identity:
    - `GITHUB_OWNER`
    - `DEPLOYMENT_REPO_NAME`
-   - `DEPLOYMENT_REPO_VISIBILITY`
-   - `DEPLOYMENT_REPO_DESCRIPTION`
+   - Optional overrides with defaults: `TEMPLATE_REPO` (default `Lychee-Technology/ltbase-private-deployment`), `DEPLOYMENT_REPO_VISIBILITY` (default `private`), `DEPLOYMENT_REPO_DESCRIPTION` (default `Customer LTBase deployment repo`)
    - Source: your target GitHub owner and customer deployment repository naming decision
 4. Fill in OIDC discovery and admin UI domain values:
     - `OIDC_DISCOVERY_DOMAIN`
@@ -37,22 +35,24 @@ Use this guide to create the local `.env` file that drives the bootstrap scripts
 5. Fill in AWS environment values (one pair per stack):
    - `AWS_REGION_<STACK>`
    - `AWS_ACCOUNT_ID_<STACK>`
-   - `AWS_ROLE_NAME_<STACK>`
+   - Optional override: `AWS_ROLE_NAME_<STACK>` (default `ltbase-deploy-<stack>`)
    - Optional when stacks use different AWS accounts: `AWS_PROFILE_<STACK>`
+   - Bootstrap automatically derives the IAM role behind each `AWS_PROFILE_<STACK>` (including IAM Identity Center reserved SSO roles) into `PULUMI_BACKEND_ACCESS_PRINCIPAL_ARNS` so that local identity can access the shared Pulumi backend bucket. Set `PULUMI_BACKEND_ACCESS_PRINCIPAL_ARNS` manually only when bootstrap warns that it cannot resolve the identity (for example, an SSO profile whose region cannot be determined).
    - Source: your AWS account plan for each stack
 6. Fill in Pulumi backend values:
    - `PULUMI_STATE_BUCKET`
-   - `PULUMI_KMS_ALIAS`
+   - Optional override: `PULUMI_KMS_ALIAS` (default `alias/ltbase-pulumi-secrets`)
    - leave `PULUMI_BACKEND_URL` and every `PULUMI_SECRETS_PROVIDER_<STACK>` empty if you plan to let bootstrap generate them
    - Source: the names you want bootstrap to use for shared Pulumi backend resources
    - Important: the shared backend bucket named by `PULUMI_STATE_BUCKET` is created in the AWS account for the first stack in `PROMOTION_PATH`
 7. Fill in release values:
-    - `LTBASE_RELEASES_REPO`
     - `LTBASE_RELEASE_ID`
+    - Optional override: `LTBASE_RELEASES_REPO` (default `Lychee-Technology/ltbase-releases`)
     - Source: the LTBase release repository and release ID you plan to deploy
 8. Keep the mandatory mTLS defaults in place:
    - `MTLS_TRUSTSTORE_FILE`
    - `MTLS_TRUSTSTORE_KEY`
+   - Bootstrap applies both defaults automatically when they are unset; do not change them.
    - Source: the checked-in Cloudflare global Authenticated Origin Pull truststore shipped with this template
    - Important: these are required defaults for the template, not optional feature flags. `api`, `auth`, and `control-plane` are all deployed behind Cloudflare proxying and API Gateway mutual TLS.
 9. Fill in per-stack domain values:
@@ -63,7 +63,7 @@ Use this guide to create the local `.env` file that drives the bootstrap scripts
       - `AUTH_CORS_ALLOW_ORIGINS_<STACK>` (optional)
       - `CONTROL_PLANE_CORS_ALLOW_ORIGINS_<STACK>` (optional)
       - `PROJECT_ID`
-      - `AUTH_PROVIDER_CONFIG_FILE_<STACK>`
+      - `AUTH_PROVIDER_CONFIG_FILE_<STACK>` (optional; default `infra/auth-providers.<stack>.json`)
       - `CLOUDFLARE_ZONE_ID`
       - Source: your final DNS plan in the target Cloudflare zone
       - Bootstrap uses `CLOUDFLARE_ZONE_ID` from `.env` when it writes each `infra/Pulumi.<stack>.yaml` stack config. Preview and rollout mTLS audits then read `ltbase-infra:awsRegion`, `ltbase-infra:apiDomain`, `ltbase-infra:controlPlaneDomain`, `ltbase-infra:authDomain`, `ltbase-infra:runtimeBucket`, and `ltbase-infra:cloudflareZoneId` from that stack file.
@@ -80,9 +80,9 @@ Use this guide to create the local `.env` file that drives the bootstrap scripts
     - Source: the public Firebase/Supabase application settings that the control-plane UI companion publishes to browsers
     - Important: these values are intentionally public. Do not put server-side Firebase admin credentials, Supabase service-role keys, or any other secret values here.
     - The current Control Plane UI bootstrap uses these values when it renders browser runtime config for each stack.
-11. Fill in application defaults:
-     - `GEMINI_MODEL`
-     - `DSQL_PORT`, `DSQL_DB`, `DSQL_USER`, `DSQL_PROJECT_SCHEMA`
+11. Review optional application overrides (defaults applied automatically when unset):
+     - `GEMINI_MODEL` (default `gemini-3.1-flash-lite`)
+     - `DSQL_PORT`, `DSQL_DB`, `DSQL_USER`, `DSQL_PROJECT_SCHEMA` (defaults `5432`, `postgres`, `admin`, `ltbase`)
      - Source: LTBase application defaults and any approved customer-specific override
 12. Fill in secret values:
       - `GEMINI_API_KEY`
@@ -99,21 +99,19 @@ Use this guide to create the local `.env` file that drives the bootstrap scripts
 These values are customer-controlled inputs and should usually be set explicitly in `.env`:
 
 - `STACKS`, `PROMOTION_PATH`
-- `TEMPLATE_REPO`, `GITHUB_OWNER`, `DEPLOYMENT_REPO_NAME`, `DEPLOYMENT_REPO_VISIBILITY`, `DEPLOYMENT_REPO_DESCRIPTION`
+- `GITHUB_OWNER`, `DEPLOYMENT_REPO_NAME`
 - `OIDC_DISCOVERY_DOMAIN`, `CONTROLPLANE_UI_DOMAIN`, `CLOUDFLARE_ACCOUNT_ID`
-- `AWS_REGION_<STACK>`, `AWS_ACCOUNT_ID_<STACK>`, `AWS_ROLE_NAME_<STACK>`
+- `AWS_REGION_<STACK>`, `AWS_ACCOUNT_ID_<STACK>`
 - `AWS_PROFILE_<STACK>` when multiple stacks use different AWS credentials locally
-- `PULUMI_STATE_BUCKET`, `PULUMI_KMS_ALIAS`
+- `PULUMI_STATE_BUCKET`
 - `SCHEMA_BUCKET_<STACK>` when you do not want the default `<DEPLOYMENT_REPO_NAME>-schema-<stack>` bucket names used by preview and rollout
-- `LTBASE_RELEASES_REPO`, `LTBASE_RELEASE_ID`
-- `MTLS_TRUSTSTORE_FILE`, `MTLS_TRUSTSTORE_KEY` with the template defaults intact
-- `API_DOMAIN_<STACK>`, `CONTROL_DOMAIN_<STACK>`, `AUTH_DOMAIN_<STACK>`, `PROJECT_ID`, `AUTH_PROVIDER_CONFIG_FILE_<STACK>`, `CLOUDFLARE_ZONE_ID`
+- `LTBASE_RELEASE_ID`
+- `API_DOMAIN_<STACK>`, `CONTROL_DOMAIN_<STACK>`, `AUTH_DOMAIN_<STACK>`, `PROJECT_ID`, `CLOUDFLARE_ZONE_ID`
 - `API_CORS_ALLOW_ORIGINS_<STACK>` and `AUTH_CORS_ALLOW_ORIGINS_<STACK>` when you need browser CORS to be stricter than the default `*`
 - `CONTROL_PLANE_CORS_ALLOW_ORIGINS_<STACK>` when the control-plane API should allow extra browser origins in addition to `https://<CONTROLPLANE_UI_DOMAIN>`, or when you intentionally want wildcard `*`
   - `CLOUDFLARE_ZONE_ID` is still a manual bootstrap input in `.env`, but preview and rollout mTLS audits consume per-stack values stored in `infra/Pulumi.<stack>.yaml`, including `ltbase-infra:cloudflareZoneId`, domains, `awsRegion`, and `runtimeBucket`.
 - `FIREBASE_API_KEY_<STACK>`, `FIREBASE_PROJECT_ID_<STACK>`, `SUPABASE_URL_<STACK>`, `SUPABASE_ANON_KEY_<STACK>`
-  - These are public browser settings for the control-plane UI companion, not backend secrets.
-- `GEMINI_MODEL`, `DSQL_PORT`, `DSQL_DB`, `DSQL_USER`, `DSQL_PROJECT_SCHEMA`
+  - These are public browser settings for the control-plane UI, not backend secrets.
 - `GEMINI_API_KEY`, `CLOUDFLARE_API_TOKEN`, `LTBASE_RELEASES_TOKEN`
 
 ## Values Bootstrap Normally Derives For You
@@ -124,13 +122,31 @@ Leave these unset unless you intentionally need an override:
   - default: `${GITHUB_OWNER}/${DEPLOYMENT_REPO_NAME}`
 - `GITHUB_ORG`, `GITHUB_REPO`
   - default: derived from `GITHUB_OWNER` and `DEPLOYMENT_REPO_NAME`
+- `TEMPLATE_REPO`, `DEPLOYMENT_REPO_VISIBILITY`, `DEPLOYMENT_REPO_DESCRIPTION`
+  - default: `Lychee-Technology/ltbase-private-deployment`, `private`, `Customer LTBase deployment repo`
+- `AWS_ROLE_NAME_<STACK>`
+  - default: `ltbase-deploy-<stack>`
 - `AWS_ROLE_ARN_<STACK>`
   - default: derived from `AWS_ACCOUNT_ID_<STACK>` and `AWS_ROLE_NAME_<STACK>`
+- `PULUMI_KMS_ALIAS`
+  - default: `alias/ltbase-pulumi-secrets`
+- `PULUMI_BACKEND_ACCESS_PRINCIPAL_ARNS`
+  - default: bootstrap augments it automatically with the IAM role behind each `AWS_PROFILE_<STACK>` (including IAM Identity Center reserved SSO roles); set it manually only when bootstrap warns that an identity cannot be resolved
+- `LTBASE_RELEASES_REPO`
+  - default: `Lychee-Technology/ltbase-releases`
+- `MTLS_TRUSTSTORE_FILE`, `MTLS_TRUSTSTORE_KEY`
+  - default: the template truststore constants; do not change them
+- `AUTH_PROVIDER_CONFIG_FILE_<STACK>`
+  - default: `infra/auth-providers.<stack>.json`
+- `GEMINI_MODEL`, `DSQL_PORT`, `DSQL_DB`, `DSQL_USER`, `DSQL_PROJECT_SCHEMA`
+  - default: `gemini-3.1-flash-lite`, `5432`, `postgres`, `admin`, `ltbase`
 - `PULUMI_BACKEND_URL`
   - default: `s3://${PULUMI_STATE_BUCKET}`
 - `PULUMI_SECRETS_PROVIDER_<STACK>`
   - default: derived from `PULUMI_KMS_ALIAS` and `AWS_REGION_<STACK>`
 - `OIDC_DISCOVERY_PAGES_PROJECT`
+  - default: derived from the deployment repository naming inputs
+- `CONTROLPLANE_UI_PAGES_PROJECT`
   - default: derived from the deployment repository naming inputs
 - `OIDC_DISCOVERY_AWS_ROLE_NAME_<STACK>`, `OIDC_DISCOVERY_AWS_ROLE_ARN_<STACK>`
   - default: derived from deployment repository name and target AWS account ID
@@ -146,7 +162,15 @@ Leave these unset unless you intentionally need an override:
 Only fill these when the defaults are wrong for your customer environment:
 
 - `DEPLOYMENT_REPO`
+- `TEMPLATE_REPO`, `DEPLOYMENT_REPO_VISIBILITY`, `DEPLOYMENT_REPO_DESCRIPTION`
+- `AWS_ROLE_NAME_<STACK>`
+- `PULUMI_KMS_ALIAS`
+- `PULUMI_BACKEND_ACCESS_PRINCIPAL_ARNS`
+- `LTBASE_RELEASES_REPO`
+- `AUTH_PROVIDER_CONFIG_FILE_<STACK>`
+- `GEMINI_MODEL`, `DSQL_PORT`, `DSQL_DB`, `DSQL_USER`, `DSQL_PROJECT_SCHEMA`
 - `OIDC_DISCOVERY_PAGES_PROJECT`
+- `CONTROLPLANE_UI_PAGES_PROJECT`
 - `PULUMI_BACKEND_URL`
 - `PULUMI_SECRETS_PROVIDER_<STACK>`
 - `OIDC_ISSUER_URL_<STACK>`
@@ -171,7 +195,7 @@ Only fill these when the defaults are wrong for your customer environment:
 - preview and rollout require a valid `SCHEMA_BUCKET_<STACK>` repository variable for each stack; bootstrap writes it from `.env` or the derived default
 - expect bootstrap to write `ltbase-infra:controlPlaneCorsOrigins=https://<CONTROLPLANE_UI_DOMAIN>` into each stack config so the deployed control-plane API accepts browser calls from the admin UI domain
 - before operators try the admin UI, configure the identity provider to allow `https://<CONTROLPLANE_UI_DOMAIN>/auth/callback` and bind at least one admin user or group to the LTBase project you plan to manage
-- the following variables are auto-derived by `scripts/lib/bootstrap-env.sh` and normally do not need manual filling: `DEPLOYMENT_REPO`, `PULUMI_BACKEND_URL`, `PULUMI_SECRETS_PROVIDER_*`, `AWS_ROLE_ARN_*`, `OIDC_ISSUER_URL_*`, `JWKS_URL_*`, `RUNTIME_BUCKET_*`, `SCHEMA_BUCKET_*`, `TABLE_NAME_*`, `GITHUB_ORG`, `GITHUB_REPO`, `OIDC_DISCOVERY_PAGES_PROJECT`, `OIDC_DISCOVERY_AWS_ROLE_NAME_*`, `OIDC_DISCOVERY_AWS_ROLE_ARN_*`, `PREVIEW_DEFAULT_STACK`
+- the following variables are auto-derived or defaulted by `scripts/lib/bootstrap-env.sh` and normally do not need manual filling: `DEPLOYMENT_REPO`, `TEMPLATE_REPO`, `DEPLOYMENT_REPO_VISIBILITY`, `DEPLOYMENT_REPO_DESCRIPTION`, `PULUMI_BACKEND_URL`, `PULUMI_KMS_ALIAS`, `PULUMI_SECRETS_PROVIDER_*`, `PULUMI_BACKEND_ACCESS_PRINCIPAL_ARNS`, `AWS_ROLE_NAME_*`, `AWS_ROLE_ARN_*`, `LTBASE_RELEASES_REPO`, `MTLS_TRUSTSTORE_*`, `AUTH_PROVIDER_CONFIG_FILE_*`, `GEMINI_MODEL`, `DSQL_PORT`, `DSQL_DB`, `DSQL_USER`, `DSQL_PROJECT_SCHEMA`, `OIDC_ISSUER_URL_*`, `JWKS_URL_*`, `RUNTIME_BUCKET_*`, `SCHEMA_BUCKET_*`, `TABLE_NAME_*`, `GITHUB_ORG`, `GITHUB_REPO`, `OIDC_DISCOVERY_PAGES_PROJECT`, `CONTROLPLANE_UI_PAGES_PROJECT`, `OIDC_DISCOVERY_AWS_ROLE_NAME_*`, `OIDC_DISCOVERY_AWS_ROLE_ARN_*`, `PREVIEW_DEFAULT_STACK`
 
 ## Expected Result
 

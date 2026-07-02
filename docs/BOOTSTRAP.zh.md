@@ -1,118 +1,155 @@
 > **English version: [BOOTSTRAP.md](BOOTSTRAP.md)**
 
-# 客户 Bootstrap 清单
+# 客户 Bootstrap 快速清单
 
-这是客户 onboarding 流程的简版清单。
+这是客户部署流程的快速步骤清单。新用户请以 **[CUSTOMER_ONBOARDING.zh.md](CUSTOMER_ONBOARDING.zh.md)** 为主，本文档作为速查表使用。
 
-完整的中英双语说明请从这里开始：
-
-- [`CUSTOMER_ONBOARDING.zh.md`](CUSTOMER_ONBOARDING.zh.md)
-
-## 仓库结构
-
-你的部署仓库应包含：
-
-- `infra/`
-- `.github/workflows/`
-- `env.template`
-- `scripts/render-bootstrap-policies.sh`
-- `scripts/create-deployment-repo.sh`
-- `scripts/bootstrap-aws-foundation.sh`
-- `scripts/bootstrap-pulumi-backend.sh`
-- `scripts/bootstrap-oidc-discovery.sh`
-- `scripts/bootstrap-deployment-repo.sh`
-- `scripts/bootstrap-all.sh`
-- `scripts/evaluate-and-continue.sh`
-- `scripts/update-sync-template-tooling.sh`
-- `scripts/sync-template-upstream.sh`
-- `scripts/reconcile-managed-dsql-endpoint.sh`
-- `scripts/lib/bootstrap-env.sh`
+如果你对某一流程需要更详细的说明，请阅读 [`onboarding/`](onboarding/) 下的对应子文档。
 
 ## 快速清单
 
-### 1. 准备前置条件
+### 1. 部署前决策
 
-- 阅读 [`onboarding/01-prerequisites.zh.md`](onboarding/01-prerequisites.zh.md)
-- 确认 GitHub、AWS、Cloudflare、`LTBASE_RELEASES_TOKEN` 与 `GEMINI_API_KEY` 都已准备好
+- 确定 `STACKS`（环境名称，如 `devo,prod`）
+- 确定 `PROMOTION_PATH`（部署顺序）
+- 确定每个 stack 的 AWS region、account ID、role 名称
+- 确定 API/Control/Auth/OIDC/UI 域名
+- 确定 Pulumi state bucket 名和 KMS alias
 
-### 2. 创建部署仓库
+### 2. 准备前置条件
 
-- 阅读 [`onboarding/02-create-repo-and-clone.zh.md`](onboarding/02-create-repo-and-clone.zh.md)
-- 从模板创建私有仓库并 clone 到本地
-- 即使使用一键 bootstrap，也推荐先完成这一步，因为后续 bootstrap 会把本地 Pulumi stack 文件写入当前 checkout
+- 确认 GitHub CLI 已认证：`gh auth status`
+- 确认可以访问每个 AWS 账户：`aws sts get-caller-identity --profile <profile>`
+- 确认 Cloudflare zone 和 API token 就绪
+- 确认 `LTBASE_RELEASES_TOKEN`、`GEMINI_API_KEY` 已获取
+- 确认 Firebase 和 Supabase 浏览器配置值（公开值，不含 secret）
+- 安装本地工具：`git`、`gh`、`aws`、`pulumi`、`python3`
 
-### 3. 创建 OIDC 和 deploy role
+详见：[`onboarding/01-prerequisites.zh.md`](onboarding/01-prerequisites.zh.md)
 
-- 阅读 [`onboarding/03-create-oidc-and-deploy-roles.zh.md`](onboarding/03-create-oidc-and-deploy-roles.zh.md)
-- 为 `STACKS` 中的每个环境各创建一个 deploy role
+### 3. 创建部署仓库并克隆
 
-### 4. 准备 `.env`
+```bash
+gh repo create "${GITHUB_OWNER}/customer-ltbase" \
+  --template Lychee-Technology/ltbase-private-deployment \
+  --private
+gh repo clone "${GITHUB_OWNER}/customer-ltbase"
+cd customer-ltbase
+```
 
-- 阅读 [`onboarding/04-prepare-env-file.zh.md`](onboarding/04-prepare-env-file.zh.md)
-- 将 `env.template` 复制为 `.env`
-- 填写客户可控输入值；除非确实需要 override，否则派生值先不要手填；并且绝对不要提交 `.env`
-- 除非 LTBase 另行说明，否则保持 `MTLS_TRUSTSTORE_FILE` 与 `MTLS_TRUSTSTORE_KEY` 为模板默认值
-- 将 Control Plane UI 相关的 Firebase 和 Supabase 值视为浏览器公开配置，不要把 secret 写进 runtime config
+详见：[`onboarding/02-create-repo-and-clone.zh.md`](onboarding/02-create-repo-and-clone.zh.md)
 
-### 5. 选择 bootstrap 路径
+### 4. 填写 .env
 
-一键路径：
+```bash
+cp env.template .env
+```
 
-- 阅读 [`onboarding/05-bootstrap-one-click.zh.md`](onboarding/05-bootstrap-one-click.zh.md)
-- 可选先运行 `./scripts/render-bootstrap-policies.sh --env-file .env` 审阅生成的 IAM 策略
-- 如果平台管理员需要先授予 AWS bootstrap 权限，把每个 stack 对应的 `dist/bootstrap-operator-<stack>-policy.json` 和第一个 stack 账户专用的 `dist/bootstrap-operator-first-stack-s3-policy.json` 发给对方
-- 先运行 `./scripts/evaluate-and-continue.sh --env-file .env --scope bootstrap --infra-dir infra` 做 preflight 检查
-- 运行 `./scripts/evaluate-and-continue.sh --env-file .env --scope bootstrap --force --infra-dir infra`
-- 当前仓库版本仍可能通过 companion 风格的脚本和变量完成 Control Plane UI setup
+填写所有手动值，保持派生值为空。**不要提交 .env。**
 
-手动路径：
+- Stack 拓扑：`STACKS`、`PROMOTION_PATH`
+- 仓库：`GITHUB_OWNER`、`DEPLOYMENT_REPO_NAME`
+- 域名：`OIDC_DISCOVERY_DOMAIN`、`CONTROLPLANE_UI_DOMAIN`、每个 stack 的 API/Control/Auth 域名
+- Cloudflare：`CLOUDFLARE_ACCOUNT_ID`、`CLOUDFLARE_ZONE_ID`、`CLOUDFLARE_API_TOKEN`
+- AWS：`AWS_REGION_<STACK>`、`AWS_ACCOUNT_ID_<STACK>`、`AWS_ROLE_NAME_<STACK>`
+- Pulumi：`PULUMI_STATE_BUCKET`、`PULUMI_KMS_ALIAS`
+- Release：`LTBASE_RELEASES_REPO`、`LTBASE_RELEASE_ID`、`LTBASE_RELEASES_TOKEN`
+- 应用：`PROJECT_ID`、`AUTH_PROVIDER_CONFIG_FILE_<STACK>`、`GEMINI_API_KEY`
+- 浏览器配置：`FIREBASE_*_<STACK>`、`SUPABASE_*_<STACK>`
+- 保持 mTLS 默认值不变
+- 不手动设置 `DSQL_ENDPOINT`
 
-- 阅读 [`onboarding/06-bootstrap-manual.zh.md`](onboarding/06-bootstrap-manual.zh.md)
-- 按阶段逐个执行 bootstrap 脚本
+详见：[`onboarding/04-prepare-env-file.zh.md`](onboarding/04-prepare-env-file.zh.md)
 
-### 6. 执行首次部署
+### 5. Preflight 检查
 
-- 阅读 [`onboarding/07-first-deploy-and-managed-dsql.zh.md`](onboarding/07-first-deploy-and-managed-dsql.zh.md)
-- 对 `PROMOTION_PATH` 第一个环境执行 preview
-- 将 preview 视为纯基础设施预览；它不会发布 Control Plane UI
-- 针对目标 release 触发一次 `rollout.yml`
-- 在 GitHub 请求时依次审批受保护目标环境
-- 在首次让操作者使用前，单独确认 admin 域名、redirect URI 注册和 Control Plane CORS 对齐情况
+```bash
+./scripts/render-bootstrap-policies.sh --env-file .env
+./scripts/evaluate-and-continue.sh --env-file .env --scope bootstrap --infra-dir infra
+```
 
-### 7. 日常运维
+### 6. 执行 Bootstrap
 
-- 阅读 [`onboarding/08-day-2-operations.zh.md`](onboarding/08-day-2-operations.zh.md)
-- 后续升级继续沿用 preview -> rollout 的节奏
+**一键路径（推荐）：**
+
+```bash
+./scripts/evaluate-and-continue.sh --env-file .env --scope bootstrap --force --infra-dir infra
+```
+
+**手动路径：**
+
+```bash
+./scripts/create-deployment-repo.sh --env-file .env
+./scripts/bootstrap-aws-foundation.sh --env-file .env
+source dist/foundation.env
+./scripts/bootstrap-oidc-discovery.sh --env-file .env
+./scripts/bootstrap-controlplane-ui-companion.sh --env-file .env
+./scripts/bootstrap-deployment-repo.sh --env-file .env --stack devo --infra-dir infra
+./scripts/bootstrap-deployment-repo.sh --env-file .env --stack prod --infra-dir infra
+```
+
+### 7. Preview
+
+```bash
+gh workflow run preview.yml -f target_stack=devo --ref main
+```
+
+### 8. Rollout
+
+```bash
+gh workflow run rollout.yml -f release_id=v1.0.23 --ref main
+```
+
+### 9. 发布 OIDC Discovery（必须在对应 stack 首次 rollout 之后）
+
+authservice 签名 KMS key 由 Pulumi 在 rollout 时创建，因此发布 OIDC Discovery 必须在该 stack 首次 rollout 完成之后。
+
+```bash
+# 每个 stack 首次 rollout 后逐个发布
+gh workflow run publish-oidc-discovery.yml -f target_stack=devo --ref main
+
+# 全部 stack 都完成首次 rollout 后可一次性刷新
+gh workflow run publish-oidc-discovery.yml -f target_stack=all --ref main
+```
+
+### 10. 验证
+
+```bash
+./scripts/check-cloudflare-mtls.sh --env-file .env --stack devo
+pulumi stack output --stack "org/customer-ltbase/devo" -C infra
+```
+
+详见：[`onboarding/07-first-deploy-and-managed-dsql.zh.md`](onboarding/07-first-deploy-and-managed-dsql.zh.md)
 
 ## 必需的 GitHub Secrets
 
-- `AWS_ROLE_ARN_<STACK>`（`STACKS` 中每个环境各一个）
+- `AWS_ROLE_ARN_<STACK>`（每个 stack 一个）
 - `LTBASE_RELEASES_TOKEN`
 - `CLOUDFLARE_API_TOKEN`
 
 ## 必需的 GitHub Variables
 
-- `AWS_REGION_<STACK>`（`STACKS` 中每个环境各一个）
+- `AWS_REGION_<STACK>`（每个 stack 一个）
 - `PULUMI_BACKEND_URL`
-- `PULUMI_SECRETS_PROVIDER_<STACK>`（`STACKS` 中每个环境各一个）
+- `PULUMI_SECRETS_PROVIDER_<STACK>`（每个 stack 一个）
 - `LTBASE_RELEASES_REPO`
 - `LTBASE_RELEASE_ID`
 - `STACKS`
 - `PROMOTION_PATH`
 - `PREVIEW_DEFAULT_STACK`
 
+Bootstrap 脚本会自动写入这些值。
+
+## Day-2 运维
+
+- 升级：更新 `LTBASE_RELEASE_ID` → preview → rollout
+- 同步模板：`./scripts/update-sync-template-tooling.sh` → `./scripts/sync-template-upstream.sh`
+- 审计 mTLS：`./scripts/check-cloudflare-mtls.sh --env-file .env --stack <stack>`
+
+详见：[`onboarding/08-day-2-operations.zh.md`](onboarding/08-day-2-operations.zh.md)
+
 ## 说明
 
-- 保持 `.env` 私密，不要纳入版本控制
-- 部署仓库负责下载官方 LTBase release，不负责自行构建应用
-- 官方工作流也可能在 Pulumi 执行前从 `ltbase-private-deployment-binaries` 安装与上游模板版本绑定的预构建 `ltbase-infra`；它会读取 `__ref__/template-provenance.json` 里的 `build_fingerprint` 来查找完全匹配的上游 manifest，找不到时仓库内的 `infra/scripts/pulumi-wrapper.sh` 会回退到本地源码构建
-- 客户部署仓库只消费这些预构建二进制；复制过去的 `build-infra-binary.yml` 在 `Lychee-Technology/ltbase-private-deployment` 之外会直接跳过
-- 客户仓库中的 preview 默认为手动触发，因为真实凭据由客户持有
-- 手动 preview 只支持 `PROMOTION_PATH` 的第一个环境
-- rollout 中的受保护目标环境由各自的 GitHub environment 审批 gate 保护
-- 当前仓库版本仍暴露 companion 风格的 Control Plane UI 脚本与变量，尽管这些输入的操作者侧权威来源依然是 deployment repo
-- 当前模板默认假设 `api`、`auth`、`control-plane` 都通过 Cloudflare 代理的自定义域名对外提供访问
-- 在承载正式流量前，将 Cloudflare SSL 模式设置为 `Full (strict)`
-- 在期待 API Gateway mTLS 生效前，先启用 Cloudflare Authenticated Origin Pulls
-- 如果你希望 preview 与 rollout 的 mTLS audit 能验证这些检查项，确认 `CLOUDFLARE_API_TOKEN` 也具备读取 Cloudflare zone settings 的权限
-- 一旦应用 mTLS rollout，直接访问 `execute-api` endpoint 失败属于预期行为
+- 部署仓库负责下载官方 LTBase release，不自行构建应用。
+- 官方工作流可能在运行 Pulumi 前，从 `ltbase-private-deployment-binaries` 安装与上游模板版本绑定的预构建 `ltbase-infra` 二进制。它会读取 `__ref__/template-provenance.json` 及其 `build_fingerprint` 来查找完全匹配的上游 manifest；找不到时由仓库内的 `infra/scripts/pulumi-wrapper.sh` 回退到本地源码构建。
+- 客户部署仓库只消费这些预构建二进制；复制过去的 `build-infra-binary.yml` 在 `Lychee-Technology/ltbase-private-deployment` 之外会被跳过。
