@@ -101,6 +101,8 @@ Before any operations, finalize these topology decisions. They drive all subsequ
 | `STACKS` | All environment names, comma-separated | `devo,prod` or `dev,staging,prod` |
 | `PROMOTION_PATH` | Deployment promotion order, comma-separated | `devo,prod` (usually same as STACKS) |
 
+> **Current limitation (parallel deployment)**: `PROMOTION_PATH` currently supports only a **flat, comma-separated ordered list**, and rollout advances one stack at a time (`devo` → `prod-na` → `prod-eu`, sequentially). Parallel stage syntax like `devo,(prod-na,prod-eu)` (deploy `prod-na` and `prod-eu` simultaneously when promoting from `devo`) is **not supported** today. Deploying multiple stacks in parallel within one stage would require follow-up workflow changes (stage parsing, matrix rollout, and a fan-in that dispatches the next stage only after all parallel stacks succeed). Use lowercase letters, digits, and hyphens for stack names.
+
 ### 1.2 Decide AWS Configuration Per Stack
 
 For each stack, determine:
@@ -273,6 +275,32 @@ If you need to create AWS resources manually (instead of letting bootstrap scrip
 - `s3:PutBucketVersioning`
 - `s3:PutBucketEncryption`
 - `s3:PutPublicAccessBlock`
+- `s3:GetBucketPolicy`
+- `s3:PutBucketPolicy`
+
+### 2.6 Cross-Account Pulumi Backend Access
+
+The shared Pulumi state bucket (`PULUMI_STATE_BUCKET`) is created only in the AWS account of the first stack in `PROMOTION_PATH`. All stacks share that single backend bucket.
+
+In a multi-account topology this causes a common problem: **an identity in another account cannot access the first account's backend bucket by default**. For example, when `prod` lives in its own account and you operate locally with `AWS_PROFILE_PROD`, it cannot read/write the Pulumi state S3 objects in the `devo` account, and `pulumi` fails with `AccessDenied`.
+
+`bootstrap-aws-foundation.sh` solves this by writing a **resource-based bucket policy** on the first stack account's backend bucket:
+
+- It automatically grants every stack's deploy role (`AWS_ROLE_ARN_<STACK>`) `s3:ListBucket`, `s3:GetObject`, `s3:PutObject`, and `s3:DeleteObject` on the backend bucket.
+- Rollout in GitHub Actions uses the deploy role (via OIDC assume of `AWS_ROLE_ARN_<STACK>`), so the CI path is covered automatically by this policy.
+
+If you run `pulumi` **locally** with a non-first-account profile (e.g. `AWS_PROFILE_PROD`), the IAM/SSO role behind that profile is not a deploy role and is not in the bucket policy by default. Add that role's ARN to `PULUMI_BACKEND_ACCESS_PRINCIPAL_ARNS` in `.env` (comma-separated) and bootstrap will include it in the bucket policy:
+
+```bash
+# .env
+# Allow the role behind the local prod operator profile to access the shared
+# backend bucket in the devo account.
+PULUMI_BACKEND_ACCESS_PRINCIPAL_ARNS=arn:aws:iam::210987654321:role/aws-reserved/sso.amazonaws.com/us-west-2/AWSReservedSSO_Admin_abc123
+```
+
+> **How to find the SSO role ARN**: A profile configured with `aws configure sso` uses an SSO assumed-role. Run `aws sts get-caller-identity --profile customer-prod --query Arn --output text` to get an ARN like `arn:aws:sts::<account>:assumed-role/AWSReservedSSO_Admin_abc123/<user>`; the corresponding trusted principal role ARN is `arn:aws:iam::<account>:role/aws-reserved/sso.amazonaws.com/<sso-region>/AWSReservedSSO_Admin_abc123`.
+
+> **Note**: If all stacks live in the same AWS account, the backend bucket and all identities share that account, so you usually do not need `PULUMI_BACKEND_ACCESS_PRINCIPAL_ARNS`.
 
 ---
 

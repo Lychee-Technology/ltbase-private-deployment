@@ -206,3 +206,15 @@ fi
 bootstrap_env_run_quiet bootstrap_env_aws_command_for_stack "${first_stack}" s3api put-bucket-versioning --bucket "${PULUMI_STATE_BUCKET}" --versioning-configuration Status=Enabled
 bootstrap_env_run_quiet bootstrap_env_aws_command_for_stack "${first_stack}" s3api put-bucket-encryption --bucket "${PULUMI_STATE_BUCKET}" --server-side-encryption-configuration '{"Rules":[{"ApplyServerSideEncryptionByDefault":{"SSEAlgorithm":"AES256"}}]}'
 bootstrap_env_run_quiet bootstrap_env_aws_command_for_stack "${first_stack}" s3api put-public-access-block --bucket "${PULUMI_STATE_BUCKET}" --public-access-block-configuration BlockPublicAcls=true,IgnorePublicAcls=true,BlockPublicPolicy=true,RestrictPublicBuckets=true
+
+# Grant every stack deploy role, and any local split-account operator identity
+# in PULUMI_BACKEND_ACCESS_PRINCIPAL_ARNS, cross-account access to the shared
+# Pulumi backend bucket that lives in the first stack's account. Without this
+# resource-based policy, a later stack's role or a local AWS_PROFILE for another
+# account cannot read/write the backend and `pulumi` fails with AccessDenied.
+bootstrap_env_info "Applying shared Pulumi backend bucket policy: ${PULUMI_STATE_BUCKET}"
+backend_principals_json="$(bootstrap_env_pulumi_backend_principal_arns_json)"
+backend_bucket_policy_path="${OUTPUT_DIR}/pulumi-backend-bucket-policy.json"
+bootstrap_env_pulumi_backend_bucket_policy_json "${PULUMI_STATE_BUCKET}" "${backend_principals_json}" >"${backend_bucket_policy_path}"
+bootstrap_env_run_quiet bootstrap_env_aws_command_for_stack "${first_stack}" s3api put-bucket-policy --bucket "${PULUMI_STATE_BUCKET}" --policy "file://${backend_bucket_policy_path}"
+

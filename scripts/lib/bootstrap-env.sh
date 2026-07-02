@@ -162,6 +162,77 @@ bootstrap_env_resolve_stack_value() {
   printf '%s' "${default_value}"
 }
 
+bootstrap_env_pulumi_backend_principal_arns_json() {
+  # Emit a JSON array of every principal that must be able to read and write
+  # the shared Pulumi backend bucket: each stack's deploy role plus any extra
+  # ARNs listed in PULUMI_BACKEND_ACCESS_PRINCIPAL_ARNS (CSV). The extra list
+  # is how split-account operators grant their local SSO/operator role access
+  # to the first-stack backend bucket. Order is preserved and duplicates are
+  # dropped.
+  {
+    while IFS= read -r stack; do
+      printf '%s\n' "$(bootstrap_env_resolve_stack_value AWS_ROLE_ARN "${stack}")"
+    done < <(bootstrap_env_each_stack)
+
+    local extra old_ifs
+    extra="$(bootstrap_env_normalize_csv "${PULUMI_BACKEND_ACCESS_PRINCIPAL_ARNS:-}")"
+    if [[ -n "${extra}" ]]; then
+      old_ifs="${IFS}"
+      IFS=','
+      # shellcheck disable=SC2086
+      set -- ${extra}
+      IFS="${old_ifs}"
+      for arn in "$@"; do
+        printf '%s\n' "${arn}"
+      done
+    fi
+  } | python3 -c '
+import json
+import sys
+
+seen = []
+for line in sys.stdin:
+    value = line.strip()
+    if value and value not in seen:
+        seen.append(value)
+print(json.dumps(seen))
+'
+}
+
+bootstrap_env_pulumi_backend_bucket_policy_json() {
+  local bucket="$1"
+  local principals_json="$2"
+  python3 - "${bucket}" "${principals_json}" <<'PY'
+import json
+import sys
+
+bucket = sys.argv[1]
+principals = json.loads(sys.argv[2])
+
+policy = {
+    "Version": "2012-10-17",
+    "Statement": [
+        {
+            "Sid": "AllowPulumiBackendListBucket",
+            "Effect": "Allow",
+            "Principal": {"AWS": principals},
+            "Action": ["s3:ListBucket"],
+            "Resource": f"arn:aws:s3:::{bucket}",
+        },
+        {
+            "Sid": "AllowPulumiBackendObjectAccess",
+            "Effect": "Allow",
+            "Principal": {"AWS": principals},
+            "Action": ["s3:GetObject", "s3:PutObject", "s3:DeleteObject"],
+            "Resource": f"arn:aws:s3:::{bucket}/*",
+        },
+    ],
+}
+
+print(json.dumps(policy, indent=2))
+PY
+}
+
 bootstrap_env_stack_profile_args() {
   local stack="$1"
   local upper_name profile_var_name

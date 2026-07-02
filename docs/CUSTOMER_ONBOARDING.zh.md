@@ -101,6 +101,8 @@ bootstrap 脚本（一键或手动）创建 IAM 角色、Pulumi backend、OIDC d
 | `STACKS` | 所有环境名称，逗号分隔 | `devo,prod` 或 `dev,staging,prod` |
 | `PROMOTION_PATH` | 部署推进顺序，逗号分隔 | `devo,prod`（通常与 STACKS 相同） |
 
+> **当前限制（并行部署）**：`PROMOTION_PATH` 目前只支持**扁平的、逗号分隔的顺序列表**，rollout 一次只推进一个 stack（`devo` → `prod-na` → `prod-eu` 逐个部署）。目前**不支持** `devo,(prod-na,prod-eu)` 这类并行阶段语法（即从 `devo` 晋级时同时部署 `prod-na` 和 `prod-eu`）。如果需要在一个阶段并行部署多个 stack，需要后续对 workflow 做改造（阶段解析、matrix rollout、以及所有并行 stack 完成后再 dispatch 下一阶段的 fan-in）。stack 名称请使用小写字母、数字和连字符。
+
 ### 1.2 决定每个 Stack 的 AWS 配置
 
 为每个 stack 确定：
@@ -273,6 +275,31 @@ bootstrap 脚本需要在 AWS 中创建资源。你有两个选择：
 - `s3:PutBucketVersioning`
 - `s3:PutBucketEncryption`
 - `s3:PutPublicAccessBlock`
+- `s3:GetBucketPolicy`
+- `s3:PutBucketPolicy`
+
+### 2.6 跨账户 Pulumi Backend 访问
+
+共享的 Pulumi state bucket（`PULUMI_STATE_BUCKET`）只创建在 `PROMOTION_PATH` 第一个 stack 对应的 AWS 账户里。所有 stack 共用同一个 backend bucket。
+
+在多账户拓扑下，这会带来一个常见问题：**其他账户的身份默认无法访问第一个账户里的 backend bucket**。例如当 `prod` 在独立账户、你用 `AWS_PROFILE_PROD` 在本地操作时，它无法读写 `devo` 账户里的 Pulumi state S3 文件，`pulumi` 会报 `AccessDenied`。
+
+`bootstrap-aws-foundation.sh` 会在第一个 stack 账户的 backend bucket 上写一条 **resource-based bucket policy** 来解决这个问题：
+
+- 自动授权每个 stack 的 deploy role（`AWS_ROLE_ARN_<STACK>`）对 backend bucket 的 `s3:ListBucket`、`s3:GetObject`、`s3:PutObject`、`s3:DeleteObject`。
+- GitHub Actions 中的 rollout 使用的是 deploy role（通过 OIDC assume `AWS_ROLE_ARN_<STACK>`），因此 CI 路径由这条 policy 自动覆盖。
+
+如果你在**本地**用某个非第一账户的 profile（例如 `AWS_PROFILE_PROD`）直接跑 `pulumi`，该 profile 背后的 IAM/SSO role 不是 deploy role，默认不在 bucket policy 里。此时把该 role 的 ARN 加入 `.env` 的 `PULUMI_BACKEND_ACCESS_PRINCIPAL_ARNS`（逗号分隔），bootstrap 会把它一并写入 bucket policy：
+
+```bash
+# .env
+# 允许本地 prod operator profile 背后的 role 访问 devo 账户里的共享 backend bucket
+PULUMI_BACKEND_ACCESS_PRINCIPAL_ARNS=arn:aws:iam::210987654321:role/aws-reserved/sso.amazonaws.com/us-west-2/AWSReservedSSO_Admin_abc123
+```
+
+> **如何拿到 SSO role ARN**：`aws configure sso` 配好的 profile 用的是 SSO assumed-role。运行 `aws sts get-caller-identity --profile customer-prod --query Arn --output text` 得到形如 `arn:aws:sts::<account>:assumed-role/AWSReservedSSO_Admin_abc123/<user>` 的 ARN；对应的可信 principal role ARN 是 `arn:aws:iam::<account>:role/aws-reserved/sso.amazonaws.com/<sso-region>/AWSReservedSSO_Admin_abc123`。
+
+> **注意**：如果所有 stack 都在同一个 AWS 账户，backend bucket 与所有身份同账户，通常不需要设置 `PULUMI_BACKEND_ACCESS_PRINCIPAL_ARNS`。
 
 ---
 
