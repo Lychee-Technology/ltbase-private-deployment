@@ -104,4 +104,68 @@ if [[ "${OIDC_DISCOVERY_PAGES_PROJECT:-}" != "customer-ltbase-oidc-discovery" ]]
   fail "OIDC_DISCOVERY_PAGES_PROJECT should still be derived: expected customer-ltbase-oidc-discovery, got ${OIDC_DISCOVERY_PAGES_PROJECT:-}"
 fi
 
+# ---------- constant defaults derived when unset ----------
+
+assert_eq 'Lychee-Technology/ltbase-private-deployment' "${TEMPLATE_REPO:-}" 'TEMPLATE_REPO should default'
+assert_eq 'private' "${DEPLOYMENT_REPO_VISIBILITY:-}" 'DEPLOYMENT_REPO_VISIBILITY should default'
+assert_eq 'Customer LTBase deployment repo' "${DEPLOYMENT_REPO_DESCRIPTION:-}" 'DEPLOYMENT_REPO_DESCRIPTION should default'
+assert_eq 'alias/ltbase-pulumi-secrets' "${PULUMI_KMS_ALIAS:-}" 'PULUMI_KMS_ALIAS should default'
+assert_eq 'Lychee-Technology/ltbase-releases' "${LTBASE_RELEASES_REPO:-}" 'LTBASE_RELEASES_REPO should default'
+assert_eq 'infra/certs/cloudflare-origin-pull-ca.pem' "${MTLS_TRUSTSTORE_FILE:-}" 'MTLS_TRUSTSTORE_FILE should default'
+assert_eq 'mtls/cloudflare-origin-pull-ca.pem' "${MTLS_TRUSTSTORE_KEY:-}" 'MTLS_TRUSTSTORE_KEY should default'
+assert_eq 'gemini-3.1-flash-lite' "${GEMINI_MODEL:-}" 'GEMINI_MODEL should default'
+assert_eq '5432' "${DSQL_PORT:-}" 'DSQL_PORT should default'
+assert_eq 'postgres' "${DSQL_DB:-}" 'DSQL_DB should default'
+assert_eq 'admin' "${DSQL_USER:-}" 'DSQL_USER should default'
+assert_eq 'ltbase' "${DSQL_PROJECT_SCHEMA:-}" 'DSQL_PROJECT_SCHEMA should default'
+
+# ---------- per-stack defaults derived when unset ----------
+
+assert_eq 'ltbase-deploy-devo' "${AWS_ROLE_NAME_DEVO:-}" 'AWS_ROLE_NAME_DEVO should default to ltbase-deploy-devo'
+assert_eq 'arn:aws:iam::123456789012:role/ltbase-deploy-devo' "${AWS_ROLE_ARN_DEVO:-}" 'AWS_ROLE_ARN_DEVO should derive from default role name'
+assert_eq 'infra/auth-providers.devo.json' "${AUTH_PROVIDER_CONFIG_FILE_DEVO:-}" 'AUTH_PROVIDER_CONFIG_FILE_DEVO should default'
+
+# ---------- explicit values win over defaults ----------
+
+# Derived exports persist in this shell across loads; clear the ones this case
+# re-derives so we exercise a fresh derivation from the override file.
+unset AWS_ROLE_ARN_DEVO AWS_ROLE_NAME_DEVO PULUMI_KMS_ALIAS GEMINI_MODEL
+
+override_env="${temp_dir}/override-env"
+cat >"${override_env}" <<'ENVEOF'
+STACKS=devo
+PROMOTION_PATH=devo
+GITHUB_OWNER=customer-org
+DEPLOYMENT_REPO_NAME=customer-ltbase
+PULUMI_STATE_BUCKET=test-bucket
+AWS_REGION_DEVO=ap-northeast-1
+AWS_ACCOUNT_ID_DEVO=123456789012
+AWS_ROLE_NAME_DEVO=custom-role
+PULUMI_KMS_ALIAS=alias/custom
+GEMINI_MODEL=gemini-custom
+OIDC_DISCOVERY_DOMAIN=oidc.customer.example.com
+ENVEOF
+
+bootstrap_env_load "${override_env}"
+
+assert_eq 'custom-role' "${AWS_ROLE_NAME_DEVO:-}" 'explicit AWS_ROLE_NAME_DEVO should win'
+assert_eq 'arn:aws:iam::123456789012:role/custom-role' "${AWS_ROLE_ARN_DEVO:-}" 'AWS_ROLE_ARN_DEVO should use explicit role name'
+assert_eq 'alias/custom' "${PULUMI_KMS_ALIAS:-}" 'explicit PULUMI_KMS_ALIAS should win'
+assert_eq 'gemini-custom' "${GEMINI_MODEL:-}" 'explicit GEMINI_MODEL should win'
+
+# ---------- caller ARN to IAM role ARN conversion ----------
+
+assert_eq 'arn:aws:iam::210987654321:role/aws-reserved/sso.amazonaws.com/us-west-2/AWSReservedSSO_Admin_abc123' \
+  "$(bootstrap_env_iam_role_arn_from_caller_arn 'arn:aws:sts::210987654321:assumed-role/AWSReservedSSO_Admin_abc123/alice' 'us-west-2')" \
+  'SSO assumed-role should map to reserved SSO role path'
+assert_eq 'arn:aws:iam::111111111111:role/MyRole' \
+  "$(bootstrap_env_iam_role_arn_from_caller_arn 'arn:aws:sts::111111111111:assumed-role/MyRole/session' '')" \
+  'plain assumed-role should drop session'
+assert_eq 'arn:aws:iam::111111111111:role/Foo' \
+  "$(bootstrap_env_iam_role_arn_from_caller_arn 'arn:aws:iam::111111111111:role/Foo' '')" \
+  'iam role ARN should pass through'
+assert_eq '' \
+  "$(bootstrap_env_iam_role_arn_from_caller_arn 'arn:aws:iam::111111111111:user/bob' '')" \
+  'iam user ARN should yield empty'
+
 printf 'PASS: bootstrap-env tests\n'

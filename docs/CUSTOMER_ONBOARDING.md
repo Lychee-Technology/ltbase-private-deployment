@@ -289,7 +289,9 @@ In a multi-account topology this causes a common problem: **an identity in anoth
 - It automatically grants every stack's deploy role (`AWS_ROLE_ARN_<STACK>`) `s3:ListBucket`, `s3:GetObject`, `s3:PutObject`, and `s3:DeleteObject` on the backend bucket.
 - Rollout in GitHub Actions uses the deploy role (via OIDC assume of `AWS_ROLE_ARN_<STACK>`), so the CI path is covered automatically by this policy.
 
-If you run `pulumi` **locally** with a non-first-account profile (e.g. `AWS_PROFILE_PROD`), the IAM/SSO role behind that profile is not a deploy role and is not in the bucket policy by default. Add that role's ARN to `PULUMI_BACKEND_ACCESS_PRINCIPAL_ARNS` in `.env` (comma-separated) and bootstrap will include it in the bucket policy:
+If you run `pulumi` **locally** with a non-first-account profile (e.g. `AWS_PROFILE_PROD`), the IAM/SSO role behind that profile is not a deploy role. **Bootstrap handles this automatically**: `bootstrap-aws-foundation.sh` runs `aws sts get-caller-identity` for every stack that sets `AWS_PROFILE_<STACK>`, resolves the IAM role ARN behind that profile (including the `aws-reserved/sso.amazonaws.com/<region>/...` path for IAM Identity Center / SSO roles), and adds it to the backend bucket policy. You usually do not need to set anything manually.
+
+Only when an identity **cannot** be resolved automatically from `AWS_PROFILE_<STACK>` (for example, you operate locally with a role that is not in the `.env` profile list) do you add its role ARN to `PULUMI_BACKEND_ACCESS_PRINCIPAL_ARNS` in `.env` (comma-separated); bootstrap will include it in the bucket policy:
 
 ```bash
 # .env
@@ -470,23 +472,20 @@ cp env.template .env
 
 **Never** commit `.env` to Git. It contains tokens and secrets.
 
-### 7.2 Complete .env Example
+### 7.2 Minimal .env Example
 
-Below is a complete `.env` example. Replace with your actual values.
+The example below contains only the variables you **must** fill in manually. Any variable that `scripts/lib/bootstrap-env.sh` can derive or that has a constant default is omitted here unless you want to override it (see 7.3).
 
 ```bash
 # ============ Stack Topology ============
 STACKS=devo,prod
-PROMOTION_PATH=devo,prod
+# PROMOTION_PATH defaults to STACKS; set it only for a different order
 
 # ============ Repository Identity ============
-TEMPLATE_REPO=Lychee-Technology/ltbase-private-deployment
 GITHUB_OWNER=customer-org
 DEPLOYMENT_REPO_NAME=customer-ltbase
-DEPLOYMENT_REPO_VISIBILITY=private
-DEPLOYMENT_REPO_DESCRIPTION="Customer LTBase deployment repo"
 
-# ============ Domains ============
+# ============ Domains (global) ============
 OIDC_DISCOVERY_DOMAIN=oidc.customer.example.com
 CONTROLPLANE_UI_DOMAIN=admin.customer.example.com
 
@@ -496,24 +495,16 @@ CLOUDFLARE_ZONE_ID=zone-abc123
 CLOUDFLARE_API_TOKEN=your-api-token-here
 
 # ============ AWS Environment (one set per stack) ============
-# devo stack
 AWS_REGION_DEVO=ap-northeast-1
 AWS_ACCOUNT_ID_DEVO=123456789012
-AWS_ROLE_NAME_DEVO=ltbase-deploy-devo
-# AWS_PROFILE_DEVO=customer-devo  # Needed when stacks use different AWS profiles
-
-# prod stack
 AWS_REGION_PROD=us-west-2
 AWS_ACCOUNT_ID_PROD=210987654321
-AWS_ROLE_NAME_PROD=ltbase-deploy-prod
+# Set AWS_PROFILE_<STACK> when stacks use different AWS accounts
+# AWS_PROFILE_DEVO=customer-devo
 # AWS_PROFILE_PROD=customer-prod
 
 # ============ Pulumi Backend ============
 PULUMI_STATE_BUCKET=replace-with-pulumi-state-bucket
-PULUMI_KMS_ALIAS=alias/ltbase-pulumi-secrets
-# PULUMI_BACKEND_URL           → derived by bootstrap, leave empty
-# PULUMI_SECRETS_PROVIDER_DEVO → derived by bootstrap, leave empty
-# PULUMI_SECRETS_PROVIDER_PROD → derived by bootstrap, leave empty
 
 # ============ Domains (one set per stack) ============
 API_DOMAIN_DEVO=api.devo.customer.example.com
@@ -523,24 +514,12 @@ CONTROL_DOMAIN_PROD=control.customer.example.com
 AUTH_DOMAIN_DEVO=auth.devo.customer.example.com
 AUTH_DOMAIN_PROD=auth.customer.example.com
 
-# ============ CORS Config (optional) ============
-# Leave empty to default to *
-# API_CORS_ALLOW_ORIGINS_DEVO=*
-# CONTROL_PLANE_CORS_ALLOW_ORIGINS_DEVO defaults to https://<CONTROLPLANE_UI_DOMAIN>
-
 # ============ LTBase Application Config ============
 PROJECT_ID=11111111-1111-4111-8111-111111111111
-AUTH_PROVIDER_CONFIG_FILE_DEVO=infra/auth-providers.devo.json
-AUTH_PROVIDER_CONFIG_FILE_PROD=infra/auth-providers.prod.json
 
 # ============ Release Config ============
-LTBASE_RELEASES_REPO=Lychee-Technology/ltbase-releases
 LTBASE_RELEASE_ID=v1.0.23
 LTBASE_RELEASES_TOKEN=your-releases-token-here
-
-# ============ mTLS Config ============
-MTLS_TRUSTSTORE_FILE=infra/certs/cloudflare-origin-pull-ca.pem
-MTLS_TRUSTSTORE_KEY=mtls/cloudflare-origin-pull-ca.pem
 
 # ============ Control Plane UI Browser Config ============
 FIREBASE_API_KEY_DEVO=public-firebase-api-key
@@ -552,24 +531,17 @@ SUPABASE_URL_PROD=https://project.supabase.co
 SUPABASE_ANON_KEY_DEVO=public-anon-key
 SUPABASE_ANON_KEY_PROD=public-anon-key
 
-# ============ Application Defaults ============
-GEMINI_MODEL=gemini-3.1-flash-lite
+# ============ Gemini ============
 GEMINI_API_KEY=your-gemini-api-key
-DSQL_PORT=5432
-DSQL_DB=postgres
-DSQL_USER=admin
-DSQL_PROJECT_SCHEMA=ltbase
-# DSQL_ENDPOINT → Do not set manually; resolved automatically by bootstrap and deploy
 ```
 
 ### 7.3 Field-by-Field Reference
 
-#### Must Fill Manually
+#### Must Fill Manually (cannot be derived)
 
 | Variable | Where to get it |
 |----------|----------------|
 | `STACKS` | Your deployment topology decision |
-| `PROMOTION_PATH` | Your deployment topology decision |
 | `GITHUB_OWNER` | Your GitHub organization or username |
 | `DEPLOYMENT_REPO_NAME` | Desired repository name |
 | `OIDC_DISCOVERY_DOMAIN` | Your domain plan |
@@ -579,14 +551,11 @@ DSQL_PROJECT_SCHEMA=ltbase
 | `CLOUDFLARE_API_TOKEN` | Cloudflare API token you created |
 | `AWS_REGION_<STACK>` | Target region for each stack |
 | `AWS_ACCOUNT_ID_<STACK>` | AWS account ID for each stack |
-| `AWS_ROLE_NAME_<STACK>` | Deploy role name for each stack |
 | `PULUMI_STATE_BUCKET` | Globally unique bucket name |
-| `PULUMI_KMS_ALIAS` | KMS alias, keep default |
 | `API_DOMAIN_<STACK>` | Your domain plan |
 | `CONTROL_DOMAIN_<STACK>` | Your domain plan |
 | `AUTH_DOMAIN_<STACK>` | Your domain plan |
 | `PROJECT_ID` | LTBase project ID (UUID format) |
-| `AUTH_PROVIDER_CONFIG_FILE_<STACK>` | Points to `infra/auth-providers.<stack>.json` |
 | `LTBASE_RELEASE_ID` | Release version to deploy |
 | `LTBASE_RELEASES_TOKEN` | From LTBase team |
 | `GEMINI_API_KEY` | From Google AI Studio |
@@ -595,29 +564,43 @@ DSQL_PROJECT_SCHEMA=ltbase
 | `SUPABASE_URL_<STACK>` | Supabase project settings (browser-public) |
 | `SUPABASE_ANON_KEY_<STACK>` | Supabase project settings (browser-public) |
 
-#### Derived by Bootstrap (Must Leave Empty)
+> `AWS_PROFILE_<STACK>` is not required, but is mandatory in multi-account topologies (see 7.4).
+
+#### Derived by Bootstrap (leave empty by default)
 
 | Variable | Derivation Rule |
 |----------|----------------|
+| `PROMOTION_PATH` | Defaults to `STACKS` |
+| `TEMPLATE_REPO` | Defaults to `Lychee-Technology/ltbase-private-deployment` |
+| `DEPLOYMENT_REPO` | `${GITHUB_OWNER}/${DEPLOYMENT_REPO_NAME}` |
+| `DEPLOYMENT_REPO_VISIBILITY` | Defaults to `private` |
+| `DEPLOYMENT_REPO_DESCRIPTION` | Defaults to `Customer LTBase deployment repo` |
+| `GITHUB_ORG` / `GITHUB_REPO` | Derived from above |
+| `AWS_ROLE_NAME_<STACK>` | Defaults to `ltbase-deploy-<stack>` |
+| `AWS_ROLE_ARN_<STACK>` | `arn:aws:iam::${AWS_ACCOUNT_ID_<STACK>}:role/${AWS_ROLE_NAME_<STACK>}` |
+| `PULUMI_KMS_ALIAS` | Defaults to `alias/ltbase-pulumi-secrets` |
 | `PULUMI_BACKEND_URL` | `s3://${PULUMI_STATE_BUCKET}` |
 | `PULUMI_SECRETS_PROVIDER_<STACK>` | `awskms://${PULUMI_KMS_ALIAS}?region=${AWS_REGION_<STACK>}` |
-| `AWS_ROLE_ARN_<STACK>` | `arn:aws:iam::${AWS_ACCOUNT_ID_<STACK>}:role/${AWS_ROLE_NAME_<STACK>}` |
+| `LTBASE_RELEASES_REPO` | Defaults to `Lychee-Technology/ltbase-releases` |
+| `AUTH_PROVIDER_CONFIG_FILE_<STACK>` | Defaults to `infra/auth-providers.<stack>.json` |
 | `OIDC_ISSUER_URL_<STACK>` | `https://${OIDC_DISCOVERY_DOMAIN}/<stack>` |
 | `JWKS_URL_<STACK>` | `https://${OIDC_DISCOVERY_DOMAIN}/<stack>/.well-known/jwks.json` |
-| `DEPLOYMENT_REPO` | `${GITHUB_OWNER}/${DEPLOYMENT_REPO_NAME}` |
-| `GITHUB_ORG` / `GITHUB_REPO` | Derived from above |
-| `OIDC_DISCOVERY_PAGES_PROJECT` | Derived from repo name |
+| `OIDC_DISCOVERY_PAGES_PROJECT` | `<DEPLOYMENT_REPO_NAME>-oidc-discovery` |
+| `CONTROLPLANE_UI_PAGES_PROJECT` | `<DEPLOYMENT_REPO_NAME>-controlplane-ui` |
 | `RUNTIME_BUCKET_<STACK>` | `<DEPLOYMENT_REPO_NAME>-runtime-<stack>` |
 | `SCHEMA_BUCKET_<STACK>` | `<DEPLOYMENT_REPO_NAME>-schema-<stack>` |
 | `TABLE_NAME_<STACK>` | `<DEPLOYMENT_REPO_NAME>-<stack>` |
 | `PREVIEW_DEFAULT_STACK` | First stack in `PROMOTION_PATH` |
+| `PULUMI_BACKEND_ACCESS_PRINCIPAL_ARNS` | Auto-derived from `AWS_PROFILE_<STACK>` (see 7.4); set manually only for identities bootstrap cannot resolve |
 
-#### Must Keep at Default
+#### Constant Defaults (usually left unset)
 
-| Variable | Value | Notes |
-|----------|-------|-------|
+| Variable | Default | Notes |
+|----------|---------|-------|
 | `MTLS_TRUSTSTORE_FILE` | `infra/certs/cloudflare-origin-pull-ca.pem` | Cloudflare official AOP truststore |
 | `MTLS_TRUSTSTORE_KEY` | `mtls/cloudflare-origin-pull-ca.pem` | truststore key in runtime bucket |
+| `GEMINI_MODEL` | `gemini-3.1-flash-lite` | Default model |
+| `DSQL_PORT` / `DSQL_DB` / `DSQL_USER` / `DSQL_PROJECT_SCHEMA` | `5432` / `postgres` / `admin` / `ltbase` | DSQL connection defaults |
 | `DSQL_HOST` / `DSQL_ENDPOINT` / `DSQL_PASSWORD` | **Do not set** | Managed deployments are auto-resolved |
 
 ### 7.4 Multi-Account Notes
@@ -637,6 +620,8 @@ aws sts get-caller-identity --profile customer-prod
 ```
 
 > **Important**: The Pulumi shared backend bucket is created in the AWS account for the first stack in `PROMOTION_PATH`. That account's credentials must be able to create and manage the bucket.
+
+> **Cross-account access is handled automatically**: `bootstrap-aws-foundation.sh` runs `aws sts get-caller-identity` for every stack that sets `AWS_PROFILE_<STACK>` and adds the IAM role behind that profile (including the `aws-reserved/sso.amazonaws.com/<region>/...` path for IAM Identity Center / SSO roles) to the shared backend bucket policy. You therefore usually do **not** need to set `PULUMI_BACKEND_ACCESS_PRINCIPAL_ARNS`; provide it only when an identity cannot be resolved automatically (see 2.6).
 
 ---
 

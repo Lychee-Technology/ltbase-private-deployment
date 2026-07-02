@@ -233,6 +233,39 @@ print(json.dumps(policy, indent=2))
 PY
 }
 
+bootstrap_env_iam_role_arn_from_caller_arn() {
+  # Convert an STS caller ARN (from `aws sts get-caller-identity`) into the
+  # underlying IAM role ARN that a bucket policy Principal understands.
+  #   - assumed-role ARNs lose their session component
+  #   - AWS IAM Identity Center (SSO) roles gain the reserved SSO path, which
+  #     requires the SSO region as the second argument
+  #   - plain IAM role ARNs are returned unchanged
+  #   - IAM user ARNs (or anything unrecognized) yield empty output
+  local caller_arn="$1"
+  local sso_region="${2:-}"
+
+  case "${caller_arn}" in
+    arn:aws:sts::*:assumed-role/*/*)
+      local rest account role_name
+      rest="${caller_arn#arn:aws:sts::}"
+      account="${rest%%:*}"
+      rest="${rest#*:assumed-role/}"
+      role_name="${rest%%/*}"
+      if [[ "${role_name}" == AWSReservedSSO_* && -n "${sso_region}" ]]; then
+        printf 'arn:aws:iam::%s:role/aws-reserved/sso.amazonaws.com/%s/%s' "${account}" "${sso_region}" "${role_name}"
+      else
+        printf 'arn:aws:iam::%s:role/%s' "${account}" "${role_name}"
+      fi
+      ;;
+    arn:aws:iam::*:role/*)
+      printf '%s' "${caller_arn}"
+      ;;
+    *)
+      printf ''
+      ;;
+  esac
+}
+
 bootstrap_env_stack_profile_args() {
   local stack="$1"
   local upper_name profile_var_name
@@ -361,9 +394,28 @@ bootstrap_env_require_controlplane_ui_auth_provider() {
 }
 
 bootstrap_env_apply_derivations() {
-  local stack upper_name region account_id role_name
-  local role_arn_var provider_var runtime_bucket_var schema_bucket_var table_name_var
+  local stack upper_name region account_id role_name auth_provider_config_var
+  local role_arn_var provider_var runtime_bucket_var schema_bucket_var table_name_var role_name_var
   local discovery_role_name_var discovery_role_arn_var issuer_var jwks_var
+
+  # Constant defaults. These values are the same for every managed deployment
+  # and can always be regenerated, so operators do not need to set them in .env.
+  # Any explicit value in .env still wins.
+  : "${TEMPLATE_REPO:=Lychee-Technology/ltbase-private-deployment}"
+  : "${DEPLOYMENT_REPO_VISIBILITY:=private}"
+  : "${DEPLOYMENT_REPO_DESCRIPTION:=Customer LTBase deployment repo}"
+  : "${PULUMI_KMS_ALIAS:=alias/ltbase-pulumi-secrets}"
+  : "${LTBASE_RELEASES_REPO:=Lychee-Technology/ltbase-releases}"
+  : "${MTLS_TRUSTSTORE_FILE:=infra/certs/cloudflare-origin-pull-ca.pem}"
+  : "${MTLS_TRUSTSTORE_KEY:=mtls/cloudflare-origin-pull-ca.pem}"
+  : "${GEMINI_MODEL:=gemini-3.1-flash-lite}"
+  : "${DSQL_PORT:=5432}"
+  : "${DSQL_DB:=postgres}"
+  : "${DSQL_USER:=admin}"
+  : "${DSQL_PROJECT_SCHEMA:=ltbase}"
+  export TEMPLATE_REPO DEPLOYMENT_REPO_VISIBILITY DEPLOYMENT_REPO_DESCRIPTION
+  export PULUMI_KMS_ALIAS LTBASE_RELEASES_REPO MTLS_TRUSTSTORE_FILE MTLS_TRUSTSTORE_KEY
+  export GEMINI_MODEL DSQL_PORT DSQL_DB DSQL_USER DSQL_PROJECT_SCHEMA
 
   if [[ -z "${DEPLOYMENT_REPO:-}" && -n "${GITHUB_OWNER:-}" && -n "${DEPLOYMENT_REPO_NAME:-}" ]]; then
     DEPLOYMENT_REPO="${GITHUB_OWNER}/${DEPLOYMENT_REPO_NAME}"
@@ -395,7 +447,19 @@ bootstrap_env_apply_derivations() {
     upper_name="$(bootstrap_env_stack_upper "${stack}")"
     region="$(bootstrap_env_resolve_stack_value AWS_REGION "${stack}")"
     account_id="$(bootstrap_env_resolve_stack_value AWS_ACCOUNT_ID "${stack}")"
+
+    role_name_var="AWS_ROLE_NAME_${upper_name}"
+    if [[ -z "${!role_name_var:-}" && -z "${AWS_ROLE_NAME:-}" ]]; then
+      printf -v "${role_name_var}" 'ltbase-deploy-%s' "${stack}"
+      export "${role_name_var}"
+    fi
     role_name="$(bootstrap_env_resolve_stack_value AWS_ROLE_NAME "${stack}")"
+
+    auth_provider_config_var="AUTH_PROVIDER_CONFIG_FILE_${upper_name}"
+    if [[ -z "${!auth_provider_config_var:-}" && -z "${AUTH_PROVIDER_CONFIG_FILE:-}" ]]; then
+      printf -v "${auth_provider_config_var}" 'infra/auth-providers.%s.json' "${stack}"
+      export "${auth_provider_config_var}"
+    fi
 
     role_arn_var="AWS_ROLE_ARN_${upper_name}"
     if [[ -z "${!role_arn_var:-}" && -n "${account_id}" && -n "${role_name}" ]]; then

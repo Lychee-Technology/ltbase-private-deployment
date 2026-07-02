@@ -80,6 +80,14 @@ cat >"${fake_bin}/aws" <<EOF
 #!/usr/bin/env bash
 set -euo pipefail
 printf 'aws %s\n' "\$*" >>"${log_file}"
+if [[ "\$*" == *"sts get-caller-identity"* && "\$*" == *"--query Arn"* ]]; then
+  printf 'arn:aws:sts::999999999999:assumed-role/AWSReservedSSO_Admin_test/alice\n'
+  exit 0
+fi
+if [[ "\$*" == *"configure get sso_region"* ]]; then
+  printf 'us-west-2\n'
+  exit 0
+fi
 args=("\$@")
 if [[ "\${args[0]:-}" == "--profile" ]]; then
   args=("\${args[@]:2}")
@@ -163,6 +171,8 @@ if [[ -x "${SCRIPT_PATH}" ]]; then
   assert_file_contains "${temp_dir}/dist/pulumi-backend-bucket-policy.json" "arn:aws:iam::345678901234:role/ltbase-deploy-staging"
   assert_file_contains "${temp_dir}/dist/pulumi-backend-bucket-policy.json" "arn:aws:iam::210987654321:role/ltbase-deploy-prod"
   assert_file_contains "${temp_dir}/dist/pulumi-backend-bucket-policy.json" "s3:DeleteObject"
+  assert_log_contains "${log_file}" "aws sts get-caller-identity --profile prod-profile --query Arn --output text"
+  assert_file_contains "${temp_dir}/dist/pulumi-backend-bucket-policy.json" "arn:aws:iam::999999999999:role/aws-reserved/sso.amazonaws.com/us-west-2/AWSReservedSSO_Admin_test"
   assert_log_contains "${log_file}" "aws --profile devo-profile kms create-key --region ap-northeast-1"
   assert_log_contains "${log_file}" "aws --profile staging-profile kms create-key --region eu-central-1"
   assert_log_contains "${log_file}" "aws --profile prod-profile kms create-key --region us-west-2"

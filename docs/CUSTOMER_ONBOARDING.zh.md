@@ -289,7 +289,9 @@ bootstrap 脚本需要在 AWS 中创建资源。你有两个选择：
 - 自动授权每个 stack 的 deploy role（`AWS_ROLE_ARN_<STACK>`）对 backend bucket 的 `s3:ListBucket`、`s3:GetObject`、`s3:PutObject`、`s3:DeleteObject`。
 - GitHub Actions 中的 rollout 使用的是 deploy role（通过 OIDC assume `AWS_ROLE_ARN_<STACK>`），因此 CI 路径由这条 policy 自动覆盖。
 
-如果你在**本地**用某个非第一账户的 profile（例如 `AWS_PROFILE_PROD`）直接跑 `pulumi`，该 profile 背后的 IAM/SSO role 不是 deploy role，默认不在 bucket policy 里。此时把该 role 的 ARN 加入 `.env` 的 `PULUMI_BACKEND_ACCESS_PRINCIPAL_ARNS`（逗号分隔），bootstrap 会把它一并写入 bucket policy：
+如果你在**本地**用某个非第一账户的 profile（例如 `AWS_PROFILE_PROD`）直接跑 `pulumi`，该 profile 背后的 IAM/SSO role 不是 deploy role。**bootstrap 会自动处理这种情况**：`bootstrap-aws-foundation.sh` 对每个设置了 `AWS_PROFILE_<STACK>` 的 stack 运行 `aws sts get-caller-identity`，推导出该 profile 背后的 IAM role ARN（包括 IAM Identity Center / SSO role 的 `aws-reserved/sso.amazonaws.com/<region>/...` 路径），并自动写入 backend bucket policy。因此通常不需要手动设置。
+
+只有当某个身份**无法**通过 `AWS_PROFILE_<STACK>` 自动推导（例如你用一个不在 `.env` profile 列表里的 role 本地操作）时，才手动把它的 role ARN 加入 `.env` 的 `PULUMI_BACKEND_ACCESS_PRINCIPAL_ARNS`（逗号分隔），bootstrap 会把它一并写入 bucket policy：
 
 ```bash
 # .env
@@ -469,23 +471,20 @@ cp env.template .env
 
 **绝对不要**把 `.env` 提交到 Git。它包含 token 和 secret。
 
-### 7.2 完整 .env 示例
+### 7.2 最小 .env 示例
 
-以下是一个完整的 `.env` 文件示例。请根据你的实际值修改。
+以下示例只包含**必须手动填写**的变量。所有可以由 `scripts/lib/bootstrap-env.sh` 派生或有固定默认值的变量都不在这里，除非你要覆盖默认值（见 7.3）。
 
 ```bash
 # ============ Stack 拓扑 ============
 STACKS=devo,prod
-PROMOTION_PATH=devo,prod
+# PROMOTION_PATH 默认等于 STACKS，需要不同顺序时才设置
 
 # ============ 仓库身份 ============
-TEMPLATE_REPO=Lychee-Technology/ltbase-private-deployment
 GITHUB_OWNER=customer-org
 DEPLOYMENT_REPO_NAME=customer-ltbase
-DEPLOYMENT_REPO_VISIBILITY=private
-DEPLOYMENT_REPO_DESCRIPTION="Customer LTBase deployment repo"
 
-# ============ 域名 ============
+# ============ 域名（全局）============
 OIDC_DISCOVERY_DOMAIN=oidc.customer.example.com
 CONTROLPLANE_UI_DOMAIN=admin.customer.example.com
 
@@ -495,24 +494,16 @@ CLOUDFLARE_ZONE_ID=zone-abc123
 CLOUDFLARE_API_TOKEN=your-api-token-here
 
 # ============ AWS 环境（每个 stack 一组）============
-# devo stack
 AWS_REGION_DEVO=ap-northeast-1
 AWS_ACCOUNT_ID_DEVO=123456789012
-AWS_ROLE_NAME_DEVO=ltbase-deploy-devo
-# AWS_PROFILE_DEVO=customer-devo  # 不同 stack 使用不同 AWS profile 时需要
-
-# prod stack
 AWS_REGION_PROD=us-west-2
 AWS_ACCOUNT_ID_PROD=210987654321
-AWS_ROLE_NAME_PROD=ltbase-deploy-prod
+# 不同 stack 使用不同 AWS 账户时，为每个 stack 设置 AWS_PROFILE_<STACK>
+# AWS_PROFILE_DEVO=customer-devo
 # AWS_PROFILE_PROD=customer-prod
 
 # ============ Pulumi 后端 ============
 PULUMI_STATE_BUCKET=replace-with-pulumi-state-bucket
-PULUMI_KMS_ALIAS=alias/ltbase-pulumi-secrets
-# PULUMI_BACKEND_URL          → 由 bootstrap 派生，留空
-# PULUMI_SECRETS_PROVIDER_DEVO → 由 bootstrap 派生，留空
-# PULUMI_SECRETS_PROVIDER_PROD → 由 bootstrap 派生，留空
 
 # ============ 域名（每个 stack 一组）============
 API_DOMAIN_DEVO=api.devo.customer.example.com
@@ -522,24 +513,12 @@ CONTROL_DOMAIN_PROD=control.customer.example.com
 AUTH_DOMAIN_DEVO=auth.devo.customer.example.com
 AUTH_DOMAIN_PROD=auth.customer.example.com
 
-# ============ CORS 配置（可选）============
-# 留空默认使用 *
-# API_CORS_ALLOW_ORIGINS_DEVO=*
-# CONTROL_PLANE_CORS_ALLOW_ORIGINS_DEVO 留空默认使用 https://<CONTROLPLANE_UI_DOMAIN>
-
 # ============ LTBase 应用配置 ============
 PROJECT_ID=11111111-1111-4111-8111-111111111111
-AUTH_PROVIDER_CONFIG_FILE_DEVO=infra/auth-providers.devo.json
-AUTH_PROVIDER_CONFIG_FILE_PROD=infra/auth-providers.prod.json
 
 # ============ Release 配置 ============
-LTBASE_RELEASES_REPO=Lychee-Technology/ltbase-releases
 LTBASE_RELEASE_ID=v1.0.23
 LTBASE_RELEASES_TOKEN=your-releases-token-here
-
-# ============ mTLS 配置 ============
-MTLS_TRUSTSTORE_FILE=infra/certs/cloudflare-origin-pull-ca.pem
-MTLS_TRUSTSTORE_KEY=mtls/cloudflare-origin-pull-ca.pem
 
 # ============ Control Plane UI 浏览器配置 ============
 FIREBASE_API_KEY_DEVO=public-firebase-api-key
@@ -551,24 +530,17 @@ SUPABASE_URL_PROD=https://project.supabase.co
 SUPABASE_ANON_KEY_DEVO=public-anon-key
 SUPABASE_ANON_KEY_PROD=public-anon-key
 
-# ============ 应用默认值 ============
-GEMINI_MODEL=gemini-3.1-flash-lite
+# ============ Gemini ============
 GEMINI_API_KEY=your-gemini-api-key
-DSQL_PORT=5432
-DSQL_DB=postgres
-DSQL_USER=admin
-DSQL_PROJECT_SCHEMA=ltbase
-# DSQL_ENDPOINT → 不要手动设置，由 bootstrap 和 deploy 流程自动解析
 ```
 
 ### 7.3 逐项说明
 
-#### 必须手动填写的值
+#### 必须手动填写的值（无法推导）
 
 | 变量 | 从哪获得 |
 |------|---------|
 | `STACKS` | 你的部署拓扑决策 |
-| `PROMOTION_PATH` | 你的部署拓扑决策 |
 | `GITHUB_OWNER` | 你的 GitHub 组织名或用户名 |
 | `DEPLOYMENT_REPO_NAME` | 你想要的仓库名称 |
 | `OIDC_DISCOVERY_DOMAIN` | 你的域名计划 |
@@ -578,14 +550,11 @@ DSQL_PROJECT_SCHEMA=ltbase
 | `CLOUDFLARE_API_TOKEN` | 你在 Cloudflare 创建的 API token |
 | `AWS_REGION_<STACK>` | 每个 stack 的目标区域 |
 | `AWS_ACCOUNT_ID_<STACK>` | 每个 stack 的 AWS 账户 ID |
-| `AWS_ROLE_NAME_<STACK>` | 每个 stack 的 deploy role 名称 |
 | `PULUMI_STATE_BUCKET` | 你选择的全局唯一 bucket 名称 |
-| `PULUMI_KMS_ALIAS` | KMS alias，保持默认即可 |
 | `API_DOMAIN_<STACK>` | 你的域名计划 |
 | `CONTROL_DOMAIN_<STACK>` | 你的域名计划 |
 | `AUTH_DOMAIN_<STACK>` | 你的域名计划 |
 | `PROJECT_ID` | LTBase 项目 ID（UUID 格式） |
-| `AUTH_PROVIDER_CONFIG_FILE_<STACK>` | 指向 `infra/auth-providers.<stack>.json` |
 | `LTBASE_RELEASE_ID` | 要部署的 release 版本号 |
 | `LTBASE_RELEASES_TOKEN` | 从 LTBase 团队获取 |
 | `GEMINI_API_KEY` | 从 Google AI Studio 获取 |
@@ -594,29 +563,43 @@ DSQL_PROJECT_SCHEMA=ltbase
 | `SUPABASE_URL_<STACK>` | Supabase 项目设置（浏览器公开值） |
 | `SUPABASE_ANON_KEY_<STACK>` | Supabase 项目设置（浏览器公开值） |
 
-#### 由 Bootstrap 自动派生的值（必须留空）
+> `AWS_PROFILE_<STACK>` 不是必填项，但在多账户拓扑下必须设置（见 7.4）。
+
+#### 由 Bootstrap 自动派生的值（默认留空）
 
 | 变量 | 派生规则 |
 |------|---------|
+| `PROMOTION_PATH` | 默认等于 `STACKS` |
+| `TEMPLATE_REPO` | 默认 `Lychee-Technology/ltbase-private-deployment` |
+| `DEPLOYMENT_REPO` | `${GITHUB_OWNER}/${DEPLOYMENT_REPO_NAME}` |
+| `DEPLOYMENT_REPO_VISIBILITY` | 默认 `private` |
+| `DEPLOYMENT_REPO_DESCRIPTION` | 默认 `Customer LTBase deployment repo` |
+| `GITHUB_ORG` / `GITHUB_REPO` | 从上述值派生 |
+| `AWS_ROLE_NAME_<STACK>` | 默认 `ltbase-deploy-<stack>` |
+| `AWS_ROLE_ARN_<STACK>` | `arn:aws:iam::${AWS_ACCOUNT_ID_<STACK>}:role/${AWS_ROLE_NAME_<STACK>}` |
+| `PULUMI_KMS_ALIAS` | 默认 `alias/ltbase-pulumi-secrets` |
 | `PULUMI_BACKEND_URL` | `s3://${PULUMI_STATE_BUCKET}` |
 | `PULUMI_SECRETS_PROVIDER_<STACK>` | `awskms://${PULUMI_KMS_ALIAS}?region=${AWS_REGION_<STACK>}` |
-| `AWS_ROLE_ARN_<STACK>` | `arn:aws:iam::${AWS_ACCOUNT_ID_<STACK>}:role/${AWS_ROLE_NAME_<STACK>}` |
+| `LTBASE_RELEASES_REPO` | 默认 `Lychee-Technology/ltbase-releases` |
+| `AUTH_PROVIDER_CONFIG_FILE_<STACK>` | 默认 `infra/auth-providers.<stack>.json` |
 | `OIDC_ISSUER_URL_<STACK>` | `https://${OIDC_DISCOVERY_DOMAIN}/<stack>` |
 | `JWKS_URL_<STACK>` | `https://${OIDC_DISCOVERY_DOMAIN}/<stack>/.well-known/jwks.json` |
-| `DEPLOYMENT_REPO` | `${GITHUB_OWNER}/${DEPLOYMENT_REPO_NAME}` |
-| `GITHUB_ORG` / `GITHUB_REPO` | 从上述值派生 |
-| `OIDC_DISCOVERY_PAGES_PROJECT` | 由仓库名派生 |
+| `OIDC_DISCOVERY_PAGES_PROJECT` | `<DEPLOYMENT_REPO_NAME>-oidc-discovery` |
+| `CONTROLPLANE_UI_PAGES_PROJECT` | `<DEPLOYMENT_REPO_NAME>-controlplane-ui` |
 | `RUNTIME_BUCKET_<STACK>` | `<DEPLOYMENT_REPO_NAME>-runtime-<stack>` |
 | `SCHEMA_BUCKET_<STACK>` | `<DEPLOYMENT_REPO_NAME>-schema-<stack>` |
 | `TABLE_NAME_<STACK>` | `<DEPLOYMENT_REPO_NAME>-<stack>` |
 | `PREVIEW_DEFAULT_STACK` | `PROMOTION_PATH` 的第一个 stack |
+| `PULUMI_BACKEND_ACCESS_PRINCIPAL_ARNS` | bootstrap 会从 `AWS_PROFILE_<STACK>` 自动推导本地 operator role（见 7.4），只有无法自动推导时才手动填写 |
 
-#### 必须保持默认值的变量
+#### 有固定默认值、通常保持不变的变量
 
-| 变量 | 值 | 说明 |
+| 变量 | 默认值 | 说明 |
 |------|----|------|
 | `MTLS_TRUSTSTORE_FILE` | `infra/certs/cloudflare-origin-pull-ca.pem` | Cloudflare 官方 AOP truststore |
 | `MTLS_TRUSTSTORE_KEY` | `mtls/cloudflare-origin-pull-ca.pem` | truststore 在 runtime bucket 中的 key |
+| `GEMINI_MODEL` | `gemini-3.1-flash-lite` | 默认模型 |
+| `DSQL_PORT` / `DSQL_DB` / `DSQL_USER` / `DSQL_PROJECT_SCHEMA` | `5432` / `postgres` / `admin` / `ltbase` | DSQL 连接默认值 |
 | `DSQL_HOST` / `DSQL_ENDPOINT` / `DSQL_PASSWORD` | **不要设置** | Managed 部署由 bootstrap 和 deploy 自动解析 |
 
 ### 7.4 Multi-Account 特别说明
@@ -636,6 +619,8 @@ aws sts get-caller-identity --profile customer-prod
 ```
 
 > **重要**：Pulumi 共享 backend bucket 会创建在 `PROMOTION_PATH` 第一个 stack 的 AWS 账户中。该账户的凭据需要有权限创建和管理这个 bucket。
+
+> **本地跨账户访问自动处理**：`bootstrap-aws-foundation.sh` 会对每个设置了 `AWS_PROFILE_<STACK>` 的 stack 运行 `aws sts get-caller-identity`，把该 profile 背后的 IAM role（包括 IAM Identity Center / SSO role 的 `aws-reserved/sso.amazonaws.com/<region>/...` 路径）自动加入共享 backend bucket policy。因此通常**不需要**手动设置 `PULUMI_BACKEND_ACCESS_PRINCIPAL_ARNS`；只有当某个身份无法自动推导（例如不通过 profile 使用的 CI 之外的 role）时才手动补充（见 2.6）。
 
 ---
 

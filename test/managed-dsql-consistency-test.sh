@@ -25,8 +25,7 @@ assert_not_contains() {
   fi
 }
 
-assert_contains "${ROOT_DIR}/docs/CUSTOMER_ONBOARDING.md" "DSQL_DB=postgres"
-assert_contains "${ROOT_DIR}/docs/CUSTOMER_ONBOARDING.md" "DSQL_USER=admin"
+assert_contains "${ROOT_DIR}/docs/CUSTOMER_ONBOARDING.md" '`5432` / `postgres` / `admin` / `ltbase`'
 assert_not_contains "${ROOT_DIR}/docs/CUSTOMER_ONBOARDING.md" "DSQL_DB=ltbase"
 assert_not_contains "${ROOT_DIR}/docs/CUSTOMER_ONBOARDING.md" "DSQL_USER=ltbase"
 
