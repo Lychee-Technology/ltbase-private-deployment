@@ -18,8 +18,10 @@ permissions:
   contents: read
   id-token: write
 
+# Shared with the rollout-hop pre/post publish jobs: Cloudflare Pages direct
+# upload replaces the whole site, so discovery publishers must not interleave.
 concurrency:
-  group: ${{ github.repository }}-${{ github.workflow }}
+  group: ${{ github.repository }}-oidc-discovery-publish
   cancel-in-progress: false
 
 jobs:

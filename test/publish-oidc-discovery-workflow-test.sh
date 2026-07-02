@@ -59,6 +59,11 @@ assert_file_contains "${WORKFLOW_PATH}" "target_stacks: \${{ inputs.target_stack
 assert_file_not_contains "${WORKFLOW_PATH}" "allow_placeholder"
 assert_file_contains "${WORKFLOW_PATH}" "wait_for: none"
 
+# ---------- serialized with the rollout-hop publish jobs ----------
+
+assert_file_contains "${WORKFLOW_PATH}" "group: \${{ github.repository }}-oidc-discovery-publish"
+assert_file_contains "${WORKFLOW_PATH}" "cancel-in-progress: false"
+
 # ---------- inputs wired to repo vars/secrets ----------
 
 assert_file_contains "${WORKFLOW_PATH}" "oidc_discovery_domain: \${{ vars.OIDC_DISCOVERY_DOMAIN }}"
