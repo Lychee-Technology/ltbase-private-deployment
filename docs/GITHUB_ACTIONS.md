@@ -185,7 +185,7 @@ gh workflow run promote-prod.yml \
 
 ## `rollout-hop.yml` — Rollout LTBase Promotion Hop
 
-**What it does.** The single-hop deployment engine that every deploy/rollout/promote workflow above delegates to. For one target stack it: validates the Pulumi stack config, waits for approval on protected stacks, renders the Control Plane UI runtime config, publishes OIDC discovery for the deployed promotion-path prefix **before** rollout (placeholder key for the not-yet-deployed target so API Gateway can create its JWT authorizer), runs the shared `rollout-hop.yml` reusable workflow (`pulumi up`, control-plane UI publish, managed DSQL reconcile + second apply), republishes OIDC discovery for the prefix **after** rollout (now with the real KMS-backed key), publishes customer schemas, invokes the control-plane `ensure-project` apply, advances the applied-schema pointer, audits mTLS, and — when `continue_chain` is true — dispatches the next hop.
+**What it does.** The single-hop deployment engine that every deploy/rollout/promote workflow above delegates to. For one target stack it: validates the Pulumi stack config, waits for approval on protected stacks, renders the Control Plane UI runtime config, publishes OIDC discovery for the deployed promotion-path prefix **before** rollout (placeholder key for the not-yet-deployed target so API Gateway can create its JWT authorizer), runs the shared `rollout-hop.yml` reusable workflow (`pulumi up`, control-plane UI publish, managed DSQL reconcile + second apply), republishes OIDC discovery for the prefix **after** rollout (now with the real KMS-backed key, polling until the placeholder is actually replaced), publishes customer schemas, invokes the control-plane `ensure-project` apply, advances the applied-schema pointer, audits mTLS, and — when `continue_chain` is true and the post-rollout discovery publish succeeded — dispatches the next hop.
 
 **When to use it.**
 - Normally you do not run this directly; use `rollout.yml`, `deploy-devo.yml`, or `promote-prod.yml`.
@@ -271,9 +271,9 @@ gh workflow run publish-oidc-discovery.yml -f target_stacks=devo,prod --ref main
 - Secrets: `CLOUDFLARE_API_TOKEN`.
 
 **Notes.**
-- When a stack's authservice KMS key does not exist yet, `build-discovery.sh` publishes a placeholder JWKS instead of failing.
+- When a stack's authservice KMS key does not exist yet, the workflow **fails**: the placeholder JWKS fallback (`ALLOW_PLACEHOLDER`) is reserved for the automatic pre-rollout publish in `rollout-hop.yml`. Publish a stack only after its first rollout has created the key.
 - The workflow fails clearly if `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID`, or `OIDC_DISCOVERY_PAGES_PROJECT` is missing.
-- It uses a repository-level concurrency group, so runs do not overlap.
+- It shares a repository-level concurrency group with the automatic pre/post publish jobs in `rollout-hop.yml`, so discovery publishes never overlap.
 
 ---
 

@@ -885,6 +885,13 @@ OIDC Discovery 提供各 stack 的 `openid-configuration` 和 `jwks.json`，供�
 
 Cloudflare Pages direct upload 是整站部署。只发布当前 stack 会抹掉此前已发布 stack 的文档，因此每个 hop 都会上传完整的已部署前缀。
 
+### 占位 key 的防护措施
+
+- 占位回退是**显式开启**的（`ALLOW_PLACEHOLDER=true`），只有 rollout 前的发布 job 会设置它。rollout 后的发布和手动恢复工作流在签名 KMS key 缺失时会直接失败，而不是悄悄发布占位 key。
+- rollout 后的发布会轮询 `jwks.json`，直到它返回真实 key（`kid != "placeholder"`），因此只有占位 key 确实在边缘被替换后，该 hop 才算完成。
+- 如果首次 rollout 在 rollout 前发布之后失败，占位 key 会保留在线上，直到重试的 rollout 成功。这是预期行为：此时 auth service 尚未签发 token，且重试的 rollout 后发布会验证替换完成。
+- 自动发布只覆盖 promotion-path 前缀。配置在 `OIDC_DISCOVERY_STACK_CONFIG` 中但不在 `PROMOTION_PATH` 里的 stack 会被整站上传丢弃；请用手动工作流重新发布它们。
+
 ### 发布模型
 
 - 没有 OIDC Discovery companion 仓库或独立仓库。

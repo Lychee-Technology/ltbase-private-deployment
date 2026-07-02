@@ -886,6 +886,13 @@ This resolves the previous circular dependency: rollout needed the discovery end
 
 Cloudflare Pages direct upload is a whole-site deploy. Publishing only the current stack would wipe previously published stacks' documents, so each hop uploads the full deployed prefix.
 
+### Placeholder guardrails
+
+- The placeholder fallback is **opt-in** (`ALLOW_PLACEHOLDER=true`) and only the pre-rollout publish job sets it. The post-rollout publish and the manual recovery workflow fail loudly when a signing KMS key is missing instead of silently publishing a placeholder.
+- The post-rollout publish polls `jwks.json` until it serves a real key (`kid != "placeholder"`), so a hop only completes once the placeholder has actually been replaced at the edge.
+- If a first rollout fails after the pre-rollout publish, the placeholder stays live until a retried rollout succeeds. This is expected: the auth service is not issuing tokens yet, and the retry's post-rollout publish verifies the replacement.
+- Automatic publishes cover only the promotion-path prefix. Stacks configured in `OIDC_DISCOVERY_STACK_CONFIG` but not in `PROMOTION_PATH` are dropped by the whole-site upload; republish them with the manual workflow.
+
 ### Publish model
 
 - There is no OIDC Discovery companion repository or standalone repository.

@@ -185,7 +185,7 @@ gh workflow run promote-prod.yml \
 
 ## `rollout-hop.yml` — Rollout LTBase Promotion Hop
 
-**做什么。** 上面每个 deploy/rollout/promote 工作流都委托给它的单跳部署引擎。对一个目标 stack，它会：校验 Pulumi stack 配置、在受保护 stack 上等待审批、渲染 Control Plane UI 运行时配置、在 rollout **之前**发布已部署 promotion-path 前缀的 OIDC discovery（尚未部署的 target 用占位 key，使 API Gateway 能创建 JWT authorizer）、调用共享的 `rollout-hop.yml`（执行 `pulumi up`、发布 control-plane UI、managed DSQL reconcile 与二次 apply）、在 rollout **之后**用真实 KMS key 重新发布该前缀的 OIDC discovery、发布客户 schema、调用 control-plane 的 `ensure-project` apply、推进 applied schema 指针、审计 mTLS，并在 `continue_chain` 为 true 时派发下一跳。
+**做什么。** 上面每个 deploy/rollout/promote 工作流都委托给它的单跳部署引擎。对一个目标 stack，它会：校验 Pulumi stack 配置、在受保护 stack 上等待审批、渲染 Control Plane UI 运行时配置、在 rollout **之前**发布已部署 promotion-path 前缀的 OIDC discovery（尚未部署的 target 用占位 key，使 API Gateway 能创建 JWT authorizer）、调用共享的 `rollout-hop.yml`（执行 `pulumi up`、发布 control-plane UI、managed DSQL reconcile 与二次 apply）、在 rollout **之后**用真实 KMS key 重新发布该前缀的 OIDC discovery（并轮询确认占位 key 已被真实替换）、发布客户 schema、调用 control-plane 的 `ensure-project` apply、推进 applied schema 指针、审计 mTLS，并在 `continue_chain` 为 true 且 rollout 后的 discovery 发布成功时派发下一跳。
 
 **什么时候用。**
 - 一般不直接运行它；请用 `rollout.yml`、`deploy-devo.yml` 或 `promote-prod.yml`。
@@ -271,9 +271,9 @@ gh workflow run publish-oidc-discovery.yml -f target_stacks=devo,prod --ref main
 - Secrets：`CLOUDFLARE_API_TOKEN`。
 
 **注意事项。**
-- 当某个 stack 的 authservice KMS key 还不存在时，`build-discovery.sh` 会发布占位 JWKS 而不是失败。
+- 当某个 stack 的 authservice KMS key 还不存在时，工作流会**失败**：占位 JWKS 回退（`ALLOW_PLACEHOLDER`）仅供 `rollout-hop.yml` 中自动的 rollout 前发布使用。请在某个 stack 首次 rollout 创建其 key 之后再发布它。
 - 当 `CLOUDFLARE_API_TOKEN`、`CLOUDFLARE_ACCOUNT_ID` 或 `OIDC_DISCOVERY_PAGES_PROJECT` 缺失时，工作流会明确报错。
-- 它使用仓库级 concurrency group，因此多次运行不会互相重叠。
+- 它与 `rollout-hop.yml` 中自动的 rollout 前/后发布 job 共用一个仓库级 concurrency group，因此 discovery 发布不会互相重叠。
 
 ---
 
