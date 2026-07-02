@@ -111,4 +111,11 @@ assert_contains_in "ZH README must mention publish-oidc-discovery.yml" 'publish-
 assert_contains_in "EN manual bootstrap OIDC section must state direct upload" 'direct upload' "${ROOT_DIR}/docs/onboarding/06-bootstrap-manual.md"
 assert_contains_in "ZH manual bootstrap OIDC section must state no companion" '无 companion' "${ROOT_DIR}/docs/onboarding/06-bootstrap-manual.zh.md"
 
+# ---------- Automatic publish flow: docs must describe auto publish + manual recovery ----------
+
+assert_contains_in "EN onboarding must describe automatic OIDC discovery publish" 'automatically' "${ROOT_DIR}/docs/CUSTOMER_ONBOARDING.md"
+assert_contains_in "EN onboarding must describe manual recovery path" 'recovery' "${ROOT_DIR}/docs/CUSTOMER_ONBOARDING.md"
+assert_contains_in "ZH onboarding must describe automatic OIDC discovery publish" '自动发布' "${ROOT_DIR}/docs/CUSTOMER_ONBOARDING.zh.md"
+assert_contains_in "ZH onboarding must describe manual recovery path" '恢复' "${ROOT_DIR}/docs/CUSTOMER_ONBOARDING.zh.md"
+
 printf 'PASS: oidc-discovery-docs tests\n'

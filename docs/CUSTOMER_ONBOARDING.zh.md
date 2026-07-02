@@ -21,7 +21,7 @@
 11. [执行 Bootstrap](#9-执行-bootstrap)
 12. [Preview](#10-preview)
 13. [Rollout](#11-rollout)
-14. [发布 OIDC Discovery](#12-发布-oidc-discovery)
+14. [OIDC Discovery（自动发布）](#12-oidc-discovery自动发布)
 15. [首次部署验证](#13-首次部署验证)
 16. [常见错误与恢复](#14-常见错误与恢复)
 17. [Day-2 日常运维](#15-day-2-日常运维)
@@ -54,7 +54,7 @@ bootstrap 脚本（一键或手动）创建 IAM 角色、Pulumi backend、OIDC d
        ↓
 保护环境在 GitHub 中审批后自动推进
        ↓
-每个 stack 首次 rollout 完成后，手动触发 publish-oidc-discovery.yml 发布 OIDC Discovery 文档（见第 12 节）
+OIDC Discovery 会作为每个 rollout hop 的一部分自动发布，无需单独的手动步骤（见第 12 节）
        ↓
 部署完成，API/Auth/Control Plane/UI 均可访问
 ```
@@ -866,37 +866,49 @@ gh workflow run promote-prod.yml \
 
 ---
 
-## 12. 发布 OIDC Discovery
+## 12. OIDC Discovery（自动发布）
 
 OIDC Discovery 提供各 stack 的 `openid-configuration` 和 `jwks.json`，供外部 JWT 校验使用。
 
-### 为什么在 Rollout 之后
+### Rollout 期间自动发布
 
-OIDC Discovery 文档来自每个 stack 的 authservice 签名 KMS key。**该 KMS key 由 Pulumi 在部署时创建**（见 `alias/ltbase-oidc-discovery-<stack>-authservice`）。因此发布 OIDC Discovery 必须在该 stack **首次 rollout 之后**执行；在 rollout 之前触发会因为 KMS key 不存在而失败。
+从本版本开始，**OIDC Discovery 会在每个 rollout hop 中自动发布**（`rollout-hop.yml`）。你**不再需要**在某个 stack 首次 rollout 后单独触发任何工作流。
 
-### 当前的发布模型
+每个 hop 会对**promotion-path 前缀**——即 `PROMOTION_PATH` 从起点到当前 target（含）的所有 stack——发布两次：
+
+- **Rollout 之前**（`publish_oidc_discovery_pre`）：当前 target 的 authservice 签名 KMS key（`alias/ltbase-oidc-discovery-<stack>-authservice`）此时还不存在，因此 `scripts/build-discovery.sh` 会为它生成一个**占位（placeholder）** JWKS，同时保留已部署 stack 的真实 key。这样 discovery 端点在该 stack 首次 rollout 创建 API Gateway JWT authorizer 时就是有效的。该 job 之后会等待端点可访问。
+- **Rollout 之后**（`publish_oidc_discovery`）：此时 target 的 KMS key 已创建，因此用**真实的** KMS 支撑的 JWKS 重新发布该前缀，替换掉占位内容。
+
+这解决了此前的循环依赖：rollout 需要 discovery 端点，而 discovery 又需要只有 rollout 才会创建的 KMS key。
+
+### 为什么发布整个前缀而不是单个 stack
+
+Cloudflare Pages direct upload 是整站部署。只发布当前 stack 会抹掉此前已发布 stack 的文档，因此每个 hop 都会上传完整的已部署前缀。
+
+### 发布模型
 
 - 没有 OIDC Discovery companion 仓库或独立仓库。
-- bootstrap（第 9 步）已经准备好承载资源：Cloudflare Pages project、custom domain、DNS CNAME、deployment repo variables（`OIDC_DISCOVERY_DOMAIN`、`OIDC_DISCOVERY_STACK_CONFIG`、`OIDC_DISCOVERY_PAGES_PROJECT`），以及每个 stack 的 OIDC discovery IAM role。
-- 生成并上传 discovery 文档由 deployment repo 内置的 `publish-oidc-discovery.yml` 工作流完成：它运行 `scripts/build-discovery.sh` 生成文档，再通过 `wrangler pages deploy` **direct upload** 到 `${OIDC_DISCOVERY_PAGES_PROJECT}` 这个 Cloudflare Pages 项目。
+- bootstrap（第 9 步）准备好承载资源：Cloudflare Pages project（direct upload，无 companion）、custom domain、DNS CNAME、deployment repo variables（`OIDC_DISCOVERY_DOMAIN`、`OIDC_DISCOVERY_STACK_CONFIG`、`OIDC_DISCOVERY_PAGES_PROJECT`），以及每个 stack 的 OIDC discovery IAM role。
+- 自动 rollout job 与手动工作流共用 `.github/actions/publish-oidc-discovery` composite action，它运行 `scripts/build-discovery.sh`，再通过 `wrangler pages deploy` **direct upload** 到 `${OIDC_DISCOVERY_PAGES_PROJECT}`。
 
-> **注意**：当前版本 bootstrap 和 rollout 都不会自动触发 `publish-oidc-discovery.yml`，需要你在对应 stack 首次 rollout 完成后手动触发一次。
+### 手动重新发布（仅用于恢复）
 
-### 通过 GitHub Actions UI 触发
-
-在 GitHub 仓库的 Actions 页面，选择 **Publish OIDC Discovery Documents** 工作流，点击 Run workflow，Branch 选择 `main`，`target_stack` 填已完成 rollout 的 stack（或在所有目标 stack 都已 rollout 后填 `all`）。
-
-### 通过 CLI 触发
+`publish-oidc-discovery.yml` 仍保留为手动恢复 / 重新发布入口——例如强制刷新 key，或在自动发布失败后恢复。
 
 ```bash
-# 只发布已完成 rollout 的 stack（推荐在每个 hop 后执行）
+# 重新发布单个已完成 rollout 的 stack
 gh workflow run publish-oidc-discovery.yml \
   -f target_stack=devo \
   --ref main
 
-# 当所有目标 stack 都已完成首次 rollout 后，可一次性刷新全部
+# 所有 stack 都完成首次 rollout 后，刷新全部
 gh workflow run publish-oidc-discovery.yml \
   -f target_stack=all \
+  --ref main
+
+# 或重新发布指定的 promotion-path 前缀
+gh workflow run publish-oidc-discovery.yml \
+  -f target_stacks=devo,prod \
   --ref main
 ```
 
@@ -906,13 +918,7 @@ gh workflow run publish-oidc-discovery.yml \
 gh run list --workflow=publish-oidc-discovery.yml --limit 3
 ```
 
-> **注意**：Cloudflare Pages direct upload 是整站部署。发布单个 stack 时，`build-discovery.sh` 只会重新生成该 stack 的文档；请在每个 stack 首次 rollout 后逐个发布，或在全部 rollout 完成后用 `target_stack=all` 一次性发布，避免遗漏 stack。
-
 > **注意**：OIDC discovery IAM role 只信任从 default branch 触发的工作流（`repo:<DEPLOYMENT_REPO>:ref:refs/heads/<default_branch>`）。从其他 branch 触发会导致 AWS role assumption 失败。
-
-### 理想状态（后续实现）
-
-理想情况下，OIDC Discovery 应在 rollout 中自动发布，而不是要求单独手动触发。计划是在 `rollout-hop.yml` 的 rollout 成功后新增一个 job，对 `PROMOTION_PATH` 中从起点到当前 target stack 的已部署 stack 子集运行 direct upload。该改动属于后续代码变更，本文档会在实现后更新。
 
 ---
 

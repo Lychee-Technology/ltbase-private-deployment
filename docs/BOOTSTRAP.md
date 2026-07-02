@@ -104,15 +104,17 @@ gh workflow run rollout.yml -f release_id=v1.0.23 --ref main
 
 For full inputs and examples, see [`GITHUB_ACTIONS.md`](GITHUB_ACTIONS.md#rolloutyml--rollout-ltbase-release).
 
-### 9. Publish OIDC Discovery (must be after that stack's first rollout)
+### 9. OIDC Discovery (published automatically during rollout)
 
-The authservice signing KMS key is created by Pulumi during rollout, so OIDC Discovery must be published after the stack's first rollout completes.
+OIDC Discovery is published automatically by `rollout-hop.yml` on every hop — before rollout with a placeholder key (so the API Gateway authorizer can be created during a stack's first rollout) and again after rollout with the real KMS-backed key. No manual step is required.
+
+`publish-oidc-discovery.yml` remains available only as a manual recovery / re-publish path:
 
 ```bash
-# Publish each stack after its first rollout
+# Manual recovery: republish a single stack
 gh workflow run publish-oidc-discovery.yml -f target_stack=devo --ref main
 
-# Refresh all stacks once they have all completed their first rollout
+# Manual recovery: refresh all stacks
 gh workflow run publish-oidc-discovery.yml -f target_stack=all --ref main
 ```
 

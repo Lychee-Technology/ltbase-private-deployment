@@ -22,7 +22,7 @@
 | [`deploy-devo.yml`](#deploy-devoyml--deploy-ltbase-start-stack) | Deploy LTBase Start Stack | 只部署起点 stack 后停止 | 需要（偶尔） |
 | [`promote-prod.yml`](#promote-prodyml--promote-ltbase-between-stacks) | Promote LTBase Between Stacks | 手动执行一次相邻 promotion 跳转 | 需要（恢复用） |
 | [`rollout-hop.yml`](#rollout-hopyml--rollout-ltbase-promotion-hop) | Rollout LTBase Promotion Hop | 上述工作流复用的单跳引擎 | 极少直接运行 |
-| [`publish-oidc-discovery.yml`](#publish-oidc-discoveryyml--publish-oidc-discovery-documents) | Publish OIDC Discovery Documents | 首次 rollout 后发布 OIDC discovery 站点 | 需要 |
+| [`publish-oidc-discovery.yml`](#publish-oidc-discoveryyml--publish-oidc-discovery-documents) | Publish OIDC Discovery Documents | 手动恢复：重新发布 OIDC discovery 站点 | 很少（恢复） |
 | [`build-infra-binary.yml`](#build-infra-binaryyml--build-infra-binary) | Build Infra Binary | 发布预构建 infra 二进制（仅上游） | 不需要 |
 | [`test.yml`](#testyml--test) | Test | 运行仓库测试套件（仅上游） | 不需要 |
 
@@ -103,7 +103,7 @@ gh workflow run rollout.yml -f release_id=v1.0.23 --ref main
 
 **注意事项。**
 - 链路一次推进一跳。每个受保护 stack 在部署前都需要你审批对应的 GitHub environment gate。
-- 发布 OIDC discovery 是独立步骤；在某个 stack 首次 rollout 完成后运行 [`publish-oidc-discovery.yml`](#publish-oidc-discoveryyml--publish-oidc-discovery-documents)。
+- 发布 OIDC discovery 是自动的：`rollout-hop.yml` 每一跳都会在 rollout 之前（占位 key）和 rollout 之后（真实 KMS key）发布已部署的 promotion-path 前缀。[`publish-oidc-discovery.yml`](#publish-oidc-discoveryyml--publish-oidc-discovery-documents) 仅用于手动恢复。
 
 ---
 
@@ -185,7 +185,7 @@ gh workflow run promote-prod.yml \
 
 ## `rollout-hop.yml` — Rollout LTBase Promotion Hop
 
-**做什么。** 上面每个 deploy/rollout/promote 工作流都委托给它的单跳部署引擎。对一个目标 stack，它会：校验 Pulumi stack 配置、在受保护 stack 上等待审批、渲染 Control Plane UI 运行时配置、调用共享的 `rollout-hop.yml`（执行 `pulumi up`、发布 control-plane UI、managed DSQL reconcile 与二次 apply）、发布客户 schema、调用 control-plane 的 `ensure-project` apply、推进 applied schema 指针、审计 mTLS，并在 `continue_chain` 为 true 时派发下一跳。
+**做什么。** 上面每个 deploy/rollout/promote 工作流都委托给它的单跳部署引擎。对一个目标 stack，它会：校验 Pulumi stack 配置、在受保护 stack 上等待审批、渲染 Control Plane UI 运行时配置、在 rollout **之前**发布已部署 promotion-path 前缀的 OIDC discovery（尚未部署的 target 用占位 key，使 API Gateway 能创建 JWT authorizer）、调用共享的 `rollout-hop.yml`（执行 `pulumi up`、发布 control-plane UI、managed DSQL reconcile 与二次 apply）、在 rollout **之后**用真实 KMS key 重新发布该前缀的 OIDC discovery、发布客户 schema、调用 control-plane 的 `ensure-project` apply、推进 applied schema 指针、审计 mTLS，并在 `continue_chain` 为 true 时派发下一跳。
 
 **什么时候用。**
 - 一般不直接运行它；请用 `rollout.yml`、`deploy-devo.yml` 或 `promote-prod.yml`。
@@ -232,14 +232,16 @@ gh workflow run rollout-hop.yml \
 
 ## `publish-oidc-discovery.yml` — Publish OIDC Discovery Documents
 
-**做什么。** 为一个或全部 stack 生成 OIDC discovery 文档，并用 `wrangler pages deploy` 发布到 OIDC discovery Cloudflare Pages 项目。
+**做什么。** 手动恢复 / 重新发布入口。为一个或多个 stack 生成 OIDC discovery 文档，并 direct upload 到 OIDC discovery Cloudflare Pages 项目。它与 `rollout-hop.yml` 中自动的 pre/post 发布 job 共用 `.github/actions/publish-oidc-discovery` composite action。
+
+> 正常部署**不需要**这个工作流：`rollout-hop.yml` 会在每一跳自动发布 OIDC discovery。仅在自动发布失败后恢复，或需要强制刷新 key 时才使用它。
 
 **什么时候用。**
-- 在某个 stack 完成**首次** rollout 之后。authservice 的签名 KMS key 由 Pulumi 在 rollout 时创建，因此 discovery 必须在之后发布。
-- 当所有 stack 都完成首次 rollout 后，一次性刷新全部 stack。
+- 自动发布失败后重新发布，或强制刷新某个 stack 的 key。
+- 一次性刷新全部 stack。
 
 **什么时候不该用。**
-- 在 stack 首次 rollout 之前 —— 此时签名 key 还不存在。
+- 作为 rollout 之后的常规步骤 —— rollout hop 已自动发布 discovery。
 - 从非默认分支触发。每个 stack 的 OIDC discovery IAM role 只信任默认分支，从其他分支触发会导致 role assumption 失败。
 
 **触发方式。** `workflow_dispatch`（手动）。
@@ -249,15 +251,19 @@ gh workflow run rollout-hop.yml \
 | 参数 | 必填 | 类型 | 默认值 | 说明 |
 |------|------|------|--------|------|
 | `target_stack` | 否 | string | `all` | 要发布的 stack：`all` 或某个具体 stack 名称。 |
+| `target_stacks` | 否 | string | `""` | 可选的 stack CSV（如 `devo,prod`）。设置后会覆盖 `target_stack`。 |
 
 **示例。**
 
 ```bash
-# 某个 stack 首次 rollout 后单独发布
+# 恢复：重新发布单个 stack
 gh workflow run publish-oidc-discovery.yml -f target_stack=devo --ref main
 
-# 所有 stack 都完成首次 rollout 后一次性刷新
+# 恢复：刷新全部 stack
 gh workflow run publish-oidc-discovery.yml -f target_stack=all --ref main
+
+# 恢复：重新发布指定的 promotion-path 前缀
+gh workflow run publish-oidc-discovery.yml -f target_stacks=devo,prod --ref main
 ```
 
 **使用到的配置。**
@@ -265,6 +271,7 @@ gh workflow run publish-oidc-discovery.yml -f target_stack=all --ref main
 - Secrets：`CLOUDFLARE_API_TOKEN`。
 
 **注意事项。**
+- 当某个 stack 的 authservice KMS key 还不存在时，`build-discovery.sh` 会发布占位 JWKS 而不是失败。
 - 当 `CLOUDFLARE_API_TOKEN`、`CLOUDFLARE_ACCOUNT_ID` 或 `OIDC_DISCOVERY_PAGES_PROJECT` 缺失时，工作流会明确报错。
 - 它使用仓库级 concurrency group，因此多次运行不会互相重叠。
 

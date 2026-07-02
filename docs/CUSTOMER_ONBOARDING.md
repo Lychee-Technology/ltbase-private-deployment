@@ -21,7 +21,7 @@ If you need a quick reference for steps you already know, use the [bootstrap che
 11. [Run Bootstrap](#9-run-bootstrap)
 12. [Preview](#10-preview)
 13. [Rollout](#11-rollout)
-14. [Publish OIDC Discovery](#12-publish-oidc-discovery)
+14. [OIDC Discovery (Published Automatically)](#12-oidc-discovery-published-automatically)
 15. [First Deployment Verification](#13-first-deployment-verification)
 16. [Common Errors and Recovery](#14-common-errors-and-recovery)
 17. [Day-2 Operations](#15-day-2-operations)
@@ -54,7 +54,7 @@ Manually trigger rollout workflow to deploy across PROMOTION_PATH
        ↓
 Protected environments require approval in GitHub before advancing
        ↓
-After each stack's first rollout, manually trigger publish-oidc-discovery.yml to publish OIDC Discovery documents (see section 12)
+OIDC Discovery is published automatically as part of each rollout hop; no separate manual step is needed (see section 12)
        ↓
 Deployment complete; API, Auth, Control Plane, and UI are all reachable
 ```
@@ -867,37 +867,49 @@ Each rollout hop:
 
 ---
 
-## 12. Publish OIDC Discovery
+## 12. OIDC Discovery (Published Automatically)
 
 OIDC Discovery serves each stack's `openid-configuration` and `jwks.json` for external JWT verification.
 
-### Why after Rollout
+### Automatic publish during rollout
 
-OIDC Discovery documents are derived from each stack's authservice signing KMS key. **That KMS key is created by Pulumi during deployment** (see `alias/ltbase-oidc-discovery-<stack>-authservice`). So publishing OIDC Discovery must happen **after** that stack's first rollout; triggering it before rollout fails because the KMS key does not exist yet.
+As of this version, **OIDC Discovery is published automatically as part of every rollout hop** (`rollout-hop.yml`). You do **not** need to trigger a separate workflow after a stack's first rollout.
 
-### Current Publish Model
+Each hop publishes the **promotion-path prefix** — every stack from the start of `PROMOTION_PATH` up to and including the current target — twice:
+
+- **Before rollout** (`publish_oidc_discovery_pre`): the current target's authservice signing KMS key (`alias/ltbase-oidc-discovery-<stack>-authservice`) does not exist yet, so `scripts/build-discovery.sh` emits a **placeholder** JWKS for it while keeping already-deployed stacks' real keys. This makes the discovery endpoint valid so API Gateway can create its JWT authorizer during the stack's first rollout. The job then waits for the endpoint to become reachable.
+- **After rollout** (`publish_oidc_discovery`): the target's KMS key now exists, so the prefix is republished with the **real** KMS-backed JWKS, replacing the placeholder.
+
+This resolves the previous circular dependency: rollout needed the discovery endpoint, but discovery needed the KMS key that only rollout created.
+
+### Why the whole prefix, not just one stack
+
+Cloudflare Pages direct upload is a whole-site deploy. Publishing only the current stack would wipe previously published stacks' documents, so each hop uploads the full deployed prefix.
+
+### Publish model
 
 - There is no OIDC Discovery companion repository or standalone repository.
-- Bootstrap (step 9) already prepares the hosting resources: the Cloudflare Pages project, custom domain, DNS CNAME, deployment repo variables (`OIDC_DISCOVERY_DOMAIN`, `OIDC_DISCOVERY_STACK_CONFIG`, `OIDC_DISCOVERY_PAGES_PROJECT`), and per-stack OIDC discovery IAM roles.
-- Generating and uploading the discovery documents is done by the deployment repo's built-in `publish-oidc-discovery.yml` workflow: it runs `scripts/build-discovery.sh` to generate the documents, then **direct-uploads** them to the `${OIDC_DISCOVERY_PAGES_PROJECT}` Cloudflare Pages project via `wrangler pages deploy`.
+- Bootstrap (step 9) prepares the hosting resources: the Cloudflare Pages project (direct upload, no companion), custom domain, DNS CNAME, deployment repo variables (`OIDC_DISCOVERY_DOMAIN`, `OIDC_DISCOVERY_STACK_CONFIG`, `OIDC_DISCOVERY_PAGES_PROJECT`), and per-stack OIDC discovery IAM roles.
+- Both the automatic rollout jobs and the manual workflow share the `.github/actions/publish-oidc-discovery` composite action, which runs `scripts/build-discovery.sh` and **direct-uploads** to `${OIDC_DISCOVERY_PAGES_PROJECT}` via `wrangler pages deploy`.
 
-> **Note**: In the current version, neither bootstrap nor rollout automatically triggers `publish-oidc-discovery.yml`. You must trigger it manually once after each stack's first rollout completes.
+### Manual re-publish (recovery only)
 
-### Trigger via GitHub Actions UI
-
-In your repository's Actions tab, select **Publish OIDC Discovery Documents**, click Run workflow, Branch `main`, set `target_stack` to the stack that has completed rollout (or `all` once every target stack has been rolled out).
-
-### Trigger via CLI
+`publish-oidc-discovery.yml` remains available as a manual recovery / re-publish entry point — for example to force-refresh keys or recover from a failed automatic publish.
 
 ```bash
-# Publish only a stack that has completed rollout (recommended after each hop)
+# Republish a single stack that has completed rollout
 gh workflow run publish-oidc-discovery.yml \
   -f target_stack=devo \
   --ref main
 
-# Once every target stack has completed its first rollout, refresh them all
+# Refresh every stack once all have completed their first rollout
 gh workflow run publish-oidc-discovery.yml \
   -f target_stack=all \
+  --ref main
+
+# Or republish an explicit promotion-path prefix
+gh workflow run publish-oidc-discovery.yml \
+  -f target_stacks=devo,prod \
   --ref main
 ```
 
@@ -907,13 +919,7 @@ Check run status:
 gh run list --workflow=publish-oidc-discovery.yml --limit 3
 ```
 
-> **Note**: Cloudflare Pages direct upload is a whole-site deploy. When publishing a single stack, `build-discovery.sh` only regenerates that stack's documents; publish each stack after its first rollout, or use `target_stack=all` once all rollouts are complete, to avoid missing a stack.
-
 > **Note**: OIDC discovery IAM roles only trust workflows dispatched from the default branch (`repo:<DEPLOYMENT_REPO>:ref:refs/heads/<default_branch>`). Dispatching from any other branch causes AWS role assumption to fail.
-
-### Ideal State (Future Work)
-
-Ideally, OIDC Discovery would be published automatically during rollout instead of requiring a separate manual trigger. The plan is to add a job after the `rollout-hop.yml` rollout succeeds that direct-uploads the subset of already-deployed stacks in `PROMOTION_PATH` from the start up to the current target stack. That is a follow-up code change; this document will be updated once it lands.
 
 ---
 

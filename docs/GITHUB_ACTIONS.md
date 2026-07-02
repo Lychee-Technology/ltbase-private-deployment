@@ -22,7 +22,7 @@ For the end-to-end deployment story, read [`CUSTOMER_ONBOARDING.md`](CUSTOMER_ON
 | [`deploy-devo.yml`](#deploy-devoyml--deploy-ltbase-start-stack) | Deploy LTBase Start Stack | Deploy only the first stack, then stop | Yes (occasionally) |
 | [`promote-prod.yml`](#promote-prodyml--promote-ltbase-between-stacks) | Promote LTBase Between Stacks | Manually run one adjacent promotion hop | Yes (recovery) |
 | [`rollout-hop.yml`](#rollout-hopyml--rollout-ltbase-promotion-hop) | Rollout LTBase Promotion Hop | Reusable single-hop engine used by the above | Rarely, directly |
-| [`publish-oidc-discovery.yml`](#publish-oidc-discoveryyml--publish-oidc-discovery-documents) | Publish OIDC Discovery Documents | Publish OIDC discovery site after first rollout | Yes |
+| [`publish-oidc-discovery.yml`](#publish-oidc-discoveryyml--publish-oidc-discovery-documents) | Publish OIDC Discovery Documents | Manual recovery re-publish of the OIDC discovery site | Rarely (recovery) |
 | [`build-infra-binary.yml`](#build-infra-binaryyml--build-infra-binary) | Build Infra Binary | Publish prebuilt infra binaries (upstream only) | No |
 | [`test.yml`](#testyml--test) | Test | Run the repo test suite (upstream only) | No |
 
@@ -103,7 +103,7 @@ gh workflow run rollout.yml -f release_id=v1.0.23 --ref main
 
 **Notes.**
 - The chain advances one hop at a time. Each protected stack requires you to approve its GitHub environment gate before it deploys.
-- Publishing OIDC discovery is separate; run [`publish-oidc-discovery.yml`](#publish-oidc-discoveryyml--publish-oidc-discovery-documents) after a stack's first rollout completes.
+- Publishing OIDC discovery is automatic: each hop in `rollout-hop.yml` publishes the deployed promotion-path prefix before rollout (placeholder key) and again after rollout (real KMS key). [`publish-oidc-discovery.yml`](#publish-oidc-discoveryyml--publish-oidc-discovery-documents) is only needed for manual recovery.
 
 ---
 
@@ -185,7 +185,7 @@ gh workflow run promote-prod.yml \
 
 ## `rollout-hop.yml` — Rollout LTBase Promotion Hop
 
-**What it does.** The single-hop deployment engine that every deploy/rollout/promote workflow above delegates to. For one target stack it: validates the Pulumi stack config, waits for approval on protected stacks, renders the Control Plane UI runtime config, runs the shared `rollout-hop.yml` reusable workflow (`pulumi up`, control-plane UI publish, managed DSQL reconcile + second apply), publishes customer schemas, invokes the control-plane `ensure-project` apply, advances the applied-schema pointer, audits mTLS, and — when `continue_chain` is true — dispatches the next hop.
+**What it does.** The single-hop deployment engine that every deploy/rollout/promote workflow above delegates to. For one target stack it: validates the Pulumi stack config, waits for approval on protected stacks, renders the Control Plane UI runtime config, publishes OIDC discovery for the deployed promotion-path prefix **before** rollout (placeholder key for the not-yet-deployed target so API Gateway can create its JWT authorizer), runs the shared `rollout-hop.yml` reusable workflow (`pulumi up`, control-plane UI publish, managed DSQL reconcile + second apply), republishes OIDC discovery for the prefix **after** rollout (now with the real KMS-backed key), publishes customer schemas, invokes the control-plane `ensure-project` apply, advances the applied-schema pointer, audits mTLS, and — when `continue_chain` is true — dispatches the next hop.
 
 **When to use it.**
 - Normally you do not run this directly; use `rollout.yml`, `deploy-devo.yml`, or `promote-prod.yml`.
@@ -232,14 +232,16 @@ gh workflow run rollout-hop.yml \
 
 ## `publish-oidc-discovery.yml` — Publish OIDC Discovery Documents
 
-**What it does.** Generates the OIDC discovery documents for one or all stacks and publishes them to the OIDC discovery Cloudflare Pages project with `wrangler pages deploy`.
+**What it does.** Manual recovery / re-publish entry point. Generates the OIDC discovery documents for one or more stacks and direct-uploads them to the OIDC discovery Cloudflare Pages project. It shares the `.github/actions/publish-oidc-discovery` composite action with the automatic pre/post publish jobs in `rollout-hop.yml`.
+
+> Normal deployments do **not** need this workflow: `rollout-hop.yml` publishes OIDC discovery automatically on every hop. Use it only to recover from a failed automatic publish or to force-refresh keys.
 
 **When to use it.**
-- After a stack completes its **first** rollout. The authservice signing KMS key is created by Pulumi during rollout, so discovery must be published afterward.
-- To refresh all stacks at once once they have all completed their first rollout.
+- To re-publish after a failed automatic publish, or to force-refresh a stack's keys.
+- To refresh all stacks at once.
 
 **When not to use it.**
-- Before a stack's first rollout — the signing key does not exist yet.
+- As a normal step after rollout — the rollout hop already publishes discovery automatically.
 - From a non-default branch. The per-stack OIDC discovery IAM roles trust only the default branch; dispatching from another branch fails role assumption.
 
 **Trigger.** `workflow_dispatch` (manual).
@@ -249,15 +251,19 @@ gh workflow run rollout-hop.yml \
 | Input | Required | Type | Default | Description |
 |-------|----------|------|---------|-------------|
 | `target_stack` | No | string | `all` | Stack to publish: `all` or a specific stack name. |
+| `target_stacks` | No | string | `""` | Optional CSV of stacks (e.g. `devo,prod`). Overrides `target_stack` when set. |
 
 **Examples.**
 
 ```bash
-# Publish a single stack after its first rollout
+# Recovery: republish a single stack
 gh workflow run publish-oidc-discovery.yml -f target_stack=devo --ref main
 
-# Refresh all stacks once they have all completed their first rollout
+# Recovery: refresh all stacks
 gh workflow run publish-oidc-discovery.yml -f target_stack=all --ref main
+
+# Recovery: republish an explicit promotion-path prefix
+gh workflow run publish-oidc-discovery.yml -f target_stacks=devo,prod --ref main
 ```
 
 **Config used.**
@@ -265,6 +271,7 @@ gh workflow run publish-oidc-discovery.yml -f target_stack=all --ref main
 - Secrets: `CLOUDFLARE_API_TOKEN`.
 
 **Notes.**
+- When a stack's authservice KMS key does not exist yet, `build-discovery.sh` publishes a placeholder JWKS instead of failing.
 - The workflow fails clearly if `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID`, or `OIDC_DISCOVERY_PAGES_PROJECT` is missing.
 - It uses a repository-level concurrency group, so runs do not overlap.
 
