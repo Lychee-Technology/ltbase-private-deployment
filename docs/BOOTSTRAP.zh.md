@@ -88,22 +88,28 @@ source dist/foundation.env
 ./scripts/bootstrap-deployment-repo.sh --env-file .env --stack prod --infra-dir infra
 ```
 
-### 7. 发布 OIDC Discovery
-
-```bash
-gh workflow run publish-oidc-discovery.yml -f target_stack=all --ref main
-```
-
-### 8. Preview
+### 7. Preview
 
 ```bash
 gh workflow run preview.yml -f target_stack=devo --ref main
 ```
 
-### 9. Rollout
+### 8. Rollout
 
 ```bash
 gh workflow run rollout.yml -f release_id=v1.0.23 --ref main
+```
+
+### 9. 发布 OIDC Discovery（必须在对应 stack 首次 rollout 之后）
+
+authservice 签名 KMS key 由 Pulumi 在 rollout 时创建，因此发布 OIDC Discovery 必须在该 stack 首次 rollout 完成之后。
+
+```bash
+# 每个 stack 首次 rollout 后逐个发布
+gh workflow run publish-oidc-discovery.yml -f target_stack=devo --ref main
+
+# 全部 stack 都完成首次 rollout 后可一次性刷新
+gh workflow run publish-oidc-discovery.yml -f target_stack=all --ref main
 ```
 
 ### 10. 验证
@@ -141,3 +147,9 @@ Bootstrap 脚本会自动写入这些值。
 - 审计 mTLS：`./scripts/check-cloudflare-mtls.sh --env-file .env --stack <stack>`
 
 详见：[`onboarding/08-day-2-operations.zh.md`](onboarding/08-day-2-operations.zh.md)
+
+## 说明
+
+- 部署仓库负责下载官方 LTBase release，不自行构建应用。
+- 官方工作流可能在运行 Pulumi 前，从 `ltbase-private-deployment-binaries` 安装与上游模板版本绑定的预构建 `ltbase-infra` 二进制。它会读取 `__ref__/template-provenance.json` 及其 `build_fingerprint` 来查找完全匹配的上游 manifest；找不到时由仓库内的 `infra/scripts/pulumi-wrapper.sh` 回退到本地源码构建。
+- 客户部署仓库只消费这些预构建二进制；复制过去的 `build-infra-binary.yml` 在 `Lychee-Technology/ltbase-private-deployment` 之外会被跳过。

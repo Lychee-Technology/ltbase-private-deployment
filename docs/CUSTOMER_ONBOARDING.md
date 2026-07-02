@@ -19,9 +19,9 @@ If you need a quick reference for steps you already know, use the [bootstrap che
 9. [Fill in .env](#7-fill-in-env)
 10. [Preflight Check](#8-preflight-check)
 11. [Run Bootstrap](#9-run-bootstrap)
-12. [Publish OIDC Discovery](#10-publish-oidc-discovery)
-13. [Preview](#11-preview)
-14. [Rollout](#12-rollout)
+12. [Preview](#10-preview)
+13. [Rollout](#11-rollout)
+14. [Publish OIDC Discovery](#12-publish-oidc-discovery)
 15. [First Deployment Verification](#13-first-deployment-verification)
 16. [Common Errors and Recovery](#14-common-errors-and-recovery)
 17. [Day-2 Operations](#15-day-2-operations)
@@ -154,34 +154,54 @@ Confirm account IDs and regions are finalized, and you have sufficient permissio
 
 ### 2.2 Prepare Operator AWS Identity
 
-You need an AWS identity that can operate on your accounts. Choose one of the following:
+You need an AWS identity that can operate on your accounts. Use IAM Identity Center (SSO) and avoid long-lived access keys.
 
-#### Option A: IAM Identity Center (Recommended)
+#### Configure a profile with `aws configure sso`
 
-If you use AWS Organizations, create users via IAM Identity Center and assign permissions.
+If you use AWS Organizations / IAM Identity Center, run the `aws configure sso` interactive wizard to configure a local profile:
 
 ```bash
-# Configure AWS CLI SSO profile
 aws configure sso
-# Follow prompts for SSO start URL, region, account ID, role name
-# Set profile name to match your stack convention, e.g. customer-devo
+```
 
-# Log in
+The wizard prompts for the following, explained item by item:
+
+| Prompt | What to enter | Notes |
+|--------|---------------|-------|
+| `SSO session name` | e.g. `customer-ltbase` | A session name so multiple profiles can reuse the same SSO login |
+| `SSO start URL` | e.g. `https://your-org.awsapps.com/start` | From the AWS access portal / IAM Identity Center console |
+| `SSO region` | e.g. `us-east-1` | The region hosting IAM Identity Center; **not necessarily** the stack deployment region |
+| `SSO registration scopes` | `sso:account:access` | Default scope for listing accounts/roles; if the prompt already shows `[sso:account:access]`, just press Enter |
+
+After you press Enter, the browser opens an authorization page. Once authorized, the wizard continues:
+
+| Prompt | What to enter | Notes |
+|--------|---------------|-------|
+| Select AWS account | Choose the target stack's account from the list | Auto-selected if only one account is available |
+| Select permission set / role | Choose a role with sufficient permissions | Auto-selected if only one role is available |
+| `Default client Region` | The AWS region for this profile's stack, e.g. `ap-northeast-1` | The default region this profile operates in |
+| `CLI default output format` | `json` recommended | CLI output format |
+| `Profile name` | e.g. `customer-devo` | Use the stack name so it aligns with `AWS_PROFILE_<STACK>` in `.env` |
+
+Log in (or re-login after the token expires):
+
+```bash
 aws sso login --profile customer-devo
 ```
 
-#### Option B: IAM User (Fallback)
+#### Multiple AWS accounts
 
-In the AWS Console:
-
-1. IAM → Users → Create user.
-2. Optionally check "Provide user access to the AWS Management Console".
-3. Create an access key (Access Key ID + Secret Access Key).
+If different stacks use different AWS accounts, configure one profile per account (they can reuse the same `SSO session name`) and set the matching `AWS_PROFILE_<STACK>` in `.env`:
 
 ```bash
-# Configure AWS CLI profile
-aws configure --profile customer-devo
-# Enter Access Key ID, Secret Access Key, region
+aws configure sso   # profile name: customer-devo
+aws configure sso   # profile name: customer-prod
+```
+
+```bash
+# .env
+AWS_PROFILE_DEVO=customer-devo
+AWS_PROFILE_PROD=customer-prod
 ```
 
 ### 2.3 Test AWS Access
@@ -194,7 +214,7 @@ aws sts get-caller-identity --profile customer-devo
 # Expected output: Account, Arn, UserId
 ```
 
-For SSO profiles:
+If the SSO token has expired, log in again before testing:
 
 ```bash
 aws sso login --profile customer-devo
@@ -724,33 +744,7 @@ Confirm all statuses show `complete`.
 
 ---
 
-## 10. Publish OIDC Discovery
-
-After bootstrap creates the OIDC discovery Cloudflare Pages project, manually publish the OIDC discovery documents.
-
-### Via GitHub Actions UI
-
-In your repository's Actions tab, select **Publish OIDC Discovery Documents**, click Run workflow, Branch `main`, leave Target stack as `all`.
-
-### Via CLI
-
-```bash
-gh workflow run publish-oidc-discovery.yml \
-  -f target_stack=all \
-  --ref main
-```
-
-Check run status:
-
-```bash
-gh run list --workflow=publish-oidc-discovery.yml --limit 3
-```
-
-> **Note**: OIDC discovery IAM roles only trust workflows dispatched from the default branch (`repo:<DEPLOYMENT_REPO>:ref:refs/heads/<default_branch>`). Dispatching from any other branch causes AWS role assumption to fail.
-
----
-
-## 11. Preview
+## 10. Preview
 
 The preview workflow validates Pulumi stack configuration, checks customer schemas, and runs `pulumi preview`. It **only** performs infrastructure preview and **does not** publish the Control Plane UI.
 
@@ -788,7 +782,7 @@ If preview results do not match expectations, fix the configuration or bootstrap
 
 ---
 
-## 12. Rollout
+## 11. Rollout
 
 The rollout workflow deploys across `PROMOTION_PATH` one hop at a time. Protected environments trigger a GitHub environment approval gate after each hop.
 
@@ -796,7 +790,7 @@ The rollout workflow deploys across `PROMOTION_PATH` one hop at a time. Protecte
 - Each subsequent hop requires your approval in the GitHub environment gate.
 - Each hop automatically reconciles managed DSQL endpoint and authservice project info after `pulumi up`.
 
-### 12.1 Trigger via CLI
+### 11.1 Trigger via CLI
 
 ```bash
 gh workflow run rollout.yml \
@@ -810,7 +804,7 @@ Check run status:
 gh run list --workflow="Rollout LTBase Release" --limit 3
 ```
 
-### 12.2 Approve Protected Environments
+### 11.2 Approve Protected Environments
 
 When rollout reaches a hop requiring approval, GitHub pauses and waits.
 
@@ -822,7 +816,7 @@ gh run list --workflow="Rollout LTBase Release" --status=waiting
 
 In the GitHub Actions run page, click Review pending deployments to approve.
 
-### 12.3 Deploy Only the Start Stack (No Auto-Promotion)
+### 11.3 Deploy Only the Start Stack (No Auto-Promotion)
 
 To deploy only the first stack in `PROMOTION_PATH` without auto-promotion:
 
@@ -830,7 +824,7 @@ To deploy only the first stack in `PROMOTION_PATH` without auto-promotion:
 gh workflow run deploy-devo.yml -f release_id=v1.0.23 --ref main
 ```
 
-### 12.4 Manually Promote a Single Hop
+### 11.4 Manually Promote a Single Hop
 
 If the auto-promotion chain breaks, or you need to promote a single hop:
 
@@ -844,7 +838,7 @@ gh workflow run promote-prod.yml \
 
 > **Note**: `from_stack` and `to_stack` must be adjacent in `PROMOTION_PATH`.
 
-### 12.5 What Each Rollout Hop Does Automatically
+### 11.5 What Each Rollout Hop Does Automatically
 
 Each rollout hop:
 
@@ -855,6 +849,56 @@ Each rollout hop:
 5. Publishes customer schemas to stack schema bucket
 6. Publishes Control Plane UI to Cloudflare Pages (if `CONTROLPLANE_UI_PAGES_PROJECT` is configured)
 7. Runs Cloudflare mTLS audit
+
+---
+
+## 12. Publish OIDC Discovery
+
+OIDC Discovery serves each stack's `openid-configuration` and `jwks.json` for external JWT verification.
+
+### Why after Rollout
+
+OIDC Discovery documents are derived from each stack's authservice signing KMS key. **That KMS key is created by Pulumi during deployment** (see `alias/ltbase-oidc-discovery-<stack>-authservice`). So publishing OIDC Discovery must happen **after** that stack's first rollout; triggering it before rollout fails because the KMS key does not exist yet.
+
+### Current Publish Model
+
+- There is no OIDC Discovery companion repository or standalone repository.
+- Bootstrap (step 9) already prepares the hosting resources: the Cloudflare Pages project, custom domain, DNS CNAME, deployment repo variables (`OIDC_DISCOVERY_DOMAIN`, `OIDC_DISCOVERY_STACK_CONFIG`, `OIDC_DISCOVERY_PAGES_PROJECT`), and per-stack OIDC discovery IAM roles.
+- Generating and uploading the discovery documents is done by the deployment repo's built-in `publish-oidc-discovery.yml` workflow: it runs `scripts/build-discovery.sh` to generate the documents, then **direct-uploads** them to the `${OIDC_DISCOVERY_PAGES_PROJECT}` Cloudflare Pages project via `wrangler pages deploy`.
+
+> **Note**: In the current version, neither bootstrap nor rollout automatically triggers `publish-oidc-discovery.yml`. You must trigger it manually once after each stack's first rollout completes.
+
+### Trigger via GitHub Actions UI
+
+In your repository's Actions tab, select **Publish OIDC Discovery Documents**, click Run workflow, Branch `main`, set `target_stack` to the stack that has completed rollout (or `all` once every target stack has been rolled out).
+
+### Trigger via CLI
+
+```bash
+# Publish only a stack that has completed rollout (recommended after each hop)
+gh workflow run publish-oidc-discovery.yml \
+  -f target_stack=devo \
+  --ref main
+
+# Once every target stack has completed its first rollout, refresh them all
+gh workflow run publish-oidc-discovery.yml \
+  -f target_stack=all \
+  --ref main
+```
+
+Check run status:
+
+```bash
+gh run list --workflow=publish-oidc-discovery.yml --limit 3
+```
+
+> **Note**: Cloudflare Pages direct upload is a whole-site deploy. When publishing a single stack, `build-discovery.sh` only regenerates that stack's documents; publish each stack after its first rollout, or use `target_stack=all` once all rollouts are complete, to avoid missing a stack.
+
+> **Note**: OIDC discovery IAM roles only trust workflows dispatched from the default branch (`repo:<DEPLOYMENT_REPO>:ref:refs/heads/<default_branch>`). Dispatching from any other branch causes AWS role assumption to fail.
+
+### Ideal State (Future Work)
+
+Ideally, OIDC Discovery would be published automatically during rollout instead of requiring a separate manual trigger. The plan is to add a job after the `rollout-hop.yml` rollout succeeds that direct-uploads the subset of already-deployed stacks in `PROMOTION_PATH` from the start up to the current target stack. That is a follow-up code change; this document will be updated once it lands.
 
 ---
 

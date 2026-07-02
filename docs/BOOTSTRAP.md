@@ -88,22 +88,28 @@ source dist/foundation.env
 ./scripts/bootstrap-deployment-repo.sh --env-file .env --stack prod --infra-dir infra
 ```
 
-### 7. Publish OIDC Discovery
-
-```bash
-gh workflow run publish-oidc-discovery.yml -f target_stack=all --ref main
-```
-
-### 8. Preview
+### 7. Preview
 
 ```bash
 gh workflow run preview.yml -f target_stack=devo --ref main
 ```
 
-### 9. Rollout
+### 8. Rollout
 
 ```bash
 gh workflow run rollout.yml -f release_id=v1.0.23 --ref main
+```
+
+### 9. Publish OIDC Discovery (must be after that stack's first rollout)
+
+The authservice signing KMS key is created by Pulumi during rollout, so OIDC Discovery must be published after the stack's first rollout completes.
+
+```bash
+# Publish each stack after its first rollout
+gh workflow run publish-oidc-discovery.yml -f target_stack=devo --ref main
+
+# Refresh all stacks once they have all completed their first rollout
+gh workflow run publish-oidc-discovery.yml -f target_stack=all --ref main
 ```
 
 ### 10. Verify
@@ -141,3 +147,9 @@ Bootstrap scripts write these values automatically.
 - Audit mTLS: `./scripts/check-cloudflare-mtls.sh --env-file .env --stack <stack>`
 
 See: [`onboarding/08-day-2-operations.md`](onboarding/08-day-2-operations.md)
+
+## Notes
+
+- The deployment repo downloads official LTBase releases; it does not build the application itself.
+- Official workflows may install an upstream-template-bound prebuilt `ltbase-infra` binary from `ltbase-private-deployment-binaries` before running Pulumi. They use `__ref__/template-provenance.json` and its `build_fingerprint` to find an exact upstream match; otherwise the repo's `infra/scripts/pulumi-wrapper.sh` falls back to local source build.
+- Customer deployment repositories consume those prebuilt binaries only; the copied `build-infra-binary.yml` workflow is skipped outside `Lychee-Technology/ltbase-private-deployment`.

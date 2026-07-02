@@ -19,9 +19,9 @@
 9. [填写 .env 文件](#7-填写-env-文件)
 10. [Preflight 检查](#8-preflight-检查)
 11. [执行 Bootstrap](#9-执行-bootstrap)
-12. [发布 OIDC Discovery](#10-发布-oidc-discovery)
-13. [Preview](#11-preview)
-14. [Rollout](#12-rollout)
+12. [Preview](#10-preview)
+13. [Rollout](#11-rollout)
+14. [发布 OIDC Discovery](#12-发布-oidc-discovery)
 15. [首次部署验证](#13-首次部署验证)
 16. [常见错误与恢复](#14-常见错误与恢复)
 17. [Day-2 日常运维](#15-day-2-日常运维)
@@ -154,34 +154,54 @@ bootstrap 脚本（一键或手动）创建 IAM 角色、Pulumi backend、OIDC d
 
 ### 2.2 准备操作者 AWS 身份
 
-你需要一个可以操作 AWS 的身份。推荐以下两种方式之一：
+你需要一个可以操作 AWS 的身份。推荐使用 IAM Identity Center（SSO），避免使用长期 access key。
 
-#### 方式一：IAM Identity Center（推荐）
+#### 使用 `aws configure sso` 配置 profile
 
-如果你使用 AWS Organizations，推荐通过 IAM Identity Center 创建用户并分配权限。
+如果你使用 AWS Organizations / IAM Identity Center，运行 `aws configure sso` 交互式向导来配置本地 profile：
 
 ```bash
-# 配置 AWS CLI SSO profile
 aws configure sso
-# 按提示输入 SSO start URL、region、account ID、role name
-# 设置 profile 名称为对应 stack 的名称，如 customer-devo
+```
 
-# 登录
+向导会依次提示以下内容，逐项说明如下：
+
+| Prompt | 填什么 | 说明 |
+|--------|--------|------|
+| `SSO session name` | 例如 `customer-ltbase` | 一个会话名称，供多个 profile 复用同一次 SSO 登录 |
+| `SSO start URL` | 例如 `https://your-org.awsapps.com/start` | 从 AWS access portal / IAM Identity Center 控制台获取 |
+| `SSO region` | 例如 `us-east-1` | IAM Identity Center 所在 region，**不一定**等于 stack 部署 region |
+| `SSO registration scopes` | `sso:account:access` | 用于列出账户/角色的默认 scope；如果 prompt 已经默认显示 `[sso:account:access]`，直接回车即可 |
+
+回车后浏览器会打开授权页面。授权成功后向导继续提示：
+
+| Prompt | 填什么 | 说明 |
+|--------|--------|------|
+| 选择 AWS account | 从列表中选择目标 stack 的账户 | 只有一个账户时会自动选中 |
+| 选择 permission set / role | 选择有足够权限的角色 | 只有一个角色时会自动选中 |
+| `Default client Region` | 该 profile 对应 stack 的 AWS region，例如 `ap-northeast-1` | 影响该 profile 默认操作的 region |
+| `CLI default output format` | 建议 `json` | CLI 输出格式 |
+| `Profile name` | 例如 `customer-devo` | 建议用 stack 名称，方便和 `.env` 中 `AWS_PROFILE_<STACK>` 对齐 |
+
+登录（或 token 过期后重新登录）：
+
+```bash
 aws sso login --profile customer-devo
 ```
 
-#### 方式二：IAM User（备用）
+#### 多 AWS 账户
 
-如果不使用 SSO，可以创建 IAM User。在 AWS Console 中：
-
-1. IAM → Users → Create user。
-2. 勾选"Provide user access to the AWS Management Console"（可选）。
-3. 为 user 创建 access key（Access key ID + Secret access key）。
+如果不同 stack 使用不同 AWS 账户，为每个账户各配置一个 profile（可复用同一个 `SSO session name`），并在 `.env` 中设置对应的 `AWS_PROFILE_<STACK>`：
 
 ```bash
-# 配置 AWS CLI profile
-aws configure --profile customer-devo
-# 按提示输入 Access Key ID、Secret Access Key、region
+aws configure sso   # profile 名称填 customer-devo
+aws configure sso   # profile 名称填 customer-prod
+```
+
+```bash
+# .env
+AWS_PROFILE_DEVO=customer-devo
+AWS_PROFILE_PROD=customer-prod
 ```
 
 ### 2.3 测试 AWS 访问
@@ -194,7 +214,7 @@ aws sts get-caller-identity --profile customer-devo
 # 预期输出：包含 Account、Arn、UserId
 ```
 
-如果你使用的是 SSO profile：
+如果 SSO token 过期，先重新登录再测试：
 
 ```bash
 aws sso login --profile customer-devo
@@ -724,33 +744,7 @@ source dist/foundation.env
 
 ---
 
-## 10. 发布 OIDC Discovery
-
-Bootstrap 创建了 OIDC discovery Cloudflare Pages 项目后，需要手动发布 OIDC discovery 文档。
-
-### 通过 GitHub Actions UI
-
-在 GitHub 仓库的 Actions 页面，选择 **Publish OIDC Discovery Documents** 工作流，点击 Run workflow，Branch 选择 `main`，Target stack 留默认的 `all`。
-
-### 通过 CLI
-
-```bash
-gh workflow run publish-oidc-discovery.yml \
-  -f target_stack=all \
-  --ref main
-```
-
-查看运行状态：
-
-```bash
-gh run list --workflow=publish-oidc-discovery.yml --limit 3
-```
-
-> **注意**：OIDC discovery IAM role 只信任从 default branch 触发的工作流（`repo:<DEPLOYMENT_REPO>:ref:refs/heads/<default_branch>`）。从其他 branch 触发会导致 AWS role assumption 失败。
-
----
-
-## 11. Preview
+## 10. Preview
 
 Preview 工作流验证 Pulumi stack 配置、校验 customer schema，并运行 `pulumi preview`。它**只做基础设施预览，不发布 Control Plane UI**。
 
@@ -788,7 +782,7 @@ Preview 工作流完成后，在 GitHub Actions run 页面查看：
 
 ---
 
-## 12. Rollout
+## 11. Rollout
 
 Rollout 工作流按 `PROMOTION_PATH` 逐环境部署。每个 hop 完成后，对受保护环境会触发 GitHub environment 审批 gate。
 
@@ -796,7 +790,7 @@ Rollout 工作流按 `PROMOTION_PATH` 逐环境部署。每个 hop 完成后，�
 - 后续各 hop 需要你在 GitHub environment gate 审批后才会推进。
 - 每个 hop 会在 `pulumi up` 后自动 reconcile managed DSQL endpoint 和 authservice project info。
 
-### 12.1 通过 CLI 触发
+### 11.1 通过 CLI 触发
 
 ```bash
 gh workflow run rollout.yml \
@@ -810,7 +804,7 @@ gh workflow run rollout.yml \
 gh run list --workflow="Rollout LTBase Release" --limit 3
 ```
 
-### 12.2 审批受保护环境
+### 11.2 审批受保护环境
 
 当 rollout 到达需要审批的 hop 时，GitHub 会暂停并等待审批。
 
@@ -822,7 +816,7 @@ gh run list --workflow="Rollout LTBase Release" --status=waiting
 
 在 GitHub Actions run 页面中点击 Review pending deployments 审批。
 
-### 12.3 仅部署起始 stack（不自动推进）
+### 11.3 仅部署起始 stack（不自动推进）
 
 如果你只想部署 `PROMOTION_PATH` 的第一个 stack 而不自动推进：
 
@@ -830,7 +824,7 @@ gh run list --workflow="Rollout LTBase Release" --status=waiting
 gh workflow run deploy-devo.yml -f release_id=v1.0.23 --ref main
 ```
 
-### 12.4 手动推进单个 hop
+### 11.4 手动推进单个 hop
 
 如果自动推进链中断，或需要单独推进一跳：
 
@@ -844,7 +838,7 @@ gh workflow run promote-prod.yml \
 
 > **注意**：`from_stack` 和 `to_stack` 必须是 `PROMOTION_PATH` 中相邻的 stack。
 
-### 12.5 Rollout 期间自动执行的操作
+### 11.5 Rollout 期间自动执行的操作
 
 每个 rollout hop 会自动：
 
@@ -855,6 +849,56 @@ gh workflow run promote-prod.yml \
 5. Publish customer schemas 到 stack schema bucket
 6. Publish Control Plane UI 到 Cloudflare Pages（如果配置了 `CONTROLPLANE_UI_PAGES_PROJECT`）
 7. 运行 Cloudflare mTLS audit
+
+---
+
+## 12. 发布 OIDC Discovery
+
+OIDC Discovery 提供各 stack 的 `openid-configuration` 和 `jwks.json`，供外部 JWT 校验使用。
+
+### 为什么在 Rollout 之后
+
+OIDC Discovery 文档来自每个 stack 的 authservice 签名 KMS key。**该 KMS key 由 Pulumi 在部署时创建**（见 `alias/ltbase-oidc-discovery-<stack>-authservice`）。因此发布 OIDC Discovery 必须在该 stack **首次 rollout 之后**执行；在 rollout 之前触发会因为 KMS key 不存在而失败。
+
+### 当前的发布模型
+
+- 没有 OIDC Discovery companion 仓库或独立仓库。
+- bootstrap（第 9 步）已经准备好承载资源：Cloudflare Pages project、custom domain、DNS CNAME、deployment repo variables（`OIDC_DISCOVERY_DOMAIN`、`OIDC_DISCOVERY_STACK_CONFIG`、`OIDC_DISCOVERY_PAGES_PROJECT`），以及每个 stack 的 OIDC discovery IAM role。
+- 生成并上传 discovery 文档由 deployment repo 内置的 `publish-oidc-discovery.yml` 工作流完成：它运行 `scripts/build-discovery.sh` 生成文档，再通过 `wrangler pages deploy` **direct upload** 到 `${OIDC_DISCOVERY_PAGES_PROJECT}` 这个 Cloudflare Pages 项目。
+
+> **注意**：当前版本 bootstrap 和 rollout 都不会自动触发 `publish-oidc-discovery.yml`，需要你在对应 stack 首次 rollout 完成后手动触发一次。
+
+### 通过 GitHub Actions UI 触发
+
+在 GitHub 仓库的 Actions 页面，选择 **Publish OIDC Discovery Documents** 工作流，点击 Run workflow，Branch 选择 `main`，`target_stack` 填已完成 rollout 的 stack（或在所有目标 stack 都已 rollout 后填 `all`）。
+
+### 通过 CLI 触发
+
+```bash
+# 只发布已完成 rollout 的 stack（推荐在每个 hop 后执行）
+gh workflow run publish-oidc-discovery.yml \
+  -f target_stack=devo \
+  --ref main
+
+# 当所有目标 stack 都已完成首次 rollout 后，可一次性刷新全部
+gh workflow run publish-oidc-discovery.yml \
+  -f target_stack=all \
+  --ref main
+```
+
+查看运行状态：
+
+```bash
+gh run list --workflow=publish-oidc-discovery.yml --limit 3
+```
+
+> **注意**：Cloudflare Pages direct upload 是整站部署。发布单个 stack 时，`build-discovery.sh` 只会重新生成该 stack 的文档；请在每个 stack 首次 rollout 后逐个发布，或在全部 rollout 完成后用 `target_stack=all` 一次性发布，避免遗漏 stack。
+
+> **注意**：OIDC discovery IAM role 只信任从 default branch 触发的工作流（`repo:<DEPLOYMENT_REPO>:ref:refs/heads/<default_branch>`）。从其他 branch 触发会导致 AWS role assumption 失败。
+
+### 理想状态（后续实现）
+
+理想情况下，OIDC Discovery 应在 rollout 中自动发布，而不是要求单独手动触发。计划是在 `rollout-hop.yml` 的 rollout 成功后新增一个 job，对 `PROMOTION_PATH` 中从起点到当前 target stack 的已部署 stack 子集运行 direct upload。该改动属于后续代码变更，本文档会在实现后更新。
 
 ---
 
