@@ -399,6 +399,32 @@ run_preserves_customer_auth_provider_case() {
   restore_optional_file "${auth_provider_backup}" "${auth_provider_path}"
 }
 
+run_preserves_custom_stack_auth_provider_case() {
+  local fake_bin="$1"
+  local auth_provider_path="${ROOT_DIR}/infra/auth-providers.realflow-miraisya.json"
+  local auth_provider_backup="${temp_dir}/auth-providers.realflow-miraisya.json.preserve.backup"
+  local original_content='{"providers":[{"name":"realflow-miraisya"}]}'
+
+  setup_fake_git "${fake_bin}"
+  rm -f "${auth_provider_backup}"
+  if [[ -f "${auth_provider_path}" ]]; then
+    /bin/cp "${auth_provider_path}" "${auth_provider_backup}"
+  fi
+  mkdir -p "${ROOT_DIR}/infra"
+  printf '%s\n' "${original_content}" >"${auth_provider_path}"
+
+  if ! output="$(PATH="${fake_bin}:$PATH" COMMAND_LOG="${log_file}" TEMP_ROOT="${temp_dir}" "${SCRIPT_PATH}" 2>&1)"; then
+    restore_optional_file "${auth_provider_backup}" "${auth_provider_path}"
+    fail "expected script to preserve custom-stack auth provider file, got: ${output}"
+  fi
+
+  assert_text_contains "${output}" "synced upstream/main into main"
+  assert_log_contains "${auth_provider_path}" "${original_content}"
+  assert_log_contains "${log_file}" "cp ./infra/auth-providers.realflow-miraisya.json ${temp_dir}/upstream-checkout.customer-owned-backup/infra/auth-providers.realflow-miraisya.json"
+  assert_log_contains "${log_file}" "cp ${temp_dir}/upstream-checkout.customer-owned-backup/infra/auth-providers.realflow-miraisya.json ./infra/auth-providers.realflow-miraisya.json"
+  restore_optional_file "${auth_provider_backup}" "${auth_provider_path}"
+}
+
 run_missing_customer_auth_provider_case() {
   local fake_bin="$1"
   local auth_provider_path="${ROOT_DIR}/infra/auth-providers.prod.json"
@@ -508,6 +534,7 @@ find_failure_bin="${temp_dir}/find-failure-bin"
 empty_find_bin="${temp_dir}/empty-find-bin"
 self_contained_bin="${temp_dir}/self-contained-bin"
 preserve_auth_provider_bin="${temp_dir}/preserve-auth-provider-bin"
+preserve_custom_stack_auth_provider_bin="${temp_dir}/preserve-custom-stack-auth-provider-bin"
 missing_auth_provider_bin="${temp_dir}/missing-auth-provider-bin"
 preserve_customer_owned_directory_bin="${temp_dir}/preserve-customer-owned-directory-bin"
 preserve_customer_owned_directory_contents_bin="${temp_dir}/preserve-customer-owned-directory-contents-bin"
@@ -520,6 +547,7 @@ run_find_failure_case "${find_failure_bin}"
 run_empty_find_case "${empty_find_bin}"
 run_without_bootstrap_env_case "${self_contained_bin}"
 run_preserves_customer_auth_provider_case "${preserve_auth_provider_bin}"
+run_preserves_custom_stack_auth_provider_case "${preserve_custom_stack_auth_provider_bin}"
 run_missing_customer_auth_provider_case "${missing_auth_provider_bin}"
 run_preserves_customer_owned_directory_case "${preserve_customer_owned_directory_bin}"
 run_preserves_customer_owned_directory_contents_case "${preserve_customer_owned_directory_contents_bin}"

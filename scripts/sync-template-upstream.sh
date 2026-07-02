@@ -52,9 +52,14 @@ ARCHIVE_PATH="sync-template-upstream.tar"
 
 preserved_customer_owned_paths=(
   "customer-owned"
-  "infra/auth-providers.devo.json"
-  "infra/auth-providers.prod.json"
 )
+
+# Preserve real customer auth-provider configs for every stack. The template only
+# owns infra/auth-providers.*.json.example files.
+for auth_provider_file in ./infra/auth-providers.*.json; do
+  [[ -e "${auth_provider_file}" ]] || continue
+  preserved_customer_owned_paths+=("${auth_provider_file#./}")
+done
 
 preserve_customer_owned_files() {
   local backup_root="$1"
