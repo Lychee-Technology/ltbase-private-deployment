@@ -36,11 +36,10 @@ assert_file_not_contains() {
 
 assert_file_contains "${WORKFLOW_PATH}" "id-token: write"
 
-# ---------- checkout and generate step ----------
+# ---------- checkout and delegate to the shared composite action ----------
 
 assert_file_contains "${WORKFLOW_PATH}" "actions/checkout@v6"
-
-assert_file_contains "${WORKFLOW_PATH}" "./scripts/build-discovery.sh"
+assert_file_contains "${WORKFLOW_PATH}" "uses: ./.github/actions/publish-oidc-discovery"
 
 # ---------- removed template checkout dependencies ----------
 
@@ -49,14 +48,17 @@ assert_file_not_contains "${WORKFLOW_PATH}" "OIDC_DISCOVERY_TEMPLATE_REF"
 assert_file_not_contains "${WORKFLOW_PATH}" "path: oidc-template"
 assert_file_not_contains "${WORKFLOW_PATH}" "working-directory: oidc-template"
 
-# ---------- target stack support ----------
+# ---------- target stack support (manual recovery keeps the all/single input) ----------
 
 assert_file_contains "${WORKFLOW_PATH}" 'default: "all"'
-assert_file_contains "${WORKFLOW_PATH}" "TARGET_STACK: \${{ inputs.target_stack }}"
+assert_file_contains "${WORKFLOW_PATH}" "target_stack: \${{ inputs.target_stack }}"
+assert_file_contains "${WORKFLOW_PATH}" "target_stacks: \${{ inputs.target_stacks }}"
 
-# ---------- Cloudflare Pages direct upload ----------
+# ---------- inputs wired to repo vars/secrets ----------
 
-assert_file_contains "${WORKFLOW_PATH}" "cloudflare/wrangler-action@v3"
-assert_file_contains "${WORKFLOW_PATH}" "pages deploy"
+assert_file_contains "${WORKFLOW_PATH}" "oidc_discovery_domain: \${{ vars.OIDC_DISCOVERY_DOMAIN }}"
+assert_file_contains "${WORKFLOW_PATH}" "oidc_discovery_stack_config: \${{ vars.OIDC_DISCOVERY_STACK_CONFIG }}"
+assert_file_contains "${WORKFLOW_PATH}" "oidc_discovery_pages_project: \${{ vars.OIDC_DISCOVERY_PAGES_PROJECT }}"
+assert_file_contains "${WORKFLOW_PATH}" "cloudflare_api_token: \${{ secrets.CLOUDFLARE_API_TOKEN }}"
 
 printf 'PASS: publish-oidc-discovery-workflow tests\n'

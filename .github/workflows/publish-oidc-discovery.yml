@@ -8,6 +8,11 @@ on:
         required: false
         default: "all"
         type: string
+      target_stacks:
+        description: "Optional CSV of stacks to publish (overrides target_stack)"
+        required: false
+        default: ""
+        type: string
 
 permissions:
   contents: read
@@ -23,67 +28,14 @@ jobs:
     steps:
       - uses: actions/checkout@v6
 
-      - name: Generate discovery documents
-        env:
-          OIDC_DISCOVERY_DOMAIN: ${{ vars.OIDC_DISCOVERY_DOMAIN }}
-          OIDC_DISCOVERY_STACK_CONFIG: ${{ vars.OIDC_DISCOVERY_STACK_CONFIG }}
-          TARGET_STACK: ${{ inputs.target_stack }}
-          OIDC_DISCOVERY_OUTPUT_DIR: ${{ runner.temp }}/discovery-output
-        run: ./scripts/build-discovery.sh
-
-      - name: Stage discovery site
-        id: stage
-        env:
-          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
-          OIDC_DISCOVERY_PAGES_PROJECT: ${{ vars.OIDC_DISCOVERY_PAGES_PROJECT }}
-          OIDC_DISCOVERY_OUTPUT_DIR: ${{ runner.temp }}/discovery-output
-        run: |
-          set -euo pipefail
-
-          output_dir="${OIDC_DISCOVERY_OUTPUT_DIR}"
-
-          if [[ -z "${CLOUDFLARE_API_TOKEN}" ]]; then
-            echo "CLOUDFLARE_API_TOKEN repo secret is not set" >&2
-            exit 1
-          fi
-          if [[ -z "${CLOUDFLARE_ACCOUNT_ID}" ]]; then
-            echo "CLOUDFLARE_ACCOUNT_ID repo variable is not set" >&2
-            exit 1
-          fi
-          if [[ -z "${OIDC_DISCOVERY_PAGES_PROJECT}" ]]; then
-            echo "OIDC_DISCOVERY_PAGES_PROJECT repo variable is not set" >&2
-            exit 1
-          fi
-
-          site_dir=$(mktemp -d)
-
-          shopt -s nullglob
-          for item in "${output_dir}"/*/; do
-            item=${item%/}
-            cp -R "${item}" "${site_dir}/"
-          done
-          for item in "${output_dir}"/_headers; do
-            if [[ -f "${item}" ]]; then
-              cp "${item}" "${site_dir}/"
-            fi
-          done
-          shopt -u nullglob
-
-          if [[ -z "$(ls -A "${site_dir}")" ]]; then
-            echo "No generated stack content found to deploy" >&2
-            exit 1
-          fi
-
-          echo "site_dir=${site_dir}" >>"${GITHUB_OUTPUT}"
-
-      - name: Deploy to Cloudflare Pages
-        uses: cloudflare/wrangler-action@v3
-        timeout-minutes: 10
+      - name: Publish OIDC discovery
+        uses: ./.github/actions/publish-oidc-discovery
         with:
-          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          accountId: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
-          command: >-
-            pages deploy ${{ steps.stage.outputs.site_dir }}
-            --project-name ${{ vars.OIDC_DISCOVERY_PAGES_PROJECT }}
-            --branch main
+          target_stacks: ${{ inputs.target_stacks }}
+          target_stack: ${{ inputs.target_stack }}
+          oidc_discovery_domain: ${{ vars.OIDC_DISCOVERY_DOMAIN }}
+          oidc_discovery_stack_config: ${{ vars.OIDC_DISCOVERY_STACK_CONFIG }}
+          oidc_discovery_pages_project: ${{ vars.OIDC_DISCOVERY_PAGES_PROJECT }}
+          cloudflare_account_id: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
+          cloudflare_api_token: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          wait_for_ready: "false"
