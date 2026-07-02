@@ -109,7 +109,7 @@ assert_file_contains "${rollout_hop_workflow}" 'if: ${{ always() && needs.rollou
 assert_file_contains "${rollout_hop_workflow}" "needs.publish_schemas.result == 'success'"
 assert_file_contains "${rollout_hop_workflow}" 'if: ${{ always() && needs.ensure_project.result == '\''success'\'' }}'
 assert_file_contains "${rollout_hop_workflow}" "- ensure_project"
-assert_file_contains "${rollout_hop_workflow}" "if: \${{ always() && needs.ensure_project.result == 'success' && needs.prepare.outputs.continue_chain == 'true' && needs.prepare.outputs.next_stack != '' }}"
+assert_file_contains "${rollout_hop_workflow}" "if: \${{ always() && needs.ensure_project.result == 'success' && needs.publish_oidc_discovery.result == 'success' && needs.prepare.outputs.continue_chain == 'true' && needs.prepare.outputs.next_stack != '' }}"
 assert_file_contains "${rollout_hop_workflow}" 'stack_file="infra/Pulumi.${{ needs.prepare.outputs.target_stack }}.yaml"'
 assert_file_contains "${rollout_hop_workflow}" 'extract_stack_value() {'
 assert_file_contains "${rollout_hop_workflow}" 'raw_line="$(grep -E "^[[:space:]]*${config_key}:[[:space:]]*" "${stack_file}" | head -n 1 || true)"'
@@ -128,5 +128,47 @@ assert_file_contains "${rollout_hop_workflow}" "controlplane_ui_pages_project: \
 assert_file_contains "${rollout_hop_workflow}" "controlplane_ui_runtime_config_json: \${{ needs.render_controlplane_ui_config.outputs.runtime_config_json }}"
 assert_file_not_contains "${rollout_hop_workflow}" "pulumi_stack: devo"
 assert_file_not_contains "${rollout_hop_workflow}" "pulumi_stack: prod"
+
+# ---------- OIDC discovery: deployed prefix + pre/post publish jobs ----------
+
+# prepare emits the promotion-path prefix (start .. target inclusive).
+assert_file_contains "${rollout_hop_workflow}" "deployed_prefix: \${{ steps.plan.outputs.deployed_prefix }}"
+assert_file_contains "${rollout_hop_workflow}" "echo \"deployed_prefix=\${deployed_prefix}\""
+
+# Pre-rollout publish job runs before rollout and waits for the endpoint. It is
+# the only caller allowed to publish placeholder JWKS for missing KMS keys.
+assert_file_contains "${rollout_hop_workflow}" "publish_oidc_discovery_pre:"
+assert_file_contains "${rollout_hop_workflow}" "uses: ./.github/actions/publish-oidc-discovery"
+assert_file_contains "${rollout_hop_workflow}" "target_stacks: \${{ needs.prepare.outputs.deployed_prefix }}"
+assert_file_contains "${rollout_hop_workflow}" 'allow_placeholder: "true"'
+assert_file_contains "${rollout_hop_workflow}" "wait_for: reachable"
+
+# rollout depends on the pre-publish job succeeding.
+assert_file_contains "${rollout_hop_workflow}" "- publish_oidc_discovery_pre"
+assert_file_contains "${rollout_hop_workflow}" "needs.publish_oidc_discovery_pre.result == 'success'"
+
+# Post-rollout publish job is gated on rollout success and replaces placeholders.
+# It must NOT opt into placeholders: a missing key after rollout is an error.
+# Its readiness poll is content-aware, confirming the placeholder was replaced.
+assert_file_contains "${rollout_hop_workflow}" "publish_oidc_discovery:"
+assert_file_contains "${rollout_hop_workflow}" "wait_for: real-jwks"
+if [[ "$(grep -c 'allow_placeholder:' "${rollout_hop_workflow}")" != "1" ]]; then
+  fail "expected exactly one allow_placeholder opt-in (the pre-rollout publish job)"
+fi
+
+# Whole-site Pages uploads from concurrent hops or the manual workflow must be
+# serialized through one shared concurrency group.
+assert_file_contains "${rollout_hop_workflow}" "group: \${{ github.repository }}-oidc-discovery-publish"
+if [[ "$(grep -c -- '-oidc-discovery-publish' "${rollout_hop_workflow}")" != "2" ]]; then
+  fail "expected both publish jobs in rollout-hop to join the shared oidc-discovery-publish concurrency group"
+fi
+
+# dispatch_next must wait for the post-rollout publish; otherwise a chained
+# hop N post-publish could land after hop N+1's pre-publish and wipe its
+# placeholder before N+1 creates its JWT authorizer.
+assert_file_contains "${rollout_hop_workflow}" "needs.publish_oidc_discovery.result == 'success'"
+if ! grep -Eq -- '^      - publish_oidc_discovery$' "${rollout_hop_workflow}"; then
+  fail "expected dispatch_next needs to include publish_oidc_discovery"
+fi
 
 printf 'PASS: rollout workflow tests\n'

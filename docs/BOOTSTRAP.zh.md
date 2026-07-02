@@ -104,15 +104,17 @@ gh workflow run rollout.yml -f release_id=v1.0.23 --ref main
 
 完整参数与示例见 [`GITHUB_ACTIONS.zh.md`](GITHUB_ACTIONS.zh.md#rolloutyml--rollout-ltbase-release)。
 
-### 9. 发布 OIDC Discovery（必须在对应 stack 首次 rollout 之后）
+### 9. OIDC Discovery（rollout 期间自动发布）
 
-authservice 签名 KMS key 由 Pulumi 在 rollout 时创建，因此发布 OIDC Discovery 必须在该 stack 首次 rollout 完成之后。
+OIDC Discovery 由 `rollout-hop.yml` 在每个 hop 中自动发布——rollout 之前用占位 key 发布（使某个 stack 首次 rollout 时能创建 API Gateway authorizer），rollout 之后再用真实的 KMS key 重新发布。无需任何手动步骤。
+
+`publish-oidc-discovery.yml` 仅保留为手动恢复 / 重新发布入口：
 
 ```bash
-# 每个 stack 首次 rollout 后逐个发布
+# 手动恢复：重新发布单个 stack
 gh workflow run publish-oidc-discovery.yml -f target_stack=devo --ref main
 
-# 全部 stack 都完成首次 rollout 后可一次性刷新
+# 手动恢复：刷新全部 stack
 gh workflow run publish-oidc-discovery.yml -f target_stack=all --ref main
 ```
 

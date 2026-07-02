@@ -64,6 +64,7 @@ jobs:
       target_stack: ${{ steps.plan.outputs.target_stack }}
       target_stack_upper: ${{ steps.plan.outputs.target_stack_upper }}
       next_stack: ${{ steps.plan.outputs.next_stack }}
+      deployed_prefix: ${{ steps.plan.outputs.deployed_prefix }}
       approval_required: ${{ steps.plan.outputs.approval_required }}
       continue_chain: ${{ steps.plan.outputs.continue_chain }}
       run_canary: ${{ steps.plan.outputs.run_canary }}
@@ -140,6 +141,16 @@ jobs:
             next_stack="${path[$((target_index + 1))]}"
           fi
 
+          # Promotion-path prefix: every stack from the start up to and including
+          # the current target. This is the set that OIDC discovery must publish
+          # on each hop, because Cloudflare Pages direct upload replaces the whole
+          # site (publishing only the current stack would wipe earlier stacks).
+          deployed_prefix=""
+          for (( index=0; index<=target_index; index++ )); do
+            deployed_prefix+="${path[$index]},"
+          done
+          deployed_prefix="${deployed_prefix%,}"
+
           approval_required="false"
           run_canary="false"
           if [[ "${target_stack}" != "${start_stack}" ]]; then
@@ -153,6 +164,7 @@ jobs:
             echo "target_stack=${target_stack}"
             echo "target_stack_upper=$(stack_upper "${target_stack}")"
             echo "next_stack=${next_stack}"
+            echo "deployed_prefix=${deployed_prefix}"
             echo "approval_required=${approval_required}"
             echo "continue_chain=${continue_chain}"
             echo "run_canary=${run_canary}"
@@ -193,13 +205,49 @@ jobs:
         run: |
           printf 'runtime_config_json=%s\n' "$(jq -c '.' .github/ltbase-controlplane.config.json)" >> "$GITHUB_OUTPUT"
 
+  publish_oidc_discovery_pre:
+    needs:
+      - prepare
+      - validate_config
+      - approve
+    if: ${{ always() && needs.prepare.result == 'success' && needs.validate_config.result == 'success' && (needs.prepare.outputs.approval_required != 'true' || needs.approve.result == 'success') }}
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 30
+    # Cloudflare Pages direct upload replaces the whole site, so all discovery
+    # publishers (this job, the post-rollout job, and the manual workflow) are
+    # serialized through one shared concurrency group.
+    concurrency:
+      group: ${{ github.repository }}-oidc-discovery-publish
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@v6
+
+      # Publish discovery for the deployed prefix BEFORE rollout. The current
+      # target's authservice KMS key does not exist yet, so build-discovery.sh
+      # emits a placeholder JWKS for it (allow_placeholder is opted in here and
+      # only here); already-deployed stacks keep their real keys. This keeps the
+      # discovery endpoint valid so the first rollout can create its API Gateway
+      # JWT authorizer. Wait for the endpoint to be live.
+      - name: Publish OIDC discovery (pre-rollout)
+        uses: ./.github/actions/publish-oidc-discovery
+        with:
+          target_stacks: ${{ needs.prepare.outputs.deployed_prefix }}
+          allow_placeholder: "true"
+          oidc_discovery_domain: ${{ vars.OIDC_DISCOVERY_DOMAIN }}
+          oidc_discovery_stack_config: ${{ vars.OIDC_DISCOVERY_STACK_CONFIG }}
+          oidc_discovery_pages_project: ${{ vars.OIDC_DISCOVERY_PAGES_PROJECT }}
+          cloudflare_account_id: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
+          cloudflare_api_token: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          wait_for: reachable
+
   rollout:
     needs:
       - prepare
       - validate_config
       - approve
       - render_controlplane_ui_config
-    if: ${{ always() && needs.prepare.result == 'success' && (needs.prepare.outputs.approval_required != 'true' || needs.approve.result == 'success') }}
+      - publish_oidc_discovery_pre
+    if: ${{ always() && needs.prepare.result == 'success' && needs.publish_oidc_discovery_pre.result == 'success' && (needs.prepare.outputs.approval_required != 'true' || needs.approve.result == 'success') }}
     uses: Lychee-Technology/ltbase-deploy-workflows/.github/workflows/rollout-hop.yml@main
     with:
       pulumi_stack: ${{ needs.prepare.outputs.target_stack }}
@@ -219,6 +267,34 @@ jobs:
       aws_role_arn: ${{ secrets[format('AWS_ROLE_ARN_{0}', needs.prepare.outputs.target_stack_upper)] }}
       ltbase_releases_token: ${{ secrets.LTBASE_RELEASES_TOKEN }}
       cloudflare_api_token: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+
+  publish_oidc_discovery:
+    needs:
+      - prepare
+      - rollout
+    if: ${{ always() && needs.rollout.result == 'success' }}
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 30
+    concurrency:
+      group: ${{ github.repository }}-oidc-discovery-publish
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@v6
+
+      # Republish discovery for the deployed prefix AFTER rollout. The target's
+      # authservice KMS key now exists, so the placeholder published pre-rollout
+      # is replaced with the real KMS-backed JWKS. The whole prefix is uploaded
+      # so previously-published stacks are preserved.
+      - name: Publish OIDC discovery (post-rollout)
+        uses: ./.github/actions/publish-oidc-discovery
+        with:
+          target_stacks: ${{ needs.prepare.outputs.deployed_prefix }}
+          oidc_discovery_domain: ${{ vars.OIDC_DISCOVERY_DOMAIN }}
+          oidc_discovery_stack_config: ${{ vars.OIDC_DISCOVERY_STACK_CONFIG }}
+          oidc_discovery_pages_project: ${{ vars.OIDC_DISCOVERY_PAGES_PROJECT }}
+          cloudflare_account_id: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
+          cloudflare_api_token: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          wait_for: real-jwks
 
   publish_schemas:
     needs:
@@ -431,7 +507,12 @@ jobs:
       - prepare
       - ensure_project
       - audit_mtls
-    if: ${{ always() && needs.ensure_project.result == 'success' && needs.prepare.outputs.continue_chain == 'true' && needs.prepare.outputs.next_stack != '' }}
+      # The next hop's pre-publish uploads the whole discovery site. This hop's
+      # post-publish must finish first, or its (shorter-prefix) upload could
+      # land afterward and wipe the next stack's placeholder before its JWT
+      # authorizer is created.
+      - publish_oidc_discovery
+    if: ${{ always() && needs.ensure_project.result == 'success' && needs.publish_oidc_discovery.result == 'success' && needs.prepare.outputs.continue_chain == 'true' && needs.prepare.outputs.next_stack != '' }}
     runs-on: ubuntu-24.04-arm
     steps:
       - name: Continue rollout chain

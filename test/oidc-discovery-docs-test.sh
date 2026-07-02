@@ -111,4 +111,24 @@ assert_contains_in "ZH README must mention publish-oidc-discovery.yml" 'publish-
 assert_contains_in "EN manual bootstrap OIDC section must state direct upload" 'direct upload' "${ROOT_DIR}/docs/onboarding/06-bootstrap-manual.md"
 assert_contains_in "ZH manual bootstrap OIDC section must state no companion" '无 companion' "${ROOT_DIR}/docs/onboarding/06-bootstrap-manual.zh.md"
 
+# ---------- Automatic publish flow: docs must describe auto publish + manual recovery ----------
+
+assert_contains_in "EN onboarding must describe automatic OIDC discovery publish" 'automatically' "${ROOT_DIR}/docs/CUSTOMER_ONBOARDING.md"
+assert_contains_in "EN onboarding must describe manual recovery path" 'recovery' "${ROOT_DIR}/docs/CUSTOMER_ONBOARDING.md"
+assert_contains_in "ZH onboarding must describe automatic OIDC discovery publish" '自动发布' "${ROOT_DIR}/docs/CUSTOMER_ONBOARDING.zh.md"
+assert_contains_in "ZH onboarding must describe manual recovery path" '恢复' "${ROOT_DIR}/docs/CUSTOMER_ONBOARDING.zh.md"
+
+# ---------- Placeholder guardrails: opt-in scope, replacement check, prefix coverage ----------
+
+assert_contains_in "EN onboarding must state the placeholder fallback is opt-in" 'ALLOW_PLACEHOLDER' "${ROOT_DIR}/docs/CUSTOMER_ONBOARDING.md"
+assert_contains_in "EN onboarding must describe the placeholder replacement check" 'kid != "placeholder"' "${ROOT_DIR}/docs/CUSTOMER_ONBOARDING.md"
+assert_contains_in "EN onboarding must document placeholder residue after a failed rollout" 'stays live until' "${ROOT_DIR}/docs/CUSTOMER_ONBOARDING.md"
+assert_contains_in "EN onboarding must document prefix-only automatic publish" 'dropped by the whole-site upload' "${ROOT_DIR}/docs/CUSTOMER_ONBOARDING.md"
+assert_contains_in "ZH onboarding must state the placeholder fallback is opt-in" 'ALLOW_PLACEHOLDER' "${ROOT_DIR}/docs/CUSTOMER_ONBOARDING.zh.md"
+assert_contains_in "ZH onboarding must describe the placeholder replacement check" 'kid != "placeholder"' "${ROOT_DIR}/docs/CUSTOMER_ONBOARDING.zh.md"
+assert_contains_in "ZH onboarding must document placeholder residue after a failed rollout" '保留在线上' "${ROOT_DIR}/docs/CUSTOMER_ONBOARDING.zh.md"
+assert_contains_in "ZH onboarding must document prefix-only automatic publish" '整站上传丢弃' "${ROOT_DIR}/docs/CUSTOMER_ONBOARDING.zh.md"
+assert_contains_in "EN workflow reference must state manual publish fails on a missing KMS key" 'reserved for the automatic pre-rollout publish' "${ROOT_DIR}/docs/GITHUB_ACTIONS.md"
+assert_contains_in "ZH workflow reference must state manual publish fails on a missing KMS key" '仅供' "${ROOT_DIR}/docs/GITHUB_ACTIONS.zh.md"
+
 printf 'PASS: oidc-discovery-docs tests\n'

@@ -1,0 +1,197 @@
+name: Publish OIDC Discovery
+description: >-
+  Generate OIDC discovery documents with scripts/build-discovery.sh and
+  direct-upload them to the OIDC discovery Cloudflare Pages project. Optionally
+  waits for the published endpoint to become reachable before returning.
+
+inputs:
+  target_stacks:
+    description: >-
+      CSV of stacks to publish (promotion-path prefix, e.g. "devo,prod").
+      Takes precedence over target_stack when set.
+    required: false
+    default: ""
+  target_stack:
+    description: "Single stack or 'all' (used only when target_stacks is empty)"
+    required: false
+    default: "all"
+  oidc_discovery_domain:
+    description: Custom domain serving the discovery documents
+    required: true
+  oidc_discovery_stack_config:
+    description: JSON mapping stack name -> discovery config
+    required: true
+  oidc_discovery_pages_project:
+    description: Cloudflare Pages project name for the discovery site
+    required: true
+  cloudflare_account_id:
+    description: Cloudflare account ID
+    required: true
+  cloudflare_api_token:
+    description: Cloudflare API token
+    required: true
+  allow_placeholder:
+    description: >-
+      When 'true', build-discovery.sh substitutes a placeholder JWKS for stacks
+      whose signing KMS key does not exist yet. Reserved for the pre-rollout
+      publish; all other callers must keep the default so a missing key fails
+      loudly.
+    required: false
+    default: "false"
+  wait_for:
+    description: >-
+      Readiness poll mode. 'none' returns immediately after the upload.
+      'reachable' polls each published stack's openid-configuration until it is
+      served (HTTP 200 + valid JSON) — use before rollout, where the endpoint
+      may not exist yet. 'real-jwks' polls each stack's jwks.json until it
+      serves a real key (kid != "placeholder") — use after rollout, where plain
+      reachability is meaningless because the pre-rollout publish already made
+      the endpoint live.
+    required: false
+    default: "none"
+
+runs:
+  using: composite
+  steps:
+    - name: Generate discovery documents
+      shell: bash
+      env:
+        OIDC_DISCOVERY_DOMAIN: ${{ inputs.oidc_discovery_domain }}
+        OIDC_DISCOVERY_STACK_CONFIG: ${{ inputs.oidc_discovery_stack_config }}
+        TARGET_STACKS: ${{ inputs.target_stacks }}
+        TARGET_STACK: ${{ inputs.target_stack }}
+        ALLOW_PLACEHOLDER: ${{ inputs.allow_placeholder }}
+        OIDC_DISCOVERY_OUTPUT_DIR: ${{ runner.temp }}/discovery-output
+      run: ./scripts/build-discovery.sh
+
+    - name: Stage discovery site
+      id: stage
+      shell: bash
+      env:
+        CLOUDFLARE_API_TOKEN: ${{ inputs.cloudflare_api_token }}
+        CLOUDFLARE_ACCOUNT_ID: ${{ inputs.cloudflare_account_id }}
+        OIDC_DISCOVERY_PAGES_PROJECT: ${{ inputs.oidc_discovery_pages_project }}
+        OIDC_DISCOVERY_OUTPUT_DIR: ${{ runner.temp }}/discovery-output
+      run: |
+        set -euo pipefail
+
+        output_dir="${OIDC_DISCOVERY_OUTPUT_DIR}"
+
+        if [[ -z "${CLOUDFLARE_API_TOKEN}" ]]; then
+          echo "CLOUDFLARE_API_TOKEN is not set" >&2
+          exit 1
+        fi
+        if [[ -z "${CLOUDFLARE_ACCOUNT_ID}" ]]; then
+          echo "CLOUDFLARE_ACCOUNT_ID is not set" >&2
+          exit 1
+        fi
+        if [[ -z "${OIDC_DISCOVERY_PAGES_PROJECT}" ]]; then
+          echo "OIDC_DISCOVERY_PAGES_PROJECT is not set" >&2
+          exit 1
+        fi
+
+        site_dir=$(mktemp -d)
+
+        shopt -s nullglob
+        for item in "${output_dir}"/*/; do
+          item=${item%/}
+          cp -R "${item}" "${site_dir}/"
+        done
+        for item in "${output_dir}"/_headers; do
+          if [[ -f "${item}" ]]; then
+            cp "${item}" "${site_dir}/"
+          fi
+        done
+        shopt -u nullglob
+
+        if [[ -z "$(ls -A "${site_dir}")" ]]; then
+          echo "No generated stack content found to deploy" >&2
+          exit 1
+        fi
+
+        echo "site_dir=${site_dir}" >>"${GITHUB_OUTPUT}"
+
+    # Composite runs.steps do not support timeout-minutes; the calling jobs set
+    # a job-level timeout instead.
+    - name: Deploy to Cloudflare Pages
+      uses: cloudflare/wrangler-action@v3
+      with:
+        apiToken: ${{ inputs.cloudflare_api_token }}
+        accountId: ${{ inputs.cloudflare_account_id }}
+        command: >-
+          pages deploy ${{ steps.stage.outputs.site_dir }}
+          --project-name ${{ inputs.oidc_discovery_pages_project }}
+          --branch main
+
+    - name: Wait for discovery endpoint
+      if: ${{ inputs.wait_for != 'none' }}
+      shell: bash
+      env:
+        OIDC_DISCOVERY_DOMAIN: ${{ inputs.oidc_discovery_domain }}
+        TARGET_STACKS: ${{ inputs.target_stacks }}
+        TARGET_STACK: ${{ inputs.target_stack }}
+        WAIT_FOR: ${{ inputs.wait_for }}
+      run: |
+        set -euo pipefail
+
+        case "${WAIT_FOR}" in
+          reachable|real-jwks) ;;
+          *)
+            echo "Unknown wait_for mode: ${WAIT_FOR}" >&2
+            exit 1
+            ;;
+        esac
+
+        # Build the list of stacks to poll from TARGET_STACKS (preferred) or
+        # TARGET_STACK (ignored when 'all').
+        poll_stacks=()
+        if [[ -n "${TARGET_STACKS}" ]]; then
+          IFS=',' read -r -a raw <<<"${TARGET_STACKS}"
+          for s in "${raw[@]}"; do
+            s="${s//[[:space:]]/}"
+            [[ -n "${s}" ]] && poll_stacks+=("${s}")
+          done
+        elif [[ -n "${TARGET_STACK}" && "${TARGET_STACK}" != "all" ]]; then
+          poll_stacks+=("${TARGET_STACK}")
+        fi
+
+        if [[ "${#poll_stacks[@]}" -eq 0 ]]; then
+          echo "No specific stacks to poll; skipping readiness wait"
+          exit 0
+        fi
+
+        # A brand-new Pages custom domain can take several minutes to issue its
+        # TLS certificate, so give the poll generous bounds.
+        max_attempts=60
+        sleep_seconds=10
+
+        # reachable: openid-configuration is served and well-formed.
+        # real-jwks: jwks.json serves at least one key and none of them is the
+        # pre-rollout placeholder — i.e. the post-rollout publish actually
+        # replaced the placeholder and the edge is no longer caching it.
+        doc_path=".well-known/openid-configuration"
+        jq_check='.issuer'
+        if [[ "${WAIT_FOR}" == "real-jwks" ]]; then
+          doc_path=".well-known/jwks.json"
+          jq_check='.keys | length > 0 and all(.kid != "placeholder")'
+        fi
+
+        for stack in "${poll_stacks[@]}"; do
+          url="https://${OIDC_DISCOVERY_DOMAIN}/${stack}/${doc_path}"
+          echo "Waiting for ${url} (${WAIT_FOR})"
+          ready="false"
+          for attempt in $(seq 1 "${max_attempts}"); do
+            body="$(curl -fsS "${url}" 2>/dev/null || true)"
+            if [[ -n "${body}" ]] && echo "${body}" | jq -e "${jq_check}" >/dev/null 2>&1; then
+              echo "Discovery endpoint for ${stack} is ready (attempt ${attempt})"
+              ready="true"
+              break
+            fi
+            echo "  not ready yet (attempt ${attempt}/${max_attempts}); retrying in ${sleep_seconds}s"
+            sleep "${sleep_seconds}"
+          done
+          if [[ "${ready}" != "true" ]]; then
+            echo "Discovery endpoint for ${stack} did not become ready in time: ${url}" >&2
+            exit 1
+          fi
+        done
