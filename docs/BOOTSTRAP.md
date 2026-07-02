@@ -1,88 +1,119 @@
 > **中文版：[BOOTSTRAP.zh.md](BOOTSTRAP.zh.md)**
 
-# Customer Bootstrap Checklist
+# Customer Bootstrap Quick Checklist
 
-This is the short checklist version of the customer onboarding flow.
+This is the quick step checklist for the customer deployment flow. New users should start with **[CUSTOMER_ONBOARDING.md](CUSTOMER_ONBOARDING.md)**; use this document as a cheat sheet.
 
-For the full runbook, start here:
-
-- [`CUSTOMER_ONBOARDING.md`](CUSTOMER_ONBOARDING.md)
-
-## Repository Layout
-
-Your deployment repository should contain:
-
-- `infra/`
-- `.github/workflows/`
-- `env.template`
-- `scripts/render-bootstrap-policies.sh`
-- `scripts/create-deployment-repo.sh`
-- `scripts/bootstrap-aws-foundation.sh`
-- `scripts/bootstrap-pulumi-backend.sh`
-- `scripts/bootstrap-oidc-discovery.sh`
-- `scripts/bootstrap-deployment-repo.sh`
-- `scripts/bootstrap-all.sh`
-- `scripts/evaluate-and-continue.sh`
-- `scripts/update-sync-template-tooling.sh`
-- `scripts/sync-template-upstream.sh`
-- `scripts/reconcile-managed-dsql-endpoint.sh`
-- `scripts/lib/bootstrap-env.sh`
+For more detail on a specific flow, read the corresponding guide under [`onboarding/`](onboarding/).
 
 ## Quick Checklist
 
-### 1. Prepare prerequisites
+### 1. Pre-deployment decisions
 
-- read [`onboarding/01-prerequisites.md`](onboarding/01-prerequisites.md)
-- confirm GitHub, AWS, Cloudflare, `LTBASE_RELEASES_TOKEN`, and `GEMINI_API_KEY`
+- Decide `STACKS` (environment names, e.g. `devo,prod`)
+- Decide `PROMOTION_PATH` (deployment order)
+- Decide AWS region, account ID, and role name for each stack
+- Decide API/Control/Auth/OIDC/UI domains
+- Decide Pulumi state bucket name and KMS alias
 
-### 2. Create the deployment repository
+### 2. Prepare prerequisites
 
-- read [`onboarding/02-create-repo-and-clone.md`](onboarding/02-create-repo-and-clone.md)
-- create the private repo from template and clone it locally
-- recommended even for one-click bootstrap, because later bootstrap writes local Pulumi stack files into this checkout
+- Confirm GitHub CLI authenticated: `gh auth status`
+- Confirm access to each AWS account: `aws sts get-caller-identity --profile <profile>`
+- Confirm Cloudflare zone and API token are ready
+- Confirm `LTBASE_RELEASES_TOKEN` and `GEMINI_API_KEY` are available
+- Confirm Firebase and Supabase browser config values (public, no secrets)
+- Install local tools: `git`, `gh`, `aws`, `pulumi`, `python3`
 
-### 3. Create OIDC and deploy roles
+See: [`onboarding/01-prerequisites.md`](onboarding/01-prerequisites.md)
 
-- read [`onboarding/03-create-oidc-and-deploy-roles.md`](onboarding/03-create-oidc-and-deploy-roles.md)
-- create one deploy role for each stack in `STACKS`
+### 3. Create deployment repository and clone
 
-### 4. Prepare `.env`
+```bash
+gh repo create "${GITHUB_OWNER}/customer-ltbase" \
+  --template Lychee-Technology/ltbase-private-deployment \
+  --private
+gh repo clone "${GITHUB_OWNER}/customer-ltbase"
+cd customer-ltbase
+```
 
-- read [`onboarding/04-prepare-env-file.md`](onboarding/04-prepare-env-file.md)
-- copy `env.template` to `.env`
-- fill customer-controlled values, leave derived values alone unless you need overrides, and never commit `.env`
-- keep `MTLS_TRUSTSTORE_FILE` and `MTLS_TRUSTSTORE_KEY` at the template defaults unless LTBase instructs otherwise
-- treat Control Plane UI Firebase and Supabase values as browser-facing config only; do not put secrets into runtime config
+See: [`onboarding/02-create-repo-and-clone.md`](onboarding/02-create-repo-and-clone.md)
 
-### 5. Choose a bootstrap path
+### 4. Fill in .env
 
-One-click path:
+```bash
+cp env.template .env
+```
 
-- read [`onboarding/05-bootstrap-one-click.md`](onboarding/05-bootstrap-one-click.md)
-- optionally review generated IAM policies with `./scripts/render-bootstrap-policies.sh --env-file .env`
-- if a platform owner must grant AWS bootstrap access first, hand them `dist/bootstrap-operator-<stack>-policy.json` for each stack and `dist/bootstrap-operator-first-stack-s3-policy.json` for the first stack account
-- run `./scripts/evaluate-and-continue.sh --env-file .env --scope bootstrap --infra-dir infra` as a preflight check
-- run `./scripts/evaluate-and-continue.sh --env-file .env --scope bootstrap --force --infra-dir infra`
-- current repo versions may still perform Control Plane UI setup through companion-oriented bootstrap scripts and variables
+Fill in all manual values, leave derived values empty. **Do not commit .env.**
 
-Manual path:
+- Stack topology: `STACKS`, `PROMOTION_PATH`
+- Repository: `GITHUB_OWNER`, `DEPLOYMENT_REPO_NAME`
+- Domains: `OIDC_DISCOVERY_DOMAIN`, `CONTROLPLANE_UI_DOMAIN`, per-stack API/Control/Auth domains
+- Cloudflare: `CLOUDFLARE_ACCOUNT_ID`, `CLOUDFLARE_ZONE_ID`, `CLOUDFLARE_API_TOKEN`
+- AWS: `AWS_REGION_<STACK>`, `AWS_ACCOUNT_ID_<STACK>`, `AWS_ROLE_NAME_<STACK>`
+- Pulumi: `PULUMI_STATE_BUCKET`, `PULUMI_KMS_ALIAS`
+- Release: `LTBASE_RELEASES_REPO`, `LTBASE_RELEASE_ID`, `LTBASE_RELEASES_TOKEN`
+- Application: `PROJECT_ID`, `AUTH_PROVIDER_CONFIG_FILE_<STACK>`, `GEMINI_API_KEY`
+- Browser config: `FIREBASE_*_<STACK>`, `SUPABASE_*_<STACK>`
+- Keep mTLS defaults as-is
+- Do not manually set `DSQL_ENDPOINT`
 
-- read [`onboarding/06-bootstrap-manual.md`](onboarding/06-bootstrap-manual.md)
-- run the bootstrap scripts stage by stage
+See: [`onboarding/04-prepare-env-file.md`](onboarding/04-prepare-env-file.md)
 
-### 6. Run the first deployment
+### 5. Preflight check
 
-- read [`onboarding/07-first-deploy-and-managed-dsql.md`](onboarding/07-first-deploy-and-managed-dsql.md)
-- run preview for the first stack in `PROMOTION_PATH`
-- treat preview as infra-only; it does not publish the Control Plane UI
-- trigger `rollout.yml` once for the chosen release
-- approve each protected target stack as GitHub requests it
-- before first operator use, validate the admin domain, redirect URI registration, and Control Plane CORS alignment separately
+```bash
+./scripts/render-bootstrap-policies.sh --env-file .env
+./scripts/evaluate-and-continue.sh --env-file .env --scope bootstrap --infra-dir infra
+```
 
-### 7. Day-2 operations
+### 6. Run bootstrap
 
-- read [`onboarding/08-day-2-operations.md`](onboarding/08-day-2-operations.md)
-- use the same preview -> rollout rhythm for upgrades
+**One-click path (recommended):**
+
+```bash
+./scripts/evaluate-and-continue.sh --env-file .env --scope bootstrap --force --infra-dir infra
+```
+
+**Manual path:**
+
+```bash
+./scripts/create-deployment-repo.sh --env-file .env
+./scripts/bootstrap-aws-foundation.sh --env-file .env
+source dist/foundation.env
+./scripts/bootstrap-oidc-discovery.sh --env-file .env
+./scripts/bootstrap-controlplane-ui-companion.sh --env-file .env
+./scripts/bootstrap-deployment-repo.sh --env-file .env --stack devo --infra-dir infra
+./scripts/bootstrap-deployment-repo.sh --env-file .env --stack prod --infra-dir infra
+```
+
+### 7. Publish OIDC Discovery
+
+```bash
+gh workflow run publish-oidc-discovery.yml -f target_stack=all --ref main
+```
+
+### 8. Preview
+
+```bash
+gh workflow run preview.yml -f target_stack=devo --ref main
+```
+
+### 9. Rollout
+
+```bash
+gh workflow run rollout.yml -f release_id=v1.0.23 --ref main
+```
+
+### 10. Verify
+
+```bash
+./scripts/check-cloudflare-mtls.sh --env-file .env --stack devo
+pulumi stack output --stack "org/customer-ltbase/devo" -C infra
+```
+
+See: [`onboarding/07-first-deploy-and-managed-dsql.md`](onboarding/07-first-deploy-and-managed-dsql.md)
 
 ## Required GitHub Secrets
 
@@ -101,18 +132,12 @@ Manual path:
 - `PROMOTION_PATH`
 - `PREVIEW_DEFAULT_STACK`
 
-## Notes
+Bootstrap scripts write these values automatically.
 
-- keep `.env` private and outside version control
-- the deployment repository downloads official LTBase releases; it does not build the app itself
-- official workflows may install an upstream-template-bound prebuilt `ltbase-infra` binary from `ltbase-private-deployment-binaries` before running Pulumi; they use `__ref__/template-provenance.json` and its `build_fingerprint` to find an exact upstream match, otherwise the repo's `infra/scripts/pulumi-wrapper.sh` falls back to local source build
-- customer deployment repositories consume those prebuilt binaries only; the copied `build-infra-binary.yml` workflow is skipped outside `Lychee-Technology/ltbase-private-deployment`
-- preview is manual in the customer repo because live credentials are customer-owned
-- manual preview only supports the first stack in `PROMOTION_PATH`
-- protected target environments are guarded by per-stack GitHub environment approval gates during rollout
-- current repo versions still expose companion-oriented Control Plane UI scripts and variables even though the deployment repository remains the operator-facing source of truth for those inputs
-- the template now assumes `api`, `auth`, and `control-plane` are served through Cloudflare-proxied custom domains
-- set Cloudflare SSL mode to `Full (strict)` before enabling production traffic
-- enable Cloudflare Authenticated Origin Pulls before expecting API Gateway mTLS to succeed
-- make sure `CLOUDFLARE_API_TOKEN` can also read Cloudflare zone settings if you want preview and rollout mTLS audits to verify those checks
-- direct `execute-api` access is expected to fail once the mTLS rollout is applied
+## Day-2 Operations
+
+- Upgrade: update `LTBASE_RELEASE_ID` → preview → rollout
+- Sync template: `./scripts/update-sync-template-tooling.sh` → `./scripts/sync-template-upstream.sh`
+- Audit mTLS: `./scripts/check-cloudflare-mtls.sh --env-file .env --stack <stack>`
+
+See: [`onboarding/08-day-2-operations.md`](onboarding/08-day-2-operations.md)

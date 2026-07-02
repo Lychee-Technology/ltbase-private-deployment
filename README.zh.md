@@ -23,16 +23,13 @@
 
 如果你正在启动一个新的客户部署，请从这里开始：
 
-- 完整 onboarding 手册：[`docs/CUSTOMER_ONBOARDING.zh.md`](docs/CUSTOMER_ONBOARDING.zh.md)
-- 快速 bootstrap 清单：[`docs/BOOTSTRAP.zh.md`](docs/BOOTSTRAP.zh.md)
+- [**`docs/CUSTOMER_ONBOARDING.zh.md`**](docs/CUSTOMER_ONBOARDING.zh.md) — 完整的从零部署指南。新用户可以只靠这一个文档完成从 AWS 准备到首次 rollout 的全部操作。
 
-对于新部署，推荐阅读顺序：
+快速参考：
 
-- 前置条件与访问检查：[`docs/onboarding/01-prerequisites.zh.md`](docs/onboarding/01-prerequisites.zh.md)
-- `.env` 准备与派生值说明：[`docs/onboarding/04-prepare-env-file.zh.md`](docs/onboarding/04-prepare-env-file.zh.md)
-- 一键 bootstrap 的就绪检查与 preflight：[`docs/onboarding/05-bootstrap-one-click.zh.md`](docs/onboarding/05-bootstrap-one-click.zh.md)
-- 手动 bootstrap 的阶段拆解与检查点：[`docs/onboarding/06-bootstrap-manual.zh.md`](docs/onboarding/06-bootstrap-manual.zh.md)
-- 首次部署、审批节奏与 managed DSQL 后续处理：[`docs/onboarding/07-first-deploy-and-managed-dsql.zh.md`](docs/onboarding/07-first-deploy-and-managed-dsql.zh.md)
+- [快速 bootstrap 清单](docs/BOOTSTRAP.zh.md) — 对熟悉流程的用户，提供步骤速查表。
+
+需要更深入的某一主题说明时，参考 [`docs/onboarding/`](docs/onboarding/) 下的子文档。
 
 onboarding 文档支持通用多 stack 拓扑。文中出现 `devo`、`prod` 等名称时，只应视为示例。
 
@@ -48,12 +45,15 @@ onboarding 文档支持通用多 stack 拓扑。文中出现 `devo`、`prod` 等
 
 ## 文档地图
 
-主入口文档：
+主入口文档 — **新用户从这里开始**：
 
-- [`docs/CUSTOMER_ONBOARDING.zh.md`](docs/CUSTOMER_ONBOARDING.zh.md)
-- [`docs/BOOTSTRAP.zh.md`](docs/BOOTSTRAP.zh.md)
+- [**`docs/CUSTOMER_ONBOARDING.zh.md`**](docs/CUSTOMER_ONBOARDING.zh.md) — 完整的单文档部署指南
 
-详细 onboarding 子文档：
+快速参考：
+
+- [`docs/BOOTSTRAP.zh.md`](docs/BOOTSTRAP.zh.md) — 快速 bootstrap 清单
+
+深入参考（按需阅读）：
 
 - 前提条件：[`docs/onboarding/01-prerequisites.zh.md`](docs/onboarding/01-prerequisites.zh.md)
 - 创建仓库并克隆：[`docs/onboarding/02-create-repo-and-clone.zh.md`](docs/onboarding/02-create-repo-and-clone.zh.md)
@@ -63,12 +63,6 @@ onboarding 文档支持通用多 stack 拓扑。文中出现 `devo`、`prod` 等
 - 手动 bootstrap：[`docs/onboarding/06-bootstrap-manual.zh.md`](docs/onboarding/06-bootstrap-manual.zh.md)
 - 首次部署与 managed DSQL 处理：[`docs/onboarding/07-first-deploy-and-managed-dsql.zh.md`](docs/onboarding/07-first-deploy-and-managed-dsql.zh.md)
 - 日常运维操作：[`docs/onboarding/08-day-2-operations.zh.md`](docs/onboarding/08-day-2-operations.zh.md)
-
-如果你使用恢复感知的 bootstrap 路径，最关键的操作文档是：
-
-- `docs/CUSTOMER_ONBOARDING.zh.md`
-- `docs/onboarding/05-bootstrap-one-click.zh.md`
-- `docs/onboarding/07-first-deploy-and-managed-dsql.zh.md`
 
 ## Bootstrap 入口脚本
 

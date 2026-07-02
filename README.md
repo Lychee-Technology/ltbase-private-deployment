@@ -25,16 +25,13 @@ It is not the LTBase application source repository.
 
 If you are onboarding a new customer deployment, start with:
 
-- full onboarding runbook: [`docs/CUSTOMER_ONBOARDING.md`](docs/CUSTOMER_ONBOARDING.md)
-- quick bootstrap checklist: [`docs/BOOTSTRAP.md`](docs/BOOTSTRAP.md)
+- [**`docs/CUSTOMER_ONBOARDING.md`**](docs/CUSTOMER_ONBOARDING.md) — the complete from-scratch deployment guide. New users can follow this single document from AWS preparation through first rollout.
 
-Recommended reading order for new deployments:
+Quick reference:
 
-- prerequisites and access checks: [`docs/onboarding/01-prerequisites.md`](docs/onboarding/01-prerequisites.md)
-- `.env` preparation and derived values: [`docs/onboarding/04-prepare-env-file.md`](docs/onboarding/04-prepare-env-file.md)
-- one-click bootstrap readiness and preflight: [`docs/onboarding/05-bootstrap-one-click.md`](docs/onboarding/05-bootstrap-one-click.md)
-- manual bootstrap stages and verification points: [`docs/onboarding/06-bootstrap-manual.md`](docs/onboarding/06-bootstrap-manual.md)
-- first deploy, approvals, and managed DSQL follow-up: [`docs/onboarding/07-first-deploy-and-managed-dsql.md`](docs/onboarding/07-first-deploy-and-managed-dsql.md)
+- [Quick bootstrap checklist](docs/BOOTSTRAP.md) — a step-by-step cheat sheet for experienced operators.
+
+For deeper dives on a specific topic, refer to the guides under [`docs/onboarding/`](docs/onboarding/).
 
 The onboarding docs support generic multi-stack topologies. When they show names like `devo` or `prod`, treat them as examples only.
 
@@ -50,27 +47,24 @@ In the current repository version, operators should treat the Control Plane UI a
 
 ## Documentation Map
 
-Main entrypoints:
+Main entrypoint — **new users start here**:
 
-- [`docs/CUSTOMER_ONBOARDING.md`](docs/CUSTOMER_ONBOARDING.md)
-- [`docs/BOOTSTRAP.md`](docs/BOOTSTRAP.md)
+- [**`docs/CUSTOMER_ONBOARDING.md`**](docs/CUSTOMER_ONBOARDING.md) — the complete single-document deployment guide
 
-Detailed onboarding guides:
+Quick reference:
+
+- [`docs/BOOTSTRAP.md`](docs/BOOTSTRAP.md) — quick bootstrap checklist
+
+Detailed reference (read as needed):
 
 - prerequisites: [`docs/onboarding/01-prerequisites.md`](docs/onboarding/01-prerequisites.md)
 - create repo and clone: [`docs/onboarding/02-create-repo-and-clone.md`](docs/onboarding/02-create-repo-and-clone.md)
-- create OIDC and deploy roles: [`docs/onboarding/03-create-oidc-and-deploy-roles.md`](docs/onboarding/03-create-oidc-and-deploy-roles.md)
+- create OIDC and roles: [`docs/onboarding/03-create-oidc-and-deploy-roles.md`](docs/onboarding/03-create-oidc-and-deploy-roles.md)
 - prepare `.env`: [`docs/onboarding/04-prepare-env-file.md`](docs/onboarding/04-prepare-env-file.md)
 - one-click bootstrap: [`docs/onboarding/05-bootstrap-one-click.md`](docs/onboarding/05-bootstrap-one-click.md)
 - manual bootstrap: [`docs/onboarding/06-bootstrap-manual.md`](docs/onboarding/06-bootstrap-manual.md)
 - first deploy and managed DSQL handling: [`docs/onboarding/07-first-deploy-and-managed-dsql.md`](docs/onboarding/07-first-deploy-and-managed-dsql.md)
 - day-2 operations: [`docs/onboarding/08-day-2-operations.md`](docs/onboarding/08-day-2-operations.md)
-
-If you are using the recovery-aware path, treat these as the key operator guides:
-
-- `docs/CUSTOMER_ONBOARDING.md`
-- `docs/onboarding/05-bootstrap-one-click.md`
-- `docs/onboarding/07-first-deploy-and-managed-dsql.md`
 
 ## Bootstrap Entrypoints
 
