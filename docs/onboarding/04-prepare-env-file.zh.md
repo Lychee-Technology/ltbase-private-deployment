@@ -20,12 +20,10 @@
    - `STACKS` — 逗号分隔的环境名列表，例如 `devo,prod`
    - `PROMOTION_PATH` — promotion 顺序，例如 `devo,prod`
    - 来源：你已经确认好的部署拓扑和 promotion 顺序
-3. 填写模板与仓库标识：
-   - `TEMPLATE_REPO`
+3. 填写仓库标识：
    - `GITHUB_OWNER`
    - `DEPLOYMENT_REPO_NAME`
-   - `DEPLOYMENT_REPO_VISIBILITY`
-   - `DEPLOYMENT_REPO_DESCRIPTION`
+   - 带默认值的可选 override：`TEMPLATE_REPO`（默认 `Lychee-Technology/ltbase-private-deployment`）、`DEPLOYMENT_REPO_VISIBILITY`（默认 `private`）、`DEPLOYMENT_REPO_DESCRIPTION`（默认 `Customer LTBase deployment repo`）
    - 来源：你的目标 GitHub owner 和客户部署仓库命名决定
 4. 填写 OIDC discovery 与 admin UI 域名信息：
     - `OIDC_DISCOVERY_DOMAIN`
@@ -37,22 +35,24 @@
 5. 填写 AWS 环境信息（每个 stack 一组）：
    - `AWS_REGION_<STACK>`
    - `AWS_ACCOUNT_ID_<STACK>`
-   - `AWS_ROLE_NAME_<STACK>`
+   - 可选 override：`AWS_ROLE_NAME_<STACK>`（默认 `ltbase-deploy-<stack>`）
    - 如果不同 stack 使用不同 AWS 账户，本地还可以补充 `AWS_PROFILE_<STACK>`
+   - Bootstrap 会自动把每个 `AWS_PROFILE_<STACK>` 背后的 IAM role（包括 IAM Identity Center 的 reserved SSO role）解析进 `PULUMI_BACKEND_ACCESS_PRINCIPAL_ARNS`，让该本地身份可以访问共享 Pulumi backend bucket。只有当 bootstrap 提示无法解析某个身份时（例如无法确定 SSO region 的 SSO profile），才需要手动填写 `PULUMI_BACKEND_ACCESS_PRINCIPAL_ARNS`。
    - 来源：每个 stack 对应的 AWS 账户规划
 6. 填写 Pulumi backend 信息：
    - `PULUMI_STATE_BUCKET`
-   - `PULUMI_KMS_ALIAS`
+   - 可选 override：`PULUMI_KMS_ALIAS`（默认 `alias/ltbase-pulumi-secrets`）
    - 如果你希望由 bootstrap 自动生成 `PULUMI_BACKEND_URL` 和每个 `PULUMI_SECRETS_PROVIDER_<STACK>`，可先留空
    - 来源：你希望 bootstrap 创建或使用的共享 Pulumi backend 资源命名
    - 重要：`PULUMI_STATE_BUCKET` 指向的共享 backend bucket 会创建在 `PROMOTION_PATH` 第一个 stack 对应的 AWS 账户中
 7. 填写 release 信息：
-    - `LTBASE_RELEASES_REPO`
     - `LTBASE_RELEASE_ID`
+    - 可选 override：`LTBASE_RELEASES_REPO`（默认 `Lychee-Technology/ltbase-releases`）
     - 来源：要部署的 LTBase release 仓库和 release ID
 8. 保留必填的 mTLS 默认值：
    - `MTLS_TRUSTSTORE_FILE`
    - `MTLS_TRUSTSTORE_KEY`
+   - 这两个默认值在未设置时会由 bootstrap 自动应用；不要修改它们。
    - 来源：此模板内置并已提交的 Cloudflare 全局 Authenticated Origin Pull truststore
    - 重要：它们是模板必需的默认值，不是可选功能开关。`api`、`auth`、`control-plane` 都会部署在 Cloudflare 代理和 API Gateway mutual TLS 之后。
 9. 填写按 stack 划分的域名信息：
@@ -63,7 +63,7 @@
       - `AUTH_CORS_ALLOW_ORIGINS_<STACK>`（可选）
       - `CONTROL_PLANE_CORS_ALLOW_ORIGINS_<STACK>`（可选）
       - `PROJECT_ID`
-      - `AUTH_PROVIDER_CONFIG_FILE_<STACK>`
+      - `AUTH_PROVIDER_CONFIG_FILE_<STACK>`（可选；默认 `infra/auth-providers.<stack>.json`）
       - `CLOUDFLARE_ZONE_ID`
       - 来源：你在目标 Cloudflare zone 中规划好的最终域名
       - bootstrap 会从 `.env` 里的 `CLOUDFLARE_ZONE_ID` 写入每个 `infra/Pulumi.<stack>.yaml` stack 配置；后续 preview 与 rollout 的 mTLS audit 会从该 stack 文件中读取 `ltbase-infra:awsRegion`、`ltbase-infra:apiDomain`、`ltbase-infra:controlPlaneDomain`、`ltbase-infra:authDomain`、`ltbase-infra:runtimeBucket` 和 `ltbase-infra:cloudflareZoneId`。
@@ -80,36 +80,38 @@
     - 来源：会发布给浏览器使用的 Firebase/Supabase 公共应用设置
     - 重要：这些值本来就是公开的。不要把 Firebase admin 凭据、Supabase service-role key 或任何其他 secret 写在这里。
     - 当前 Control Plane UI bootstrap 会使用这些值为每个 stack 渲染浏览器 runtime config。
-11. 填写应用默认值：
-    - `GEMINI_MODEL`
-    - `DSQL_PORT`、`DSQL_DB`、`DSQL_USER`、`DSQL_PROJECT_SCHEMA`
+11. 检查可选的应用 override（未设置时自动使用默认值）：
+    - `GEMINI_MODEL`（默认 `gemini-3.1-flash-lite`）
+    - `DSQL_PORT`、`DSQL_DB`、`DSQL_USER`、`DSQL_PROJECT_SCHEMA`（默认 `5432`、`postgres`、`admin`、`ltbase`）
     - 来源：LTBase 应用默认值，以及经过确认的客户特定 override
 12. 填写 secrets：
     - `GEMINI_API_KEY`
     - `CLOUDFLARE_API_TOKEN`
     - `LTBASE_RELEASES_TOKEN`
-13. 将文件保存在本地，并确认不会提交进仓库。
+13. 决定接受默认的每 stack schema bucket 命名，还是显式设置 override：
+    - `SCHEMA_BUCKET_<STACK>`
+    - 来源：preview 和 rollout 用于 schema 校验/发布的 stack 专属 S3 bucket
+    - 重要：preview 和 rollout 现在依赖每个已部署 stack 的 GitHub repository variable `SCHEMA_BUCKET_<STACK>`。如果你不想使用默认的 `<DEPLOYMENT_REPO_NAME>-schema-<stack>` 命名，请在 bootstrap 之前在 `.env` 中显式设置 override。
+14. 将文件保存在本地，并确认不会提交进仓库。
 
 ## 通常需要手动填写的值
 
 以下值属于客户可控输入，通常应该在 `.env` 中显式填写：
 
 - `STACKS`、`PROMOTION_PATH`
-- `TEMPLATE_REPO`、`GITHUB_OWNER`、`DEPLOYMENT_REPO_NAME`、`DEPLOYMENT_REPO_VISIBILITY`、`DEPLOYMENT_REPO_DESCRIPTION`
+- `GITHUB_OWNER`、`DEPLOYMENT_REPO_NAME`
 - `OIDC_DISCOVERY_DOMAIN`、`CONTROLPLANE_UI_DOMAIN`、`CLOUDFLARE_ACCOUNT_ID`
-- `AWS_REGION_<STACK>`、`AWS_ACCOUNT_ID_<STACK>`、`AWS_ROLE_NAME_<STACK>`
+- `AWS_REGION_<STACK>`、`AWS_ACCOUNT_ID_<STACK>`
 - 多账户场景下的 `AWS_PROFILE_<STACK>`
-- `PULUMI_STATE_BUCKET`、`PULUMI_KMS_ALIAS`
-- `LTBASE_RELEASES_REPO`、`LTBASE_RELEASE_ID`
-- 保持模板默认值不变的 `MTLS_TRUSTSTORE_FILE`、`MTLS_TRUSTSTORE_KEY`
-- `API_DOMAIN_<STACK>`、`CONTROL_DOMAIN_<STACK>`、`AUTH_DOMAIN_<STACK>`、`PROJECT_ID`、`AUTH_PROVIDER_CONFIG_FILE_<STACK>`、`CLOUDFLARE_ZONE_ID`
-
+- `PULUMI_STATE_BUCKET`
+- 当你不想使用 preview 和 rollout 默认的 `<DEPLOYMENT_REPO_NAME>-schema-<stack>` bucket 命名时，再填写 `SCHEMA_BUCKET_<STACK>`
+- `LTBASE_RELEASE_ID`
+- `API_DOMAIN_<STACK>`、`CONTROL_DOMAIN_<STACK>`、`AUTH_DOMAIN_<STACK>`、`PROJECT_ID`、`CLOUDFLARE_ZONE_ID`
 - 当你需要比默认 `*` 更严格的浏览器 CORS 策略时，再填写 `API_CORS_ALLOW_ORIGINS_<STACK>`、`AUTH_CORS_ALLOW_ORIGINS_<STACK>`
 - 当 control-plane API 需要在 `https://<CONTROLPLANE_UI_DOMAIN>` 之外额外允许其他浏览器 origin，或者你明确想使用通配符 `*` 时，再填写 `CONTROL_PLANE_CORS_ALLOW_ORIGINS_<STACK>`
   - `CLOUDFLARE_ZONE_ID` 仍然是 `.env` 中需要手动提供的 bootstrap 输入，但 preview 与 rollout 的 mTLS audit 实际读取的是 `infra/Pulumi.<stack>.yaml` 里保存的每个 stack 值，包括 `ltbase-infra:cloudflareZoneId`、域名、`awsRegion` 和 `runtimeBucket`。
 - `FIREBASE_API_KEY_<STACK>`、`FIREBASE_PROJECT_ID_<STACK>`、`SUPABASE_URL_<STACK>`、`SUPABASE_ANON_KEY_<STACK>`
-  - 这些是 control-plane UI companion 使用的浏览器公开配置，不是后端 secret。
-- `GEMINI_MODEL`、`DSQL_PORT`、`DSQL_DB`、`DSQL_USER`、`DSQL_PROJECT_SCHEMA`
+  - 这些是 control-plane UI 使用的浏览器公开配置，不是后端 secret。
 - `GEMINI_API_KEY`、`CLOUDFLARE_API_TOKEN`、`LTBASE_RELEASES_TOKEN`
 
 ## 通常由 Bootstrap 自动推导的值
@@ -120,21 +122,37 @@
   - 默认值：`${GITHUB_OWNER}/${DEPLOYMENT_REPO_NAME}`
 - `GITHUB_ORG`、`GITHUB_REPO`
   - 默认值：由 `GITHUB_OWNER` 和 `DEPLOYMENT_REPO_NAME` 推导
+- `TEMPLATE_REPO`、`DEPLOYMENT_REPO_VISIBILITY`、`DEPLOYMENT_REPO_DESCRIPTION`
+  - 默认值：`Lychee-Technology/ltbase-private-deployment`、`private`、`Customer LTBase deployment repo`
+- `AWS_ROLE_NAME_<STACK>`
+  - 默认值：`ltbase-deploy-<stack>`
 - `AWS_ROLE_ARN_<STACK>`
   - 默认值：由 `AWS_ACCOUNT_ID_<STACK>` 和 `AWS_ROLE_NAME_<STACK>` 推导
+- `PULUMI_KMS_ALIAS`
+  - 默认值：`alias/ltbase-pulumi-secrets`
+- `PULUMI_BACKEND_ACCESS_PRINCIPAL_ARNS`
+  - 默认值：bootstrap 会自动把每个 `AWS_PROFILE_<STACK>` 背后的 IAM role（包括 IAM Identity Center 的 reserved SSO role）追加进来；只有当 bootstrap 提示无法解析某个身份时才需要手动填写
+- `LTBASE_RELEASES_REPO`
+  - 默认值：`Lychee-Technology/ltbase-releases`
+- `MTLS_TRUSTSTORE_FILE`、`MTLS_TRUSTSTORE_KEY`
+  - 默认值：模板内置的 truststore 常量；不要修改
+- `AUTH_PROVIDER_CONFIG_FILE_<STACK>`
+  - 默认值：`infra/auth-providers.<stack>.json`
+- `GEMINI_MODEL`、`DSQL_PORT`、`DSQL_DB`、`DSQL_USER`、`DSQL_PROJECT_SCHEMA`
+  - 默认值：`gemini-3.1-flash-lite`、`5432`、`postgres`、`admin`、`ltbase`
 - `PULUMI_BACKEND_URL`
   - 默认值：`s3://${PULUMI_STATE_BUCKET}`
 - `PULUMI_SECRETS_PROVIDER_<STACK>`
   - 默认值：由 `PULUMI_KMS_ALIAS` 和 `AWS_REGION_<STACK>` 推导
 - `OIDC_DISCOVERY_PAGES_PROJECT`
   - 默认值：由 deployment repository 的命名输入推导
-- `CONTROLPLANE_UI_TEMPLATE_REPO`、`CONTROLPLANE_UI_REPO_NAME`、`CONTROLPLANE_UI_REPO`、`CONTROLPLANE_UI_PAGES_PROJECT`
+- `CONTROLPLANE_UI_PAGES_PROJECT`
   - 默认值：由 deployment repository 的命名输入推导
 - `OIDC_DISCOVERY_AWS_ROLE_NAME_<STACK>`、`OIDC_DISCOVERY_AWS_ROLE_ARN_<STACK>`
   - 默认值：由 deployment repository 名称和目标 AWS account ID 推导
 - `OIDC_ISSUER_URL_<STACK>`、`JWKS_URL_<STACK>`
   - 默认值：由 `OIDC_DISCOVERY_DOMAIN` 推导
-- `RUNTIME_BUCKET_<STACK>`、`TABLE_NAME_<STACK>`
+- `RUNTIME_BUCKET_<STACK>`、`SCHEMA_BUCKET_<STACK>`、`TABLE_NAME_<STACK>`
   - 默认值：由 `DEPLOYMENT_REPO_NAME` 推导
 - `PREVIEW_DEFAULT_STACK`
   - 默认值：`PROMOTION_PATH` 中的第一个 stack
@@ -144,16 +162,21 @@
 只有在默认值不适用于你的客户环境时，才需要填写这些项：
 
 - `DEPLOYMENT_REPO`
+- `TEMPLATE_REPO`、`DEPLOYMENT_REPO_VISIBILITY`、`DEPLOYMENT_REPO_DESCRIPTION`
+- `AWS_ROLE_NAME_<STACK>`
+- `PULUMI_KMS_ALIAS`
+- `PULUMI_BACKEND_ACCESS_PRINCIPAL_ARNS`
+- `LTBASE_RELEASES_REPO`
+- `AUTH_PROVIDER_CONFIG_FILE_<STACK>`
+- `GEMINI_MODEL`、`DSQL_PORT`、`DSQL_DB`、`DSQL_USER`、`DSQL_PROJECT_SCHEMA`
 - `OIDC_DISCOVERY_PAGES_PROJECT`
-- `CONTROLPLANE_UI_TEMPLATE_REPO`
-- `CONTROLPLANE_UI_REPO_NAME`
-- `CONTROLPLANE_UI_REPO`
 - `CONTROLPLANE_UI_PAGES_PROJECT`
 - `PULUMI_BACKEND_URL`
 - `PULUMI_SECRETS_PROVIDER_<STACK>`
 - `OIDC_ISSUER_URL_<STACK>`
 - `JWKS_URL_<STACK>`
 - `RUNTIME_BUCKET_<STACK>`
+- `SCHEMA_BUCKET_<STACK>`
 - `TABLE_NAME_<STACK>`
 - `OIDC_DISCOVERY_AWS_ROLE_NAME_<STACK>`
 
@@ -172,7 +195,7 @@
 - preview 与 rollout 需要每个 stack 都有有效的 `SCHEMA_BUCKET_<STACK>` repository variable；bootstrap 会根据 `.env` 或推导默认值写入这些值
 - bootstrap 会把 `ltbase-infra:controlPlaneCorsOrigins=https://<CONTROLPLANE_UI_DOMAIN>` 写入 stack 配置，让部署后的 control-plane API 接受来自 admin UI 域名的浏览器请求
 - 在操作者尝试使用 admin UI 前，先在身份提供方中允许 `https://<CONTROLPLANE_UI_DOMAIN>/auth/callback`，并至少为目标 LTBase project 绑定一个管理员用户或管理员用户组
-- 以下变量由 `scripts/lib/bootstrap-env.sh` 自动派生，通常不需要手动填写：`DEPLOYMENT_REPO`、`PULUMI_BACKEND_URL`、`PULUMI_SECRETS_PROVIDER_*`、`AWS_ROLE_ARN_*`、`OIDC_ISSUER_URL_*`、`JWKS_URL_*`、`RUNTIME_BUCKET_*`、`TABLE_NAME_*`、`GITHUB_ORG`、`GITHUB_REPO`、`OIDC_DISCOVERY_PAGES_PROJECT`、`OIDC_DISCOVERY_AWS_ROLE_NAME_*`、`OIDC_DISCOVERY_AWS_ROLE_ARN_*`、`PREVIEW_DEFAULT_STACK`
+- 以下变量由 `scripts/lib/bootstrap-env.sh` 自动派生或提供默认值，通常不需要手动填写：`DEPLOYMENT_REPO`、`TEMPLATE_REPO`、`DEPLOYMENT_REPO_VISIBILITY`、`DEPLOYMENT_REPO_DESCRIPTION`、`PULUMI_BACKEND_URL`、`PULUMI_KMS_ALIAS`、`PULUMI_SECRETS_PROVIDER_*`、`PULUMI_BACKEND_ACCESS_PRINCIPAL_ARNS`、`AWS_ROLE_NAME_*`、`AWS_ROLE_ARN_*`、`LTBASE_RELEASES_REPO`、`MTLS_TRUSTSTORE_*`、`AUTH_PROVIDER_CONFIG_FILE_*`、`GEMINI_MODEL`、`DSQL_PORT`、`DSQL_DB`、`DSQL_USER`、`DSQL_PROJECT_SCHEMA`、`OIDC_ISSUER_URL_*`、`JWKS_URL_*`、`RUNTIME_BUCKET_*`、`SCHEMA_BUCKET_*`、`TABLE_NAME_*`、`GITHUB_ORG`、`GITHUB_REPO`、`OIDC_DISCOVERY_PAGES_PROJECT`、`CONTROLPLANE_UI_PAGES_PROJECT`、`OIDC_DISCOVERY_AWS_ROLE_NAME_*`、`OIDC_DISCOVERY_AWS_ROLE_ARN_*`、`PREVIEW_DEFAULT_STACK`
 
 ## 预期结果
 

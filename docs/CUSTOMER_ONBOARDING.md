@@ -54,6 +54,8 @@ Manually trigger rollout workflow to deploy across PROMOTION_PATH
        ↓
 Protected environments require approval in GitHub before advancing
        ↓
+After each stack's first rollout, manually trigger publish-oidc-discovery.yml to publish OIDC Discovery documents (see section 12)
+       ↓
 Deployment complete; API, Auth, Control Plane, and UI are all reachable
 ```
 
@@ -61,7 +63,7 @@ Deployment complete; API, Auth, Control Plane, and UI are all reachable
 
 In the current repository version:
 
-- **Bootstrap** phase: Scripts create the Cloudflare Pages project, custom domain binding, DNS CNAME, and write browser runtime config via companion repository variables.
+- **Bootstrap** phase: `bootstrap-controlplane-ui-companion.sh` creates the Cloudflare Pages project, custom domain binding, and DNS CNAME (it creates no repository; "companion" in the script name is historical naming); the browser runtime config (`CONTROLPLANE_UI_STACK_CONFIG`) is written by `bootstrap-deployment-repo.sh` as a **deployment-repo GitHub variable**.
 - **Preview** phase: Infrastructure-only preview; **does not** publish the Control Plane UI.
 - **Rollout** phase: Downloads the official `ltbase-controlplane-ui.tar.gz` from the release artifact, combines it with runtime config from the deployment repo, and publishes to Cloudflare Pages.
 - The deployment repository is the operator-facing source of truth for all UI inputs, including `CONTROLPLANE_UI_DOMAIN`, stack browser config, auth provider name alignment, and Control Plane CORS configuration.
@@ -687,7 +689,7 @@ export AWS_PROFILE=customer-devo  # or confirm AWS_PROFILE_<STACK> is in .env
 2. `render-bootstrap-policies.sh` — Generates IAM policy artifacts
 3. `bootstrap-aws-foundation.sh` — Creates GitHub OIDC provider, deploy roles, Pulumi backend bucket, KMS alias
 4. `bootstrap-oidc-discovery.sh` — Creates OIDC discovery Cloudflare Pages project and DNS
-5. `bootstrap-controlplane-ui-companion.sh` — Creates Control Plane UI companion repo and Pages
+5. `bootstrap-controlplane-ui-companion.sh` — Creates the Control Plane UI Cloudflare Pages project, custom domain, and DNS CNAME (creates no repository)
 6. `bootstrap-deployment-repo.sh` — Configures Pulumi and GitHub values/secrets for each stack
 
 **Verify after completion:**

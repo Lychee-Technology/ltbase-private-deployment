@@ -54,6 +54,8 @@ bootstrap 脚本（一键或手动）创建 IAM 角色、Pulumi backend、OIDC d
        ↓
 保护环境在 GitHub 中审批后自动推进
        ↓
+每个 stack 首次 rollout 完成后，手动触发 publish-oidc-discovery.yml 发布 OIDC Discovery 文档（见第 12 节）
+       ↓
 部署完成，API/Auth/Control Plane/UI 均可访问
 ```
 
@@ -61,7 +63,7 @@ bootstrap 脚本（一键或手动）创建 IAM 角色、Pulumi backend、OIDC d
 
 在当前仓库版本中：
 
-- **bootstrap** 阶段：脚本创建 Cloudflare Pages 项目、自定义域名绑定、DNS CNAME，并通过 companion 仓库变量写入浏览器运行时配置。
+- **bootstrap** 阶段：`bootstrap-controlplane-ui-companion.sh` 创建 Cloudflare Pages 项目、自定义域名绑定和 DNS CNAME（不创建任何仓库；脚本名中的 companion 是历史命名）；浏览器运行时配置（`CONTROLPLANE_UI_STACK_CONFIG`）由 `bootstrap-deployment-repo.sh` 写入 **deployment repo 的 GitHub variable**。
 - **preview** 阶段：纯基础设施预览，**不发布** Control Plane UI。
 - **rollout** 阶段：从 release artifact 中下载官方 `ltbase-controlplane-ui.tar.gz`，结合 deployment repo 中的运行时配置，发布到 Cloudflare Pages。
 - deployment repo 是所有这些 UI 输入的操作者侧权威来源，包括 `CONTROLPLANE_UI_DOMAIN`、各 stack 浏览器配置、auth provider 名称对齐、Control Plane CORS 配置。
@@ -686,7 +688,7 @@ export AWS_PROFILE=customer-devo  # 或确保 AWS_PROFILE_<STACK> 在 .env 中�
 2. `render-bootstrap-policies.sh` — 生成 IAM policy 工件
 3. `bootstrap-aws-foundation.sh` — 创建 GitHub OIDC provider、deploy role、Pulumi backend bucket、KMS alias
 4. `bootstrap-oidc-discovery.sh` — 创建 OIDC discovery Cloudflare Pages 项目和 DNS
-5. `bootstrap-controlplane-ui-companion.sh` — 创建 Control Plane UI companion 仓库和 Pages
+5. `bootstrap-controlplane-ui-companion.sh` — 创建 Control Plane UI 的 Cloudflare Pages 项目、自定义域名和 DNS CNAME（不创建任何仓库）
 6. `bootstrap-deployment-repo.sh` — 为每个 stack 配置 Pulumi 和 GitHub values/secrets
 
 **完成后确认：**
