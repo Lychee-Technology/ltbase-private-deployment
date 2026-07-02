@@ -6,7 +6,17 @@ set -euo pipefail
 #   OIDC_DISCOVERY_STACK_CONFIG  – JSON mapping stack name -> {aws_region, aws_role_arn, kms_auth_key_alias}
 #   OIDC_DISCOVERY_OUTPUT_DIR    – directory to write generated files into
 # Optional:
-#   TARGET_STACK                 – "all" (default) or a specific stack name
+#   TARGET_STACKS                – CSV of stack names (e.g. "devo,prod"). Takes
+#                                  precedence over TARGET_STACK when set. Used to
+#                                  publish a promotion-path prefix in one run.
+#   TARGET_STACK                 – "all" (default) or a specific stack name.
+#                                  Ignored when TARGET_STACKS is set.
+#
+# When a stack's authservice signing KMS key does not exist yet (the alias
+# returns NotFoundException), this script publishes a PLACEHOLDER JWKS backed by
+# an ephemeral throwaway RSA key instead of failing. This keeps the discovery
+# endpoint valid so API Gateway can create its JWT authorizer during the stack's
+# first rollout; the real KMS-backed key is published afterward.
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 GENERATE_JWKS="${SCRIPT_DIR}/generate-jwks.py"
@@ -14,6 +24,22 @@ GENERATE_JWKS="${SCRIPT_DIR}/generate-jwks.py"
 fail() {
   printf '%s\n' "$1" >&2
   exit 1
+}
+
+# Generate an ephemeral throwaway RSA public key as base64-encoded DER
+# SubjectPublicKeyInfo. Used as a PLACEHOLDER when a stack's KMS signing key
+# does not exist yet. The private key is discarded, so the placeholder cannot be
+# used to mint tokens; it exists only to keep the discovery endpoint well-formed
+# until the real KMS-backed key is published after rollout.
+generate_placeholder_public_key_b64() {
+  command -v openssl >/dev/null 2>&1 || fail "openssl is required to generate a placeholder discovery key"
+  local der_b64
+  der_b64="$(openssl genpkey -algorithm RSA -pkeyopt rsa_keygen_bits:2048 2>/dev/null \
+    | openssl pkey -pubout -outform DER 2>/dev/null \
+    | base64 \
+    | tr -d '\n')" || fail "Failed to generate placeholder RSA key with openssl"
+  [[ -n "${der_b64}" ]] || fail "Placeholder RSA key generation produced no output"
+  printf '%s' "${der_b64}"
 }
 
 # --- validate required vars ---
@@ -27,10 +53,26 @@ if ! echo "${OIDC_DISCOVERY_STACK_CONFIG}" | jq -e 'type == "object"' >/dev/null
 fi
 
 TARGET_STACK="${TARGET_STACK:-all}"
+TARGET_STACKS="${TARGET_STACKS:-}"
 
 # --- determine stacks ---
 
-if [[ "${TARGET_STACK}" == "all" ]]; then
+if [[ -n "${TARGET_STACKS}" ]]; then
+  # CSV selection (promotion-path prefix). Takes precedence over TARGET_STACK.
+  stacks=()
+  IFS=',' read -r -a target_stacks_list <<<"${TARGET_STACKS}"
+  for raw_stack in "${target_stacks_list[@]}"; do
+    stack="${raw_stack//[[:space:]]/}"
+    [[ -n "${stack}" ]] || continue
+    if ! echo "${OIDC_DISCOVERY_STACK_CONFIG}" | jq -e --arg s "${stack}" '.[$s]' >/dev/null 2>&1; then
+      fail "Stack '${stack}' not found in OIDC_DISCOVERY_STACK_CONFIG"
+    fi
+    stacks+=("${stack}")
+  done
+  if [[ "${#stacks[@]}" -eq 0 ]]; then
+    fail "TARGET_STACKS did not resolve to any stack names"
+  fi
+elif [[ "${TARGET_STACK}" == "all" ]]; then
   stacks=()
   while IFS= read -r line; do
     [[ -n "${line}" ]] || continue
@@ -100,16 +142,32 @@ for stack in "${stacks[@]}"; do
   AWS_SESSION_TOKEN=$(echo "${creds}" | jq -r '.Credentials.SessionToken'); export AWS_SESSION_TOKEN
   export AWS_DEFAULT_REGION="${aws_region}"
 
-  # Fetch the RSA public key from KMS.
-  public_key_json=$(aws kms get-public-key --key-id "${kms_alias}" --output json) || fail "Failed to get KMS public key for ${kms_alias}"
-  public_key_b64=$(echo "${public_key_json}" | jq -r '.PublicKey')
-  key_id=$(echo "${public_key_json}" | jq -r '.KeyId')
+  # Fetch the RSA public key from KMS. When the signing key does not exist yet
+  # (NotFoundException), fall back to a PLACEHOLDER key so the discovery endpoint
+  # stays valid for API Gateway authorizer creation during the first rollout.
+  kms_stderr="$(mktemp)"
+  if public_key_json=$(aws kms get-public-key --key-id "${kms_alias}" --output json 2>"${kms_stderr}"); then
+    rm -f "${kms_stderr}"
+    public_key_b64=$(echo "${public_key_json}" | jq -r '.PublicKey')
+    key_id=$(echo "${public_key_json}" | jq -r '.KeyId')
 
-  if [[ -z "${public_key_b64}" || "${public_key_b64}" == "null" ]]; then
-    fail "KMS get-public-key returned no PublicKey for ${kms_alias}"
-  fi
-  if [[ -z "${key_id}" || "${key_id}" == "null" ]]; then
-    fail "KMS get-public-key returned no KeyId for ${kms_alias}"
+    if [[ -z "${public_key_b64}" || "${public_key_b64}" == "null" ]]; then
+      fail "KMS get-public-key returned no PublicKey for ${kms_alias}"
+    fi
+    if [[ -z "${key_id}" || "${key_id}" == "null" ]]; then
+      fail "KMS get-public-key returned no KeyId for ${kms_alias}"
+    fi
+  else
+    kms_error="$(<"${kms_stderr}")"
+    rm -f "${kms_stderr}"
+    if [[ "${kms_error}" == *"NotFoundException"* ]]; then
+      echo "WARNING: KMS key ${kms_alias} not found for ${stack}; publishing PLACEHOLDER JWKS (replaced after rollout)" >&2
+      public_key_b64="$(generate_placeholder_public_key_b64)"
+      key_id="placeholder"
+    else
+      [[ -n "${kms_error}" ]] && printf '%s\n' "${kms_error}" >&2
+      fail "Failed to get KMS public key for ${kms_alias}"
+    fi
   fi
 
   # Generate JWKS.

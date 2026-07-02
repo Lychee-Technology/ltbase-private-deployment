@@ -80,6 +80,28 @@ cat >"${fake_bin}/aws" <<'AWSEOF'
 #!/usr/bin/env bash
 set -euo pipefail
 if [[ "${1:-} ${2:-}" == "kms get-public-key" ]]; then
+  key_id=""
+  while [[ $# -gt 0 ]]; do
+    if [[ "$1" == "--key-id" ]]; then
+      key_id="${2:-}"
+      break
+    fi
+    shift
+  done
+  # Simulate a missing signing key (first rollout not done yet).
+  for alias in ${KMS_NOTFOUND_ALIASES:-}; do
+    if [[ "${key_id}" == "${alias}" ]]; then
+      echo "An error occurred (NotFoundException) when calling the GetPublicKey operation: Alias ${key_id} is not found." >&2
+      exit 254
+    fi
+  done
+  # Simulate a non-NotFound error (must still fail the build).
+  for alias in ${KMS_DENIED_ALIASES:-}; do
+    if [[ "${key_id}" == "${alias}" ]]; then
+      echo "An error occurred (AccessDeniedException) when calling the GetPublicKey operation" >&2
+      exit 254
+    fi
+  done
   printf '{"KeyId":"arn:aws:kms:us-east-1:123456789012:key/test-key-00001","PublicKey":"%s"}\n' "${KMS_PUBLIC_KEY_B64:-}"
   exit 0
 fi
@@ -265,6 +287,140 @@ if ! grep -q '/devo/.well-known/openid-configuration' "${output_dir}/_headers"; 
 fi
 if ! grep -q 'Content-Type: application/json' "${output_dir}/_headers"; then
   fail "missing Content-Type header in _headers"
+fi
+
+# ---------- Test 9: TARGET_STACKS CSV selects a prefix ----------
+
+output_dir="${temp_dir}/target-stacks-csv"
+mkdir -p "${output_dir}"
+if ! PATH="${fake_bin}:$PATH" \
+  KMS_PUBLIC_KEY_B64="${kms_public_key_b64}" \
+  OIDC_DISCOVERY_DOMAIN="oidc.example.com" \
+  OIDC_DISCOVERY_STACK_CONFIG="${stack_config}" \
+  OIDC_DISCOVERY_OUTPUT_DIR="${output_dir}" \
+  TARGET_STACKS="devo,prod" \
+  ACTIONS_ID_TOKEN_REQUEST_TOKEN="fake-github-token" \
+  ACTIONS_ID_TOKEN_REQUEST_URL="https://pipelines.actions.githubusercontent.com/abcdef/" \
+  "${BUILD_SCRIPT}" >/dev/null 2>&1; then
+  fail "expected TARGET_STACKS CSV build to succeed"
+fi
+assert_dir_contains "${output_dir}" "devo/.well-known/jwks.json"
+assert_dir_contains "${output_dir}" "prod/.well-known/jwks.json"
+
+# ---------- Test 9b: whitespace in TARGET_STACKS is tolerated ----------
+
+output_dir="${temp_dir}/target-stacks-space"
+mkdir -p "${output_dir}"
+if ! PATH="${fake_bin}:$PATH" \
+  KMS_PUBLIC_KEY_B64="${kms_public_key_b64}" \
+  OIDC_DISCOVERY_DOMAIN="oidc.example.com" \
+  OIDC_DISCOVERY_STACK_CONFIG="${stack_config}" \
+  OIDC_DISCOVERY_OUTPUT_DIR="${output_dir}" \
+  TARGET_STACKS="devo, prod" \
+  ACTIONS_ID_TOKEN_REQUEST_TOKEN="fake-github-token" \
+  ACTIONS_ID_TOKEN_REQUEST_URL="https://pipelines.actions.githubusercontent.com/abcdef/" \
+  "${BUILD_SCRIPT}" >/dev/null 2>&1; then
+  fail "expected TARGET_STACKS with whitespace to succeed"
+fi
+assert_dir_contains "${output_dir}" "devo/.well-known/jwks.json"
+assert_dir_contains "${output_dir}" "prod/.well-known/jwks.json"
+
+# ---------- Test 10: TARGET_STACKS takes precedence over TARGET_STACK ----------
+
+output_dir="${temp_dir}/target-stacks-precedence"
+mkdir -p "${output_dir}"
+if ! PATH="${fake_bin}:$PATH" \
+  KMS_PUBLIC_KEY_B64="${kms_public_key_b64}" \
+  OIDC_DISCOVERY_DOMAIN="oidc.example.com" \
+  OIDC_DISCOVERY_STACK_CONFIG="${stack_config}" \
+  OIDC_DISCOVERY_OUTPUT_DIR="${output_dir}" \
+  TARGET_STACKS="devo" \
+  TARGET_STACK="prod" \
+  ACTIONS_ID_TOKEN_REQUEST_TOKEN="fake-github-token" \
+  ACTIONS_ID_TOKEN_REQUEST_URL="https://pipelines.actions.githubusercontent.com/abcdef/" \
+  "${BUILD_SCRIPT}" >/dev/null 2>&1; then
+  fail "expected TARGET_STACKS precedence build to succeed"
+fi
+assert_dir_contains "${output_dir}" "devo/.well-known/jwks.json"
+assert_dir_not_contains "${output_dir}" "prod"
+
+# ---------- Test 11: invalid stack in TARGET_STACKS fails ----------
+
+output_dir="${temp_dir}/target-stacks-invalid"
+mkdir -p "${output_dir}"
+if PATH="${fake_bin}:$PATH" \
+  KMS_PUBLIC_KEY_B64="${kms_public_key_b64}" \
+  OIDC_DISCOVERY_DOMAIN="oidc.example.com" \
+  OIDC_DISCOVERY_STACK_CONFIG="${stack_config}" \
+  OIDC_DISCOVERY_OUTPUT_DIR="${output_dir}" \
+  TARGET_STACKS="devo,nonexistent" \
+  ACTIONS_ID_TOKEN_REQUEST_TOKEN="fake-github-token" \
+  ACTIONS_ID_TOKEN_REQUEST_URL="https://pipelines.actions.githubusercontent.com/abcdef/" \
+  "${BUILD_SCRIPT}" >/dev/null 2>&1; then
+  fail "expected failure when TARGET_STACKS contains an unknown stack"
+fi
+
+# ---------- Test 12: missing KMS key falls back to a placeholder JWKS ----------
+# prod's signing key does not exist yet; build must still succeed, emit a
+# placeholder jwks.json (kid=placeholder), warn on stderr, and keep devo real.
+
+output_dir="${temp_dir}/placeholder"
+mkdir -p "${output_dir}"
+placeholder_log="${temp_dir}/placeholder.log"
+if ! PATH="${fake_bin}:$PATH" \
+  KMS_PUBLIC_KEY_B64="${kms_public_key_b64}" \
+  KMS_NOTFOUND_ALIASES="alias/ltbase-prod-auth" \
+  OIDC_DISCOVERY_DOMAIN="oidc.example.com" \
+  OIDC_DISCOVERY_STACK_CONFIG="${stack_config}" \
+  OIDC_DISCOVERY_OUTPUT_DIR="${output_dir}" \
+  TARGET_STACKS="devo,prod" \
+  ACTIONS_ID_TOKEN_REQUEST_TOKEN="fake-github-token" \
+  ACTIONS_ID_TOKEN_REQUEST_URL="https://pipelines.actions.githubusercontent.com/abcdef/" \
+  "${BUILD_SCRIPT}" >/dev/null 2>"${placeholder_log}"; then
+  fail "expected build with a missing KMS key to succeed via placeholder"
+fi
+assert_dir_contains "${output_dir}" "devo/.well-known/jwks.json"
+assert_dir_contains "${output_dir}" "prod/.well-known/jwks.json"
+assert_dir_contains "${output_dir}" "prod/.well-known/openid-configuration"
+
+if ! grep -q 'PLACEHOLDER' "${placeholder_log}"; then
+  fail "expected a PLACEHOLDER warning when the KMS key is missing"
+fi
+
+prod_kid="$(python3 -c "import json; print(json.load(open('${output_dir}/prod/.well-known/jwks.json'))['keys'][0]['kid'])")"
+if [[ "${prod_kid}" != "placeholder" ]]; then
+  fail "expected placeholder kid for prod, got ${prod_kid}"
+fi
+
+# The prod placeholder jwks must still be a structurally valid RSA JWK.
+python3 -c "
+import json
+jwk = json.load(open('${output_dir}/prod/.well-known/jwks.json'))['keys'][0]
+assert jwk['kty'] == 'RSA', jwk
+assert jwk['n'] and jwk['e'], jwk
+" || fail "placeholder jwks is not a valid RSA JWK"
+
+# devo (real key present) must not be a placeholder.
+devo_kid="$(python3 -c "import json; print(json.load(open('${output_dir}/devo/.well-known/jwks.json'))['keys'][0]['kid'])")"
+if [[ "${devo_kid}" == "placeholder" ]]; then
+  fail "expected devo to use a real KMS key, got placeholder"
+fi
+
+# ---------- Test 13: non-NotFound KMS errors still fail the build ----------
+
+output_dir="${temp_dir}/kms-denied"
+mkdir -p "${output_dir}"
+if PATH="${fake_bin}:$PATH" \
+  KMS_PUBLIC_KEY_B64="${kms_public_key_b64}" \
+  KMS_DENIED_ALIASES="alias/ltbase-devo-auth" \
+  OIDC_DISCOVERY_DOMAIN="oidc.example.com" \
+  OIDC_DISCOVERY_STACK_CONFIG="${stack_config}" \
+  OIDC_DISCOVERY_OUTPUT_DIR="${output_dir}" \
+  TARGET_STACK="devo" \
+  ACTIONS_ID_TOKEN_REQUEST_TOKEN="fake-github-token" \
+  ACTIONS_ID_TOKEN_REQUEST_URL="https://pipelines.actions.githubusercontent.com/abcdef/" \
+  "${BUILD_SCRIPT}" >/dev/null 2>&1; then
+  fail "expected non-NotFound KMS errors to fail the build"
 fi
 
 printf 'PASS: build-discovery tests\n'
