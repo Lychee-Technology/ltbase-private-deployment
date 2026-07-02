@@ -52,6 +52,7 @@ onboarding 文档支持通用多 stack 拓扑。文中出现 `devo`、`prod` 等
 快速参考：
 
 - [`docs/BOOTSTRAP.zh.md`](docs/BOOTSTRAP.zh.md) — 快速 bootstrap 清单
+- [`docs/GITHUB_ACTIONS.zh.md`](docs/GITHUB_ACTIONS.zh.md) — 逐个工作流的 GitHub Actions 参考（每个工作流做什么、何时用、参数与示例）
 
 深入参考（按需阅读）：
 

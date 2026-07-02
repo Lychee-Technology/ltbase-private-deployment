@@ -54,6 +54,7 @@ Main entrypoint — **new users start here**:
 Quick reference:
 
 - [`docs/BOOTSTRAP.md`](docs/BOOTSTRAP.md) — quick bootstrap checklist
+- [`docs/GITHUB_ACTIONS.md`](docs/GITHUB_ACTIONS.md) — per-workflow GitHub Actions reference (what each workflow does, when to use it, inputs and examples)
 
 Detailed reference (read as needed):
 
