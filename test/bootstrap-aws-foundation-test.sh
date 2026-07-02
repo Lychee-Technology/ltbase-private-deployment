@@ -85,8 +85,18 @@ if [[ "\$*" == *"sts get-caller-identity"* && "\$*" == *"--query Arn"* ]]; then
   exit 0
 fi
 if [[ "\$*" == *"configure get sso_region"* ]]; then
+  if [[ "\${AWS_SSO_REGION_BEHAVIOR:-}" == "unavailable" ]]; then
+    exit 1
+  fi
   printf 'us-west-2\n'
   exit 0
+fi
+if [[ "\$*" == *"configure get sso_session"* ]]; then
+  if [[ "\${AWS_SSO_SESSION_BEHAVIOR:-}" == "available" ]]; then
+    printf 'test-session\n'
+    exit 0
+  fi
+  exit 1
 fi
 args=("\$@")
 if [[ "\${args[0]:-}" == "--profile" ]]; then
@@ -171,7 +181,7 @@ if [[ -x "${SCRIPT_PATH}" ]]; then
   assert_file_contains "${temp_dir}/dist/pulumi-backend-bucket-policy.json" "arn:aws:iam::345678901234:role/ltbase-deploy-staging"
   assert_file_contains "${temp_dir}/dist/pulumi-backend-bucket-policy.json" "arn:aws:iam::210987654321:role/ltbase-deploy-prod"
   assert_file_contains "${temp_dir}/dist/pulumi-backend-bucket-policy.json" "s3:DeleteObject"
-  assert_log_contains "${log_file}" "aws sts get-caller-identity --profile prod-profile --query Arn --output text"
+  assert_log_contains "${log_file}" "aws --profile prod-profile sts get-caller-identity --query Arn --output text"
   assert_file_contains "${temp_dir}/dist/pulumi-backend-bucket-policy.json" "arn:aws:iam::999999999999:role/aws-reserved/sso.amazonaws.com/us-west-2/AWSReservedSSO_Admin_test"
   assert_log_contains "${log_file}" "aws --profile devo-profile kms create-key --region ap-northeast-1"
   assert_log_contains "${log_file}" "aws --profile staging-profile kms create-key --region eu-central-1"
@@ -201,6 +211,38 @@ if [[ -x "${SCRIPT_PATH}" ]]; then
 else
   fail "missing executable script: ${SCRIPT_PATH}"
 fi
+
+# Modern `aws configure sso` profiles keep sso_region in an [sso-session]
+# section that `aws configure get sso_region` cannot see; the region must be
+# resolved through the session section of the config file.
+cat >"${temp_dir}/aws-config" <<'EOF'
+[sso-session test-session]
+sso_region = eu-west-1
+sso_start_url = https://example.awsapps.com/start
+EOF
+
+: >"${log_file}"
+if ! output="$(PATH="${fake_bin}:$PATH" AWS_SSO_REGION_BEHAVIOR=unavailable AWS_SSO_SESSION_BEHAVIOR=available AWS_CONFIG_FILE="${temp_dir}/aws-config" "${SCRIPT_PATH}" --env-file "${temp_dir}/.env" --output-dir "${temp_dir}/dist-sso-session" 2>&1)"; then
+  rm -rf "${temp_dir}"
+  fail "expected sso-session fallback bootstrap to succeed, got: ${output}"
+fi
+
+assert_file_contains "${temp_dir}/dist-sso-session/pulumi-backend-bucket-policy.json" "arn:aws:iam::999999999999:role/aws-reserved/sso.amazonaws.com/eu-west-1/AWSReservedSSO_Admin_test"
+assert_log_contains <(printf '%s' "${output}") "Derived Pulumi backend principal for stack"
+
+# When neither the profile nor an sso-session yields the SSO region, the SSO
+# principal must be skipped with a warning — never written to the bucket
+# policy in the plain role form, which S3 rejects as a nonexistent principal.
+: >"${log_file}"
+if ! output="$(PATH="${fake_bin}:$PATH" AWS_SSO_REGION_BEHAVIOR=unavailable "${SCRIPT_PATH}" --env-file "${temp_dir}/.env" --output-dir "${temp_dir}/dist-sso-unresolved" 2>&1)"; then
+  rm -rf "${temp_dir}"
+  fail "expected bootstrap to succeed when the SSO region cannot be resolved, got: ${output}"
+fi
+
+assert_log_contains <(printf '%s' "${output}") "[warn] Could not resolve the SSO region for profile"
+assert_log_contains <(printf '%s' "${output}") "PULUMI_BACKEND_ACCESS_PRINCIPAL_ARNS"
+assert_file_not_contains "${temp_dir}/dist-sso-unresolved/pulumi-backend-bucket-policy.json" "arn:aws:iam::999999999999:role/AWSReservedSSO_Admin_test"
+assert_file_contains "${temp_dir}/dist-sso-unresolved/pulumi-backend-bucket-policy.json" "arn:aws:iam::123456789012:role/ltbase-deploy-devo"
 
 cat >"${temp_dir}/missing-profiles.env" <<'EOF'
 STACKS=devo,prod

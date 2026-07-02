@@ -167,5 +167,93 @@ assert_eq 'arn:aws:iam::111111111111:role/Foo' \
 assert_eq '' \
   "$(bootstrap_env_iam_role_arn_from_caller_arn 'arn:aws:iam::111111111111:user/bob' '')" \
   'iam user ARN should yield empty'
+assert_eq '' \
+  "$(bootstrap_env_iam_role_arn_from_caller_arn 'arn:aws:sts::210987654321:assumed-role/AWSReservedSSO_Admin_abc123/alice' '')" \
+  'SSO assumed-role with unknown sso_region must yield empty, never the plain role form'
+
+# ---------- SSO region resolution for a profile ----------
+
+fake_bin="${temp_dir}/bin"
+mkdir -p "${fake_bin}"
+cat >"${fake_bin}/aws" <<'FAKEEOF'
+#!/usr/bin/env bash
+case "$*" in
+  *"configure get sso_region"*)
+    if [[ -n "${FAKE_SSO_REGION:-}" ]]; then printf '%s\n' "${FAKE_SSO_REGION}"; exit 0; fi
+    exit 1
+    ;;
+  *"configure get sso_session"*)
+    if [[ -n "${FAKE_SSO_SESSION:-}" ]]; then printf '%s\n' "${FAKE_SSO_SESSION}"; exit 0; fi
+    exit 1
+    ;;
+  *"sts get-caller-identity"*)
+    if [[ -n "${FAKE_CALLER_ARN:-}" ]]; then printf '%s\n' "${FAKE_CALLER_ARN}"; exit 0; fi
+    exit 1
+    ;;
+  *)
+    exit 1
+    ;;
+esac
+FAKEEOF
+chmod +x "${fake_bin}/aws"
+
+aws_config_file="${temp_dir}/aws-config"
+cat >"${aws_config_file}" <<'CONFEOF'
+[profile session-profile]
+sso_session = test-session
+
+[sso-session test-session]
+sso_region = eu-west-1
+sso_start_url = https://example.awsapps.com/start
+CONFEOF
+
+assert_eq 'us-west-2' \
+  "$(PATH="${fake_bin}:${PATH}" FAKE_SSO_REGION=us-west-2 bootstrap_env_sso_region_for_profile legacy-profile)" \
+  'legacy profile-level sso_region should win'
+assert_eq 'eu-west-1' \
+  "$(PATH="${fake_bin}:${PATH}" FAKE_SSO_SESSION=test-session AWS_CONFIG_FILE="${aws_config_file}" bootstrap_env_sso_region_for_profile session-profile)" \
+  'sso-session config section should provide the region when the profile lacks sso_region'
+assert_eq '' \
+  "$(PATH="${fake_bin}:${PATH}" bootstrap_env_sso_region_for_profile unknown-profile)" \
+  'unresolvable profile should yield empty without failing'
+
+# ---------- backend principal derivation from AWS_PROFILE_<STACK> ----------
+
+sso_caller_arn='arn:aws:sts::123456789012:assumed-role/AWSReservedSSO_Admin_abc123/alice'
+AWS_PROFILE_DEVO='fake-profile'
+
+unset PULUMI_BACKEND_ACCESS_PRINCIPAL_ARNS
+: >"${stdout_file}"
+: >"${stderr_file}"
+PATH="${fake_bin}:${PATH}" FAKE_CALLER_ARN="${sso_caller_arn}" FAKE_SSO_REGION=us-west-2 \
+  bootstrap_env_derive_backend_principals_from_profiles >"${stdout_file}" 2>"${stderr_file}"
+assert_eq 'arn:aws:iam::123456789012:role/aws-reserved/sso.amazonaws.com/us-west-2/AWSReservedSSO_Admin_abc123' \
+  "${PULUMI_BACKEND_ACCESS_PRINCIPAL_ARNS:-}" \
+  'derivation should append the reserved SSO role ARN'
+if ! grep -q 'Derived Pulumi backend principal for stack devo' "${stdout_file}"; then
+  fail 'derivation should log the derived principal'
+fi
+
+unset PULUMI_BACKEND_ACCESS_PRINCIPAL_ARNS
+: >"${stderr_file}"
+PATH="${fake_bin}:${PATH}" FAKE_CALLER_ARN="${sso_caller_arn}" \
+  bootstrap_env_derive_backend_principals_from_profiles >/dev/null 2>"${stderr_file}"
+assert_eq '' "${PULUMI_BACKEND_ACCESS_PRINCIPAL_ARNS:-}" \
+  'SSO caller with unresolvable region must be skipped, not added in the malformed plain form'
+if ! grep -q '\[warn\].*PULUMI_BACKEND_ACCESS_PRINCIPAL_ARNS' "${stderr_file}"; then
+  fail 'skipped SSO caller should warn about the manual fallback'
+fi
+
+unset AWS_PROFILE_DEVO
+
+# ---------- CSV splitting must not glob-expand entries ----------
+
+glob_probe="$(cd "${temp_dir}" && bootstrap_env_each_stack '*')"
+assert_eq '*' "${glob_probe}" 'bootstrap_env_each_stack should not glob-expand entries'
+
+glob_json="$(cd "${temp_dir}" && PULUMI_BACKEND_ACCESS_PRINCIPAL_ARNS='*' STACKS=devo bootstrap_env_pulumi_backend_principal_arns_json)"
+if [[ "${glob_json}" != *'"*"'* ]]; then
+  fail "principal ARNs JSON should keep a literal * entry, got [${glob_json}]"
+fi
 
 printf 'PASS: bootstrap-env tests\n'

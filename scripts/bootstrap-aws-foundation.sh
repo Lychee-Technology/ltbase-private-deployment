@@ -209,28 +209,9 @@ bootstrap_env_run_quiet bootstrap_env_aws_command_for_stack "${first_stack}" s3a
 bootstrap_env_run_quiet bootstrap_env_aws_command_for_stack "${first_stack}" s3api put-bucket-encryption --bucket "${PULUMI_STATE_BUCKET}" --server-side-encryption-configuration '{"Rules":[{"ApplyServerSideEncryptionByDefault":{"SSEAlgorithm":"AES256"}}]}'
 bootstrap_env_run_quiet bootstrap_env_aws_command_for_stack "${first_stack}" s3api put-public-access-block --bucket "${PULUMI_STATE_BUCKET}" --public-access-block-configuration BlockPublicAcls=true,IgnorePublicAcls=true,BlockPublicPolicy=true,RestrictPublicBuckets=true
 
-# Auto-derive local split-account operator principals from AWS_PROFILE_<STACK>.
-# When a stack uses a local profile, the identity behind that profile also needs
-# direct backend access to run `pulumi` locally. We resolve its IAM role ARN
-# (including the reserved SSO path for IAM Identity Center roles) so operators do
-# not have to hand-compute it. PULUMI_BACKEND_ACCESS_PRINCIPAL_ARNS remains a
-# manual fallback for identities we cannot resolve automatically.
-while IFS= read -r stack; do
-  stack_upper="$(bootstrap_env_stack_upper "${stack}")"
-  profile_var="AWS_PROFILE_${stack_upper}"
-  profile_value="${!profile_var:-}"
-  [[ -n "${profile_value}" ]] || continue
-
-  if ! caller_arn="$(aws sts get-caller-identity --profile "${profile_value}" --query Arn --output text 2>/dev/null)"; then
-    continue
-  fi
-  sso_region="$(aws configure get sso_region --profile "${profile_value}" 2>/dev/null || true)"
-  derived_role_arn="$(bootstrap_env_iam_role_arn_from_caller_arn "${caller_arn}" "${sso_region}")"
-  if [[ -n "${derived_role_arn}" ]]; then
-    PULUMI_BACKEND_ACCESS_PRINCIPAL_ARNS="$(bootstrap_env_append_csv_value_once "${PULUMI_BACKEND_ACCESS_PRINCIPAL_ARNS:-}" "${derived_role_arn}")"
-    export PULUMI_BACKEND_ACCESS_PRINCIPAL_ARNS
-  fi
-done < <(bootstrap_env_each_stack)
+# Fold the local operator identity behind each AWS_PROFILE_<STACK> into
+# PULUMI_BACKEND_ACCESS_PRINCIPAL_ARNS before rendering the bucket policy.
+bootstrap_env_derive_backend_principals_from_profiles
 
 # Grant every stack deploy role, and any local split-account operator identity
 # in PULUMI_BACKEND_ACCESS_PRINCIPAL_ARNS, cross-account access to the shared
@@ -242,4 +223,3 @@ backend_principals_json="$(bootstrap_env_pulumi_backend_principal_arns_json)"
 backend_bucket_policy_path="${OUTPUT_DIR}/pulumi-backend-bucket-policy.json"
 bootstrap_env_pulumi_backend_bucket_policy_json "${PULUMI_STATE_BUCKET}" "${backend_principals_json}" >"${backend_bucket_policy_path}"
 bootstrap_env_run_quiet bootstrap_env_aws_command_for_stack "${first_stack}" s3api put-bucket-policy --bucket "${PULUMI_STATE_BUCKET}" --policy "file://${backend_bucket_policy_path}"
-

@@ -6,6 +6,10 @@ bootstrap_env_info() {
   printf '[info] %s\n' "$*"
 }
 
+bootstrap_env_warn() {
+  printf '[warn] %s\n' "$*" >&2
+}
+
 bootstrap_env_run_quiet() {
   local output status
 
@@ -117,13 +121,21 @@ bootstrap_env_stack_upper() {
 }
 
 bootstrap_env_each_stack() {
-  local csv old_ifs
+  local csv old_ifs noglob_was_on
   csv="$(bootstrap_env_normalize_csv "${1:-${STACKS:-devo,prod}}")"
   old_ifs="${IFS}"
+  noglob_was_on=0
+  if [[ -o noglob ]]; then
+    noglob_was_on=1
+  fi
+  set -f
   IFS=','
   # shellcheck disable=SC2086
   set -- ${csv}
   IFS="${old_ifs}"
+  if [[ "${noglob_was_on}" -eq 0 ]]; then
+    set +f
+  fi
   for stack in "$@"; do
     if [[ -n "${stack}" ]]; then
       printf '%s\n' "${stack}"
@@ -174,14 +186,22 @@ bootstrap_env_pulumi_backend_principal_arns_json() {
       printf '%s\n' "$(bootstrap_env_resolve_stack_value AWS_ROLE_ARN "${stack}")"
     done < <(bootstrap_env_each_stack)
 
-    local extra old_ifs
+    local extra old_ifs noglob_was_on
     extra="$(bootstrap_env_normalize_csv "${PULUMI_BACKEND_ACCESS_PRINCIPAL_ARNS:-}")"
     if [[ -n "${extra}" ]]; then
       old_ifs="${IFS}"
+      noglob_was_on=0
+      if [[ -o noglob ]]; then
+        noglob_was_on=1
+      fi
+      set -f
       IFS=','
       # shellcheck disable=SC2086
       set -- ${extra}
       IFS="${old_ifs}"
+      if [[ "${noglob_was_on}" -eq 0 ]]; then
+        set +f
+      fi
       for arn in "$@"; do
         printf '%s\n' "${arn}"
       done
@@ -238,7 +258,9 @@ bootstrap_env_iam_role_arn_from_caller_arn() {
   # underlying IAM role ARN that a bucket policy Principal understands.
   #   - assumed-role ARNs lose their session component
   #   - AWS IAM Identity Center (SSO) roles gain the reserved SSO path, which
-  #     requires the SSO region as the second argument
+  #     requires the SSO region as the second argument; when the region is
+  #     unknown the result is empty (the plain role form would name a
+  #     nonexistent principal and S3 rejects the whole bucket policy)
   #   - plain IAM role ARNs are returned unchanged
   #   - IAM user ARNs (or anything unrecognized) yield empty output
   local caller_arn="$1"
@@ -251,8 +273,12 @@ bootstrap_env_iam_role_arn_from_caller_arn() {
       account="${rest%%:*}"
       rest="${rest#*:assumed-role/}"
       role_name="${rest%%/*}"
-      if [[ "${role_name}" == AWSReservedSSO_* && -n "${sso_region}" ]]; then
-        printf 'arn:aws:iam::%s:role/aws-reserved/sso.amazonaws.com/%s/%s' "${account}" "${sso_region}" "${role_name}"
+      if [[ "${role_name}" == AWSReservedSSO_* ]]; then
+        if [[ -n "${sso_region}" ]]; then
+          printf 'arn:aws:iam::%s:role/aws-reserved/sso.amazonaws.com/%s/%s' "${account}" "${sso_region}" "${role_name}"
+        else
+          printf ''
+        fi
       else
         printf 'arn:aws:iam::%s:role/%s' "${account}" "${role_name}"
       fi
@@ -277,6 +303,44 @@ bootstrap_env_stack_profile_args() {
     printf '%s\n' "--profile"
     printf '%s\n' "${!profile_var_name}"
   fi
+}
+
+bootstrap_env_sso_region_for_profile() {
+  # Print the SSO region for an AWS CLI profile, or nothing when it cannot be
+  # resolved. Always returns 0. Legacy SSO profiles carry sso_region directly;
+  # modern `aws configure sso` setups put it in an [sso-session <name>] section
+  # that `aws configure get` cannot address (the dotted
+  # `sso-session.<name>.sso_region` form is not supported by AWS CLI v2), so we
+  # read the session section from the config file ourselves.
+  local profile="$1"
+  local sso_region sso_session config_file
+
+  if sso_region="$(aws configure get sso_region --profile "${profile}" 2>/dev/null)" && [[ -n "${sso_region}" ]]; then
+    printf '%s' "${sso_region}"
+    return 0
+  fi
+
+  if ! sso_session="$(aws configure get sso_session --profile "${profile}" 2>/dev/null)" || [[ -z "${sso_session}" ]]; then
+    return 0
+  fi
+
+  config_file="${AWS_CONFIG_FILE:-${HOME}/.aws/config}"
+  [[ -f "${config_file}" ]] || return 0
+
+  python3 - "${config_file}" "${sso_session}" <<'PY' 2>/dev/null || true
+import configparser
+import sys
+
+config_file, session = sys.argv[1], sys.argv[2]
+try:
+    parser = configparser.RawConfigParser(strict=False)
+    parser.read(config_file)
+    value = parser.get(f"sso-session {session}", "sso_region", fallback="")
+except Exception:
+    value = ""
+if value:
+    print(value.strip())
+PY
 }
 
 bootstrap_env_stack_runtime_env() {
@@ -330,6 +394,37 @@ bootstrap_env_aws_command_for_stack() {
   done < <(bootstrap_env_stack_profile_args "${stack}")
   command+=("$@")
   "${command[@]}"
+}
+
+bootstrap_env_derive_backend_principals_from_profiles() {
+  # Auto-derive local split-account operator principals from AWS_PROFILE_<STACK>.
+  # When a stack uses a local profile, the identity behind that profile also needs
+  # direct backend access to run `pulumi` locally. We resolve its IAM role ARN
+  # (including the reserved SSO path for IAM Identity Center roles) so operators do
+  # not have to hand-compute it. PULUMI_BACKEND_ACCESS_PRINCIPAL_ARNS remains a
+  # manual fallback for identities we cannot resolve automatically. Stacks without
+  # a profile, or whose credentials cannot answer STS, are skipped silently.
+  local stack stack_upper profile_var profile_value caller_arn sso_region derived_role_arn
+
+  while IFS= read -r stack; do
+    stack_upper="$(bootstrap_env_stack_upper "${stack}")"
+    profile_var="AWS_PROFILE_${stack_upper}"
+    profile_value="${!profile_var:-}"
+    [[ -n "${profile_value}" ]] || continue
+
+    if ! caller_arn="$(bootstrap_env_aws_command_for_stack "${stack}" sts get-caller-identity --query Arn --output text 2>/dev/null)"; then
+      continue
+    fi
+    sso_region="$(bootstrap_env_sso_region_for_profile "${profile_value}")"
+    derived_role_arn="$(bootstrap_env_iam_role_arn_from_caller_arn "${caller_arn}" "${sso_region}")"
+    if [[ -n "${derived_role_arn}" ]]; then
+      PULUMI_BACKEND_ACCESS_PRINCIPAL_ARNS="$(bootstrap_env_append_csv_value_once "${PULUMI_BACKEND_ACCESS_PRINCIPAL_ARNS:-}" "${derived_role_arn}")"
+      export PULUMI_BACKEND_ACCESS_PRINCIPAL_ARNS
+      bootstrap_env_info "Derived Pulumi backend principal for stack ${stack} (profile ${profile_value}): ${derived_role_arn}"
+    elif [[ "${caller_arn}" == *:assumed-role/AWSReservedSSO_* ]]; then
+      bootstrap_env_warn "Could not resolve the SSO region for profile ${profile_value} (stack ${stack}); add its IAM role ARN to PULUMI_BACKEND_ACCESS_PRINCIPAL_ARNS manually so the shared Pulumi backend bucket policy grants it access."
+    fi
+  done < <(bootstrap_env_each_stack)
 }
 
 bootstrap_env_require_vars() {

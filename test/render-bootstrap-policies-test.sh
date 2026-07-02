@@ -193,5 +193,76 @@ assert_file_contains "${temp_dir}/dist-extra/pulumi-backend-bucket-policy.json" 
 assert_file_contains "${temp_dir}/dist-extra/pulumi-backend-bucket-policy.json" "arn:aws:iam::210987654321:role/ltbase-deploy-prod"
 assert_file_contains "${temp_dir}/dist-extra/pulumi-backend-bucket-policy.json" "arn:aws:iam::210987654321:role/aws-reserved/sso.amazonaws.com/us-west-2/AWSReservedSSO_Admin_abc123"
 
+# The rendered backend bucket policy must include the operator identities that
+# bootstrap-aws-foundation.sh derives from AWS_PROFILE_<STACK> at apply time,
+# so a manually reviewed/applied policy matches the bootstrap-applied one.
+fake_bin="${temp_dir}/bin"
+log_file="${temp_dir}/commands.log"
+mkdir -p "${fake_bin}"
+touch "${log_file}"
+
+cat >"${fake_bin}/aws" <<EOF
+#!/usr/bin/env bash
+set -euo pipefail
+printf 'aws %s\n' "\$*" >>"${log_file}"
+if [[ "\$*" == *"sts get-caller-identity"* && "\$*" == *"--query Arn"* ]]; then
+  if [[ "\${AWS_BEHAVIOR:-}" == "sts-unavailable" ]]; then
+    exit 254
+  fi
+  printf 'arn:aws:sts::999999999999:assumed-role/AWSReservedSSO_Admin_test/alice\n'
+  exit 0
+fi
+if [[ "\$*" == *"configure get sso_region"* ]]; then
+  printf 'us-west-2\n'
+  exit 0
+fi
+exit 1
+EOF
+chmod +x "${fake_bin}/aws"
+
+cat >"${temp_dir}/profile-principals.env" <<'EOF'
+STACKS=devo,prod
+PROMOTION_PATH=devo,prod
+TEMPLATE_REPO=Lychee-Technology/ltbase-private-deployment
+GITHUB_OWNER=customer-org
+DEPLOYMENT_REPO_NAME=customer-ltbase
+DEPLOYMENT_REPO_VISIBILITY=private
+DEPLOYMENT_REPO_DESCRIPTION="Customer LTBase deployment repo"
+DEPLOYMENT_REPO=customer-org/customer-ltbase
+AWS_REGION_DEVO=ap-northeast-1
+AWS_REGION_PROD=us-west-2
+AWS_ACCOUNT_ID_DEVO=123456789012
+AWS_ACCOUNT_ID_PROD=210987654321
+AWS_ROLE_NAME_DEVO=ltbase-deploy-devo
+AWS_ROLE_NAME_PROD=ltbase-deploy-prod
+AWS_PROFILE_PROD=prod-profile
+PULUMI_STATE_BUCKET=test-pulumi-state
+PULUMI_KMS_ALIAS=alias/test-pulumi-secrets
+EOF
+
+if ! output="$(PATH="${fake_bin}:$PATH" "${SCRIPT_PATH}" --env-file "${temp_dir}/profile-principals.env" --output-dir "${temp_dir}/dist-profile" 2>&1)"; then
+  rm -rf "${temp_dir}"
+  fail "expected script to derive profile-based backend principals, got: ${output}"
+fi
+
+assert_file_contains "${temp_dir}/dist-profile/pulumi-backend-bucket-policy.json" "arn:aws:iam::123456789012:role/ltbase-deploy-devo"
+assert_file_contains "${temp_dir}/dist-profile/pulumi-backend-bucket-policy.json" "arn:aws:iam::210987654321:role/ltbase-deploy-prod"
+assert_file_contains "${temp_dir}/dist-profile/pulumi-backend-bucket-policy.json" "arn:aws:iam::999999999999:role/aws-reserved/sso.amazonaws.com/us-west-2/AWSReservedSSO_Admin_test"
+if ! printf '%s' "${output}" | grep -Fq "Derived Pulumi backend principal for stack prod"; then
+  rm -rf "${temp_dir}"
+  fail "expected render output to note the derived principal, got: ${output}"
+fi
+
+# Rendering must stay usable without live AWS credentials: unresolvable
+# profiles are skipped and the policy keeps only the stack deploy roles.
+if ! output="$(PATH="${fake_bin}:$PATH" AWS_BEHAVIOR=sts-unavailable "${SCRIPT_PATH}" --env-file "${temp_dir}/profile-principals.env" --output-dir "${temp_dir}/dist-nocreds" 2>&1)"; then
+  rm -rf "${temp_dir}"
+  fail "expected script to tolerate unavailable AWS credentials, got: ${output}"
+fi
+
+assert_file_contains "${temp_dir}/dist-nocreds/pulumi-backend-bucket-policy.json" "arn:aws:iam::123456789012:role/ltbase-deploy-devo"
+assert_file_contains "${temp_dir}/dist-nocreds/pulumi-backend-bucket-policy.json" "arn:aws:iam::210987654321:role/ltbase-deploy-prod"
+assert_file_not_contains "${temp_dir}/dist-nocreds/pulumi-backend-bucket-policy.json" "AWSReservedSSO_Admin_test"
+
 rm -rf "${temp_dir}"
 printf 'PASS: render-bootstrap-policies tests\n'
