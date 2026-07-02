@@ -361,8 +361,9 @@ if PATH="${fake_bin}:$PATH" \
 fi
 
 # ---------- Test 12: missing KMS key falls back to a placeholder JWKS ----------
-# prod's signing key does not exist yet; build must still succeed, emit a
-# placeholder jwks.json (kid=placeholder), warn on stderr, and keep devo real.
+# prod's signing key does not exist yet; with ALLOW_PLACEHOLDER=true the build
+# must still succeed, emit a placeholder jwks.json (kid=placeholder), warn on
+# stderr, and keep devo real.
 
 output_dir="${temp_dir}/placeholder"
 mkdir -p "${output_dir}"
@@ -370,6 +371,7 @@ placeholder_log="${temp_dir}/placeholder.log"
 if ! PATH="${fake_bin}:$PATH" \
   KMS_PUBLIC_KEY_B64="${kms_public_key_b64}" \
   KMS_NOTFOUND_ALIASES="alias/ltbase-prod-auth" \
+  ALLOW_PLACEHOLDER="true" \
   OIDC_DISCOVERY_DOMAIN="oidc.example.com" \
   OIDC_DISCOVERY_STACK_CONFIG="${stack_config}" \
   OIDC_DISCOVERY_OUTPUT_DIR="${output_dir}" \
@@ -406,13 +408,38 @@ if [[ "${devo_kid}" == "placeholder" ]]; then
   fail "expected devo to use a real KMS key, got placeholder"
 fi
 
-# ---------- Test 13: non-NotFound KMS errors still fail the build ----------
+# ---------- Test 12b: missing KMS key without ALLOW_PLACEHOLDER fails ----------
+# The placeholder fallback is opt-in for the pre-rollout publish only. The
+# post-rollout publish and the manual recovery workflow must fail loudly when a
+# signing key is missing instead of silently publishing a placeholder.
+
+output_dir="${temp_dir}/placeholder-not-allowed"
+mkdir -p "${output_dir}"
+not_allowed_log="${temp_dir}/placeholder-not-allowed.log"
+if PATH="${fake_bin}:$PATH" \
+  KMS_PUBLIC_KEY_B64="${kms_public_key_b64}" \
+  KMS_NOTFOUND_ALIASES="alias/ltbase-prod-auth" \
+  OIDC_DISCOVERY_DOMAIN="oidc.example.com" \
+  OIDC_DISCOVERY_STACK_CONFIG="${stack_config}" \
+  OIDC_DISCOVERY_OUTPUT_DIR="${output_dir}" \
+  TARGET_STACKS="devo,prod" \
+  ACTIONS_ID_TOKEN_REQUEST_TOKEN="fake-github-token" \
+  ACTIONS_ID_TOKEN_REQUEST_URL="https://pipelines.actions.githubusercontent.com/abcdef/" \
+  "${BUILD_SCRIPT}" >/dev/null 2>"${not_allowed_log}"; then
+  fail "expected a missing KMS key without ALLOW_PLACEHOLDER to fail the build"
+fi
+if ! grep -q 'ALLOW_PLACEHOLDER' "${not_allowed_log}"; then
+  fail "expected the failure message to mention ALLOW_PLACEHOLDER"
+fi
+
+# ---------- Test 13: non-NotFound KMS errors fail even with ALLOW_PLACEHOLDER ----------
 
 output_dir="${temp_dir}/kms-denied"
 mkdir -p "${output_dir}"
 if PATH="${fake_bin}:$PATH" \
   KMS_PUBLIC_KEY_B64="${kms_public_key_b64}" \
   KMS_DENIED_ALIASES="alias/ltbase-devo-auth" \
+  ALLOW_PLACEHOLDER="true" \
   OIDC_DISCOVERY_DOMAIN="oidc.example.com" \
   OIDC_DISCOVERY_STACK_CONFIG="${stack_config}" \
   OIDC_DISCOVERY_OUTPUT_DIR="${output_dir}" \

@@ -135,10 +135,12 @@ assert_file_not_contains "${rollout_hop_workflow}" "pulumi_stack: prod"
 assert_file_contains "${rollout_hop_workflow}" "deployed_prefix: \${{ steps.plan.outputs.deployed_prefix }}"
 assert_file_contains "${rollout_hop_workflow}" "echo \"deployed_prefix=\${deployed_prefix}\""
 
-# Pre-rollout publish job runs before rollout and waits for the endpoint.
+# Pre-rollout publish job runs before rollout and waits for the endpoint. It is
+# the only caller allowed to publish placeholder JWKS for missing KMS keys.
 assert_file_contains "${rollout_hop_workflow}" "publish_oidc_discovery_pre:"
 assert_file_contains "${rollout_hop_workflow}" "uses: ./.github/actions/publish-oidc-discovery"
 assert_file_contains "${rollout_hop_workflow}" "target_stacks: \${{ needs.prepare.outputs.deployed_prefix }}"
+assert_file_contains "${rollout_hop_workflow}" 'allow_placeholder: "true"'
 assert_file_contains "${rollout_hop_workflow}" 'wait_for_ready: "true"'
 
 # rollout depends on the pre-publish job succeeding.
@@ -146,7 +148,11 @@ assert_file_contains "${rollout_hop_workflow}" "- publish_oidc_discovery_pre"
 assert_file_contains "${rollout_hop_workflow}" "needs.publish_oidc_discovery_pre.result == 'success'"
 
 # Post-rollout publish job is gated on rollout success and replaces placeholders.
+# It must NOT opt into placeholders: a missing key after rollout is an error.
 assert_file_contains "${rollout_hop_workflow}" "publish_oidc_discovery:"
 assert_file_contains "${rollout_hop_workflow}" 'wait_for_ready: "false"'
+if [[ "$(grep -c 'allow_placeholder:' "${rollout_hop_workflow}")" != "1" ]]; then
+  fail "expected exactly one allow_placeholder opt-in (the pre-rollout publish job)"
+fi
 
 printf 'PASS: rollout workflow tests\n'

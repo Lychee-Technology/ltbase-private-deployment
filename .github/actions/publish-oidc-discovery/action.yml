@@ -30,6 +30,14 @@ inputs:
   cloudflare_api_token:
     description: Cloudflare API token
     required: true
+  allow_placeholder:
+    description: >-
+      When 'true', build-discovery.sh substitutes a placeholder JWKS for stacks
+      whose signing KMS key does not exist yet. Reserved for the pre-rollout
+      publish; all other callers must keep the default so a missing key fails
+      loudly.
+    required: false
+    default: "false"
   wait_for_ready:
     description: >-
       When 'true', poll each published stack's openid-configuration until it is
@@ -47,6 +55,7 @@ runs:
         OIDC_DISCOVERY_STACK_CONFIG: ${{ inputs.oidc_discovery_stack_config }}
         TARGET_STACKS: ${{ inputs.target_stacks }}
         TARGET_STACK: ${{ inputs.target_stack }}
+        ALLOW_PLACEHOLDER: ${{ inputs.allow_placeholder }}
         OIDC_DISCOVERY_OUTPUT_DIR: ${{ runner.temp }}/discovery-output
       run: ./scripts/build-discovery.sh
 

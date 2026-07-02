@@ -220,13 +220,15 @@ jobs:
 
       # Publish discovery for the deployed prefix BEFORE rollout. The current
       # target's authservice KMS key does not exist yet, so build-discovery.sh
-      # emits a placeholder JWKS for it; already-deployed stacks keep their real
-      # keys. This keeps the discovery endpoint valid so the first rollout can
-      # create its API Gateway JWT authorizer. Wait for the endpoint to be live.
+      # emits a placeholder JWKS for it (allow_placeholder is opted in here and
+      # only here); already-deployed stacks keep their real keys. This keeps the
+      # discovery endpoint valid so the first rollout can create its API Gateway
+      # JWT authorizer. Wait for the endpoint to be live.
       - name: Publish OIDC discovery (pre-rollout)
         uses: ./.github/actions/publish-oidc-discovery
         with:
           target_stacks: ${{ needs.prepare.outputs.deployed_prefix }}
+          allow_placeholder: "true"
           oidc_discovery_domain: ${{ vars.OIDC_DISCOVERY_DOMAIN }}
           oidc_discovery_stack_config: ${{ vars.OIDC_DISCOVERY_STACK_CONFIG }}
           oidc_discovery_pages_project: ${{ vars.OIDC_DISCOVERY_PAGES_PROJECT }}

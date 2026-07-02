@@ -29,7 +29,7 @@ assert_file_contains "${ACTION_PATH}" "using: composite"
 
 for input in target_stacks target_stack oidc_discovery_domain \
   oidc_discovery_stack_config oidc_discovery_pages_project \
-  cloudflare_account_id cloudflare_api_token wait_for_ready; do
+  cloudflare_account_id cloudflare_api_token allow_placeholder wait_for_ready; do
   assert_file_contains "${ACTION_PATH}" "${input}:"
 done
 
@@ -38,6 +38,10 @@ done
 assert_file_contains "${ACTION_PATH}" "./scripts/build-discovery.sh"
 assert_file_contains "${ACTION_PATH}" "TARGET_STACKS: \${{ inputs.target_stacks }}"
 assert_file_contains "${ACTION_PATH}" "TARGET_STACK: \${{ inputs.target_stack }}"
+
+# ---------- placeholder fallback is opt-in and defaults off ----------
+
+assert_file_contains "${ACTION_PATH}" "ALLOW_PLACEHOLDER: \${{ inputs.allow_placeholder }}"
 
 # ---------- Cloudflare Pages direct upload ----------
 

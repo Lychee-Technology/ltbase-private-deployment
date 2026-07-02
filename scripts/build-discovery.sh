@@ -11,12 +11,18 @@ set -euo pipefail
 #                                  publish a promotion-path prefix in one run.
 #   TARGET_STACK                 – "all" (default) or a specific stack name.
 #                                  Ignored when TARGET_STACKS is set.
+#   ALLOW_PLACEHOLDER            – "true" to substitute a PLACEHOLDER JWKS when a
+#                                  stack's signing KMS key does not exist yet.
+#                                  Unset/other values keep the fail-fast behavior.
 #
 # When a stack's authservice signing KMS key does not exist yet (the alias
-# returns NotFoundException), this script publishes a PLACEHOLDER JWKS backed by
-# an ephemeral throwaway RSA key instead of failing. This keeps the discovery
-# endpoint valid so API Gateway can create its JWT authorizer during the stack's
-# first rollout; the real KMS-backed key is published afterward.
+# returns NotFoundException) and ALLOW_PLACEHOLDER=true, this script publishes a
+# PLACEHOLDER JWKS backed by an ephemeral throwaway RSA key instead of failing.
+# This keeps the discovery endpoint valid so API Gateway can create its JWT
+# authorizer during the stack's first rollout; the real KMS-backed key is
+# published afterward. Only the pre-rollout publish job opts in — the
+# post-rollout publish and the manual recovery workflow must fail loudly on a
+# missing key.
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 GENERATE_JWKS="${SCRIPT_DIR}/generate-jwks.py"
@@ -101,7 +107,8 @@ done
 mkdir -p "${OIDC_DISCOVERY_OUTPUT_DIR}"
 
 current_stack_manifest="$(mktemp)"
-trap 'rm -f "${current_stack_manifest}"' EXIT
+kms_stderr="$(mktemp)"
+trap 'rm -f "${current_stack_manifest}" "${kms_stderr}"' EXIT
 
 for stack in "${stacks[@]}"; do
   echo "Generating discovery documents for ${stack}"
@@ -143,11 +150,10 @@ for stack in "${stacks[@]}"; do
   export AWS_DEFAULT_REGION="${aws_region}"
 
   # Fetch the RSA public key from KMS. When the signing key does not exist yet
-  # (NotFoundException), fall back to a PLACEHOLDER key so the discovery endpoint
-  # stays valid for API Gateway authorizer creation during the first rollout.
-  kms_stderr="$(mktemp)"
+  # (NotFoundException) and ALLOW_PLACEHOLDER=true, fall back to a PLACEHOLDER
+  # key so the discovery endpoint stays valid for API Gateway authorizer
+  # creation during the first rollout.
   if public_key_json=$(aws kms get-public-key --key-id "${kms_alias}" --output json 2>"${kms_stderr}"); then
-    rm -f "${kms_stderr}"
     public_key_b64=$(echo "${public_key_json}" | jq -r '.PublicKey')
     key_id=$(echo "${public_key_json}" | jq -r '.KeyId')
 
@@ -159,8 +165,11 @@ for stack in "${stacks[@]}"; do
     fi
   else
     kms_error="$(<"${kms_stderr}")"
-    rm -f "${kms_stderr}"
     if [[ "${kms_error}" == *"NotFoundException"* ]]; then
+      if [[ "${ALLOW_PLACEHOLDER:-}" != "true" ]]; then
+        [[ -n "${kms_error}" ]] && printf '%s\n' "${kms_error}" >&2
+        fail "KMS key ${kms_alias} not found for ${stack} and ALLOW_PLACEHOLDER is not 'true'; placeholder JWKS is reserved for the pre-rollout publish"
+      fi
       echo "WARNING: KMS key ${kms_alias} not found for ${stack}; publishing PLACEHOLDER JWKS (replaced after rollout)" >&2
       public_key_b64="$(generate_placeholder_public_key_b64)"
       key_id="placeholder"
