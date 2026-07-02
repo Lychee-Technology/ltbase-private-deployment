@@ -129,4 +129,24 @@ assert_file_contains "${rollout_hop_workflow}" "controlplane_ui_runtime_config_j
 assert_file_not_contains "${rollout_hop_workflow}" "pulumi_stack: devo"
 assert_file_not_contains "${rollout_hop_workflow}" "pulumi_stack: prod"
 
+# ---------- OIDC discovery: deployed prefix + pre/post publish jobs ----------
+
+# prepare emits the promotion-path prefix (start .. target inclusive).
+assert_file_contains "${rollout_hop_workflow}" "deployed_prefix: \${{ steps.plan.outputs.deployed_prefix }}"
+assert_file_contains "${rollout_hop_workflow}" "echo \"deployed_prefix=\${deployed_prefix}\""
+
+# Pre-rollout publish job runs before rollout and waits for the endpoint.
+assert_file_contains "${rollout_hop_workflow}" "publish_oidc_discovery_pre:"
+assert_file_contains "${rollout_hop_workflow}" "uses: ./.github/actions/publish-oidc-discovery"
+assert_file_contains "${rollout_hop_workflow}" "target_stacks: \${{ needs.prepare.outputs.deployed_prefix }}"
+assert_file_contains "${rollout_hop_workflow}" 'wait_for_ready: "true"'
+
+# rollout depends on the pre-publish job succeeding.
+assert_file_contains "${rollout_hop_workflow}" "- publish_oidc_discovery_pre"
+assert_file_contains "${rollout_hop_workflow}" "needs.publish_oidc_discovery_pre.result == 'success'"
+
+# Post-rollout publish job is gated on rollout success and replaces placeholders.
+assert_file_contains "${rollout_hop_workflow}" "publish_oidc_discovery:"
+assert_file_contains "${rollout_hop_workflow}" 'wait_for_ready: "false"'
+
 printf 'PASS: rollout workflow tests\n'
