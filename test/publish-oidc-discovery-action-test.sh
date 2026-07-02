@@ -21,6 +21,17 @@ assert_file_contains() {
   fi
 }
 
+assert_file_not_contains() {
+  local path="$1"
+  local needle="$2"
+  if [[ ! -f "${path}" ]]; then
+    fail "missing file: ${path}"
+  fi
+  if grep -Fq -- "${needle}" "${path}"; then
+    fail "expected ${path} to not contain: ${needle}"
+  fi
+}
+
 # ---------- composite action shape ----------
 
 assert_file_contains "${ACTION_PATH}" "using: composite"
@@ -29,7 +40,7 @@ assert_file_contains "${ACTION_PATH}" "using: composite"
 
 for input in target_stacks target_stack oidc_discovery_domain \
   oidc_discovery_stack_config oidc_discovery_pages_project \
-  cloudflare_account_id cloudflare_api_token allow_placeholder wait_for_ready; do
+  cloudflare_account_id cloudflare_api_token allow_placeholder wait_for; do
   assert_file_contains "${ACTION_PATH}" "${input}:"
 done
 
@@ -49,10 +60,20 @@ assert_file_contains "${ACTION_PATH}" "cloudflare/wrangler-action@v3"
 assert_file_contains "${ACTION_PATH}" "pages deploy"
 assert_file_contains "${ACTION_PATH}" "--branch main"
 
-# ---------- readiness poll gated on wait_for_ready ----------
+# Composite runs.steps do not support timeout-minutes; its presence fails the
+# whole action at load time.
+assert_file_not_contains "${ACTION_PATH}" "timeout-minutes:"
 
-assert_file_contains "${ACTION_PATH}" "if: \${{ inputs.wait_for_ready == 'true' }}"
-assert_file_contains "${ACTION_PATH}" "/.well-known/openid-configuration"
-assert_file_contains "${ACTION_PATH}" "jq -e '.issuer'"
+# ---------- readiness poll gated on wait_for mode ----------
+
+assert_file_contains "${ACTION_PATH}" "if: \${{ inputs.wait_for != 'none' }}"
+
+# reachable: openid-configuration is served and well-formed.
+assert_file_contains "${ACTION_PATH}" 'doc_path=".well-known/openid-configuration"'
+assert_file_contains "${ACTION_PATH}" "jq_check='.issuer'"
+
+# real-jwks: jwks.json no longer serves the pre-rollout placeholder key.
+assert_file_contains "${ACTION_PATH}" 'doc_path=".well-known/jwks.json"'
+assert_file_contains "${ACTION_PATH}" 'all(.kid != "placeholder")'
 
 printf 'PASS: publish-oidc-discovery-action tests\n'

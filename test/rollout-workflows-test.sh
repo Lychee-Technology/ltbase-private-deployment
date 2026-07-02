@@ -141,7 +141,7 @@ assert_file_contains "${rollout_hop_workflow}" "publish_oidc_discovery_pre:"
 assert_file_contains "${rollout_hop_workflow}" "uses: ./.github/actions/publish-oidc-discovery"
 assert_file_contains "${rollout_hop_workflow}" "target_stacks: \${{ needs.prepare.outputs.deployed_prefix }}"
 assert_file_contains "${rollout_hop_workflow}" 'allow_placeholder: "true"'
-assert_file_contains "${rollout_hop_workflow}" 'wait_for_ready: "true"'
+assert_file_contains "${rollout_hop_workflow}" "wait_for: reachable"
 
 # rollout depends on the pre-publish job succeeding.
 assert_file_contains "${rollout_hop_workflow}" "- publish_oidc_discovery_pre"
@@ -149,8 +149,9 @@ assert_file_contains "${rollout_hop_workflow}" "needs.publish_oidc_discovery_pre
 
 # Post-rollout publish job is gated on rollout success and replaces placeholders.
 # It must NOT opt into placeholders: a missing key after rollout is an error.
+# Its readiness poll is content-aware, confirming the placeholder was replaced.
 assert_file_contains "${rollout_hop_workflow}" "publish_oidc_discovery:"
-assert_file_contains "${rollout_hop_workflow}" 'wait_for_ready: "false"'
+assert_file_contains "${rollout_hop_workflow}" "wait_for: real-jwks"
 if [[ "$(grep -c 'allow_placeholder:' "${rollout_hop_workflow}")" != "1" ]]; then
   fail "expected exactly one allow_placeholder opt-in (the pre-rollout publish job)"
 fi

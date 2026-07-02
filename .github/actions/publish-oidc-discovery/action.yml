@@ -38,12 +38,17 @@ inputs:
       loudly.
     required: false
     default: "false"
-  wait_for_ready:
+  wait_for:
     description: >-
-      When 'true', poll each published stack's openid-configuration until it is
-      reachable (HTTP 200 + valid JSON) before returning.
+      Readiness poll mode. 'none' returns immediately after the upload.
+      'reachable' polls each published stack's openid-configuration until it is
+      served (HTTP 200 + valid JSON) — use before rollout, where the endpoint
+      may not exist yet. 'real-jwks' polls each stack's jwks.json until it
+      serves a real key (kid != "placeholder") — use after rollout, where plain
+      reachability is meaningless because the pre-rollout publish already made
+      the endpoint live.
     required: false
-    default: "false"
+    default: "none"
 
 runs:
   using: composite
@@ -106,9 +111,10 @@ runs:
 
         echo "site_dir=${site_dir}" >>"${GITHUB_OUTPUT}"
 
+    # Composite runs.steps do not support timeout-minutes; the calling jobs set
+    # a job-level timeout instead.
     - name: Deploy to Cloudflare Pages
       uses: cloudflare/wrangler-action@v3
-      timeout-minutes: 10
       with:
         apiToken: ${{ inputs.cloudflare_api_token }}
         accountId: ${{ inputs.cloudflare_account_id }}
@@ -118,14 +124,23 @@ runs:
           --branch main
 
     - name: Wait for discovery endpoint
-      if: ${{ inputs.wait_for_ready == 'true' }}
+      if: ${{ inputs.wait_for != 'none' }}
       shell: bash
       env:
         OIDC_DISCOVERY_DOMAIN: ${{ inputs.oidc_discovery_domain }}
         TARGET_STACKS: ${{ inputs.target_stacks }}
         TARGET_STACK: ${{ inputs.target_stack }}
+        WAIT_FOR: ${{ inputs.wait_for }}
       run: |
         set -euo pipefail
+
+        case "${WAIT_FOR}" in
+          reachable|real-jwks) ;;
+          *)
+            echo "Unknown wait_for mode: ${WAIT_FOR}" >&2
+            exit 1
+            ;;
+        esac
 
         # Build the list of stacks to poll from TARGET_STACKS (preferred) or
         # TARGET_STACK (ignored when 'all').
@@ -145,16 +160,29 @@ runs:
           exit 0
         fi
 
-        max_attempts=30
+        # A brand-new Pages custom domain can take several minutes to issue its
+        # TLS certificate, so give the poll generous bounds.
+        max_attempts=60
         sleep_seconds=10
 
+        # reachable: openid-configuration is served and well-formed.
+        # real-jwks: jwks.json serves at least one key and none of them is the
+        # pre-rollout placeholder — i.e. the post-rollout publish actually
+        # replaced the placeholder and the edge is no longer caching it.
+        doc_path=".well-known/openid-configuration"
+        jq_check='.issuer'
+        if [[ "${WAIT_FOR}" == "real-jwks" ]]; then
+          doc_path=".well-known/jwks.json"
+          jq_check='.keys | length > 0 and all(.kid != "placeholder")'
+        fi
+
         for stack in "${poll_stacks[@]}"; do
-          url="https://${OIDC_DISCOVERY_DOMAIN}/${stack}/.well-known/openid-configuration"
-          echo "Waiting for ${url}"
+          url="https://${OIDC_DISCOVERY_DOMAIN}/${stack}/${doc_path}"
+          echo "Waiting for ${url} (${WAIT_FOR})"
           ready="false"
           for attempt in $(seq 1 "${max_attempts}"); do
             body="$(curl -fsS "${url}" 2>/dev/null || true)"
-            if [[ -n "${body}" ]] && echo "${body}" | jq -e '.issuer' >/dev/null 2>&1; then
+            if [[ -n "${body}" ]] && echo "${body}" | jq -e "${jq_check}" >/dev/null 2>&1; then
               echo "Discovery endpoint for ${stack} is ready (attempt ${attempt})"
               ready="true"
               break

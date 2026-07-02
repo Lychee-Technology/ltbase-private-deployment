@@ -212,9 +212,7 @@ jobs:
       - approve
     if: ${{ always() && needs.prepare.result == 'success' && needs.validate_config.result == 'success' && (needs.prepare.outputs.approval_required != 'true' || needs.approve.result == 'success') }}
     runs-on: ubuntu-24.04-arm
-    permissions:
-      contents: read
-      id-token: write
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v6
 
@@ -234,7 +232,7 @@ jobs:
           oidc_discovery_pages_project: ${{ vars.OIDC_DISCOVERY_PAGES_PROJECT }}
           cloudflare_account_id: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
           cloudflare_api_token: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          wait_for_ready: "true"
+          wait_for: reachable
 
   rollout:
     needs:
@@ -270,9 +268,7 @@ jobs:
       - rollout
     if: ${{ always() && needs.rollout.result == 'success' }}
     runs-on: ubuntu-24.04-arm
-    permissions:
-      contents: read
-      id-token: write
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v6
 
@@ -289,7 +285,7 @@ jobs:
           oidc_discovery_pages_project: ${{ vars.OIDC_DISCOVERY_PAGES_PROJECT }}
           cloudflare_account_id: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
           cloudflare_api_token: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          wait_for_ready: "false"
+          wait_for: real-jwks
 
   publish_schemas:
     needs:

@@ -54,6 +54,11 @@ assert_file_contains "${WORKFLOW_PATH}" 'default: "all"'
 assert_file_contains "${WORKFLOW_PATH}" "target_stack: \${{ inputs.target_stack }}"
 assert_file_contains "${WORKFLOW_PATH}" "target_stacks: \${{ inputs.target_stacks }}"
 
+# ---------- manual recovery: no placeholder opt-in, no readiness poll ----------
+
+assert_file_not_contains "${WORKFLOW_PATH}" "allow_placeholder"
+assert_file_contains "${WORKFLOW_PATH}" "wait_for: none"
+
 # ---------- inputs wired to repo vars/secrets ----------
 
 assert_file_contains "${WORKFLOW_PATH}" "oidc_discovery_domain: \${{ vars.OIDC_DISCOVERY_DOMAIN }}"
