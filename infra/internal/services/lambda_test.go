@@ -80,6 +80,35 @@ func TestDataPlaneLambdaEnvIncludesSchemaSourceContract(t *testing.T) {
 	}
 }
 
+func TestDataPlaneLambdaEnvIncludesCapabilityModes(t *testing.T) {
+	env := dataPlaneLambdaEnv(config.StackConfig{
+		APIDomain:            "api.devo.example.com",
+		GeminiModel:          "gemini-3.1-flash-lite",
+		DSQLPort:             "5432",
+		DSQLDB:               "postgres",
+		DSQLUser:             "admin",
+		DSQLProjectSchema:    "ltbase",
+		LTSearchMode:         "off",
+		LTFlowMode:           "on",
+		SemanticMode:         "auto",
+		GovernanceMode:       "off",
+		GovernanceActionMode: "off",
+	}, pulumi.String("table-name"), pulumi.String("runtime-bucket"), pulumi.String("schema-bucket"), pulumi.String("gemini-key"))
+
+	want := map[string]pulumi.String{
+		"LTBASE_LTSEARCH_MODE":          pulumi.String("off"),
+		"LTBASE_LTFLOW_MODE":            pulumi.String("on"),
+		"LTBASE_SEMANTIC_MODE":          pulumi.String("auto"),
+		"LTBASE_GOVERNANCE_MODE":        pulumi.String("off"),
+		"LTBASE_GOVERNANCE_ACTION_MODE": pulumi.String("off"),
+	}
+	for key, wantValue := range want {
+		if env[key] != wantValue {
+			t.Fatalf("dataPlaneLambdaEnv() %s = %v, want %s", key, env[key], wantValue)
+		}
+	}
+}
+
 func TestAuthLambdaEnvIncludesProviderNames(t *testing.T) {
 	env := authLambdaEnv(config.StackConfig{
 		Stack:             "devo",
@@ -136,12 +165,19 @@ func TestControlPlaneLambdaEnvIncludesBootstrapProjectConfig(t *testing.T) {
 		DSQLDB:                  "postgres",
 		DSQLUser:                "admin",
 		DSQLProjectSchema:       "ltbase",
+		CDCMode:                 "off",
 	}, pulumi.String("table-name"), pulumi.String("bucket-name"), pulumi.String("schema-bucket"))
 
-	for _, key := range []string{"PROJECT_ID", "PROJECT_NAME", "ACCOUNT_ID", "API_BASE_URL", "CONTROL_PLANE_CORS_ORIGINS", "FORMA_SCHEMA_SOURCE", "FORMA_SCHEMA_BUCKET", "FORMA_SCHEMA_PREFIX", "FORMA_SCHEMA_PUBLISHED_PREFIX", "FORMA_SCHEMA_CACHE_DIR"} {
+	for _, key := range []string{"PROJECT_ID", "PROJECT_NAME", "ACCOUNT_ID", "API_BASE_URL", "CONTROL_PLANE_CORS_ORIGINS", "LTBASE_CDC_MODE", "FORMA_SCHEMA_SOURCE", "FORMA_SCHEMA_BUCKET", "FORMA_SCHEMA_PREFIX", "FORMA_SCHEMA_PUBLISHED_PREFIX", "FORMA_SCHEMA_CACHE_DIR"} {
 		if _, ok := env[key]; !ok {
 			t.Fatalf("controlPlaneLambdaEnv() missing %s", key)
 		}
+	}
+	if env["LTBASE_CDC_MODE"] != pulumi.String("off") {
+		t.Fatalf("controlPlaneLambdaEnv() LTBASE_CDC_MODE = %v, want off", env["LTBASE_CDC_MODE"])
+	}
+	if _, ok := env["FORMA_CDC_S3_PREFIX"]; ok {
+		t.Fatal("controlPlaneLambdaEnv() should not set FORMA_CDC_S3_PREFIX when CDC is off without a prefix override")
 	}
 	if env["FORMA_SCHEMA_PREFIX"] != pulumi.String(schemaPublishedPrefix) {
 		t.Fatalf("controlPlaneLambdaEnv() FORMA_SCHEMA_PREFIX = %v, want %s", env["FORMA_SCHEMA_PREFIX"], schemaPublishedPrefix)
@@ -158,5 +194,80 @@ func TestRuntimeResourcesCanCarryBucketVersioningHandle(t *testing.T) {
 	runtime := RuntimeResources{}
 	if runtime.RuntimeBucketVersioning != nil {
 		t.Fatal("RuntimeBucketVersioning should default to nil in zero value")
+	}
+}
+
+func TestFormaCdcLambdaEnvIncludesCDCMode(t *testing.T) {
+	env := formaCdcLambdaEnv(config.StackConfig{
+		AWSRegion:         "ap-northeast-1",
+		DSQLPort:          "5432",
+		DSQLDB:            "postgres",
+		DSQLUser:          "admin",
+		DSQLProjectSchema: "ltbase",
+		CDCMode:           "on",
+	}, pulumi.String("table-name"), pulumi.String("bucket-name"))
+
+	if env["LTBASE_CDC_MODE"] != pulumi.String("on") {
+		t.Fatalf("formaCdcLambdaEnv() LTBASE_CDC_MODE = %v, want on", env["LTBASE_CDC_MODE"])
+	}
+	if env["FORMA_CDC_S3_REGION"] != pulumi.String("ap-northeast-1") {
+		t.Fatalf("formaCdcLambdaEnv() FORMA_CDC_S3_REGION = %v, want ap-northeast-1", env["FORMA_CDC_S3_REGION"])
+	}
+}
+
+func TestOptionalFormaCdcPrefixEnvOmittedInAutoWithoutPrefix(t *testing.T) {
+	env := optionalFormaCdcPrefixEnv(config.StackConfig{CDCMode: "auto"})
+	if _, ok := env["FORMA_CDC_S3_PREFIX"]; ok {
+		t.Fatal("optionalFormaCdcPrefixEnv() unexpectedly set FORMA_CDC_S3_PREFIX")
+	}
+}
+
+func TestOptionalFormaCdcPrefixEnvDefaultsDeltaWhenCdcOn(t *testing.T) {
+	env := optionalFormaCdcPrefixEnv(config.StackConfig{CDCMode: "on"})
+	if env["FORMA_CDC_S3_PREFIX"] != pulumi.String("delta") {
+		t.Fatalf("optionalFormaCdcPrefixEnv() FORMA_CDC_S3_PREFIX = %v, want delta", env["FORMA_CDC_S3_PREFIX"])
+	}
+}
+
+func TestOptionalFormaCdcPrefixEnvUsesExplicitPrefix(t *testing.T) {
+	env := optionalFormaCdcPrefixEnv(config.StackConfig{CDCMode: "auto", FormaCdcS3Prefix: "custom"})
+	if env["FORMA_CDC_S3_PREFIX"] != pulumi.String("custom") {
+		t.Fatalf("optionalFormaCdcPrefixEnv() FORMA_CDC_S3_PREFIX = %v, want custom", env["FORMA_CDC_S3_PREFIX"])
+	}
+}
+
+func TestControlPlaneLambdaEnvIncludesFormaCdcPrefixWhenCdcOn(t *testing.T) {
+	env := controlPlaneLambdaEnv(config.StackConfig{
+		Stack:                   "devo",
+		Project:                 "customer-ltbase",
+		APIDomain:               "api.devo.example.com",
+		ProjectID:               "33333333-3333-4333-8333-333333333333",
+		DeploymentProjectName:   "Customer Ltbase",
+		DeploymentAWSAccountID:  "123456789012",
+		ControlPlaneCORSOrigins: "https://admin.example.com",
+		DSQLPort:                "5432",
+		DSQLDB:                  "postgres",
+		DSQLUser:                "admin",
+		DSQLProjectSchema:       "ltbase",
+		CDCMode:                 "on",
+	}, pulumi.String("table-name"), pulumi.String("bucket-name"), pulumi.String("schema-bucket"))
+
+	if env["FORMA_CDC_S3_PREFIX"] != pulumi.String("delta") {
+		t.Fatalf("controlPlaneLambdaEnv() FORMA_CDC_S3_PREFIX = %v, want delta", env["FORMA_CDC_S3_PREFIX"])
+	}
+}
+
+func TestFormaCdcLambdaEnvIncludesFormaCdcPrefixWhenCdcOn(t *testing.T) {
+	env := formaCdcLambdaEnv(config.StackConfig{
+		AWSRegion:         "ap-northeast-1",
+		DSQLPort:          "5432",
+		DSQLDB:            "postgres",
+		DSQLUser:          "admin",
+		DSQLProjectSchema: "ltbase",
+		CDCMode:           "on",
+	}, pulumi.String("table-name"), pulumi.String("bucket-name"))
+
+	if env["FORMA_CDC_S3_PREFIX"] != pulumi.String("delta") {
+		t.Fatalf("formaCdcLambdaEnv() FORMA_CDC_S3_PREFIX = %v, want delta", env["FORMA_CDC_S3_PREFIX"])
 	}
 }

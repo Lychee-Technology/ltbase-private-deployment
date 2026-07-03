@@ -118,6 +118,7 @@ onboarding 文档支持通用多 stack 拓扑。文中出现 `devo`、`prod` 等
 - 客户自行持有 GitHub 仓库、AWS 资源和部署审批权
 - bootstrap 脚本负责准备仓库状态和部署配置
 - 即使当前仍保留 companion 风格的 Control Plane UI 初始化脚本，相关操作者输入的权威来源仍然是 deployment repo
+- 可选应用能力由 deployment repo 中的 mode 控制（`auto`、`on` 或 `off`），操作者可以保留默认自动检测、强制启用或显式关闭，而不需要重新构建 LTBase
 - 共享的 Pulumi backend bucket 只创建一次，并固定放在 `PROMOTION_PATH` 第一个 stack 对应的 AWS 账户中
 - 手动 preview 只针对 `PROMOTION_PATH` 的第一个环境
 - 自动 rollout 会按 `PROMOTION_PATH` 逐跳推进，受保护目标环境仍由客户自己审批

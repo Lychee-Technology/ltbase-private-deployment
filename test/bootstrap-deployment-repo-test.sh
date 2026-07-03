@@ -112,6 +112,7 @@ DSQL_PORT=5432
 DSQL_DB=postgres
 DSQL_USER=admin
 DSQL_PROJECT_SCHEMA=ltbase
+FORMA_CDC_S3_PREFIX=delta
 MTLS_TRUSTSTORE_FILE=infra/certs/cloudflare-origin-pull-ca.pem
 MTLS_TRUSTSTORE_KEY=mtls/cloudflare-origin-pull-ca.pem
 EOF
@@ -437,6 +438,7 @@ if [[ -x "${SCRIPT_PATH}" ]]; then
   assert_log_contains "${log_file}" "pulumi config set mtlsTruststoreKey mtls/cloudflare-origin-pull-ca.pem --stack prod"
   assert_log_contains "${log_file}" "pulumi config set dsqlDB postgres --stack prod"
   assert_log_contains "${log_file}" "pulumi config set dsqlUser admin --stack prod"
+  assert_log_contains "${log_file}" "pulumi config set formaCdcS3Prefix delta --stack prod"
   assert_log_contains "${log_file}" "pulumi config set --secret geminiApiKey test-gemini-key --stack prod"
   assert_log_not_contains "${log_file}" "pulumi stack output dsqlClusterIdentifier"
   assert_log_not_contains "${log_file}" "pulumi up --stack prod --yes --skip-preview"

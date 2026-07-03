@@ -603,6 +603,8 @@ GEMINI_API_KEY=your-gemini-api-key
 | `MTLS_TRUSTSTORE_KEY` | `mtls/cloudflare-origin-pull-ca.pem` | truststore key in runtime bucket |
 | `GEMINI_MODEL` | `gemini-3.1-flash-lite` | Default model |
 | `DSQL_PORT` / `DSQL_DB` / `DSQL_USER` / `DSQL_PROJECT_SCHEMA` | `5432` / `postgres` / `admin` / `ltbase` | DSQL connection defaults |
+| `LTBASE_LTSEARCH_MODE` / `LTBASE_CDC_MODE` / `LTBASE_LTFLOW_MODE` / `LTBASE_SEMANTIC_MODE` / `LTBASE_GOVERNANCE_MODE` / `LTBASE_GOVERNANCE_ACTION_MODE` | `auto` / `auto` / `auto` / `auto` / `auto` / `off` | Optional capability modes; values must be `auto`, `on`, or `off`. Dependency chain enforced at bootstrap/`pulumi up`: governance `on` requires semantic; governance action `on` requires governance, LTFlow, and semantic. The template always writes `LTBASE_GOVERNANCE_ACTION_MODE`, so the legacy `GOVERNANCE_ACTION_ENGINE_ENABLED` flag has no effect |
+| `FORMA_CDC_S3_PREFIX` | *(unset)* | Optional CDC S3 output prefix under the runtime bucket; `LTBASE_CDC_MODE=on` auto-defaults it to `delta`, and under `auto` you must set it explicitly to enable CDC |
 | `DSQL_HOST` / `DSQL_ENDPOINT` / `DSQL_PASSWORD` | **Do not set** | Managed deployments are auto-resolved |
 
 ### 7.4 Multi-Account Notes

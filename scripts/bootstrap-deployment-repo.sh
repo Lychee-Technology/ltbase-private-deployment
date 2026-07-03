@@ -42,7 +42,7 @@ if ! bootstrap_env_has_stack "${STACK}"; then
   exit 1
 fi
 
-required_vars=(DEPLOYMENT_REPO PULUMI_BACKEND_URL LTBASE_RELEASES_REPO LTBASE_RELEASE_ID LTBASE_RELEASES_TOKEN CLOUDFLARE_API_TOKEN CLOUDFLARE_ACCOUNT_ID GEMINI_API_KEY CLOUDFLARE_ZONE_ID GITHUB_ORG GITHUB_REPO GEMINI_MODEL DSQL_PORT DSQL_DB DSQL_USER DSQL_PROJECT_SCHEMA MTLS_TRUSTSTORE_FILE MTLS_TRUSTSTORE_KEY)
+required_vars=(DEPLOYMENT_REPO PULUMI_BACKEND_URL LTBASE_RELEASES_REPO LTBASE_RELEASE_ID LTBASE_RELEASES_TOKEN CLOUDFLARE_API_TOKEN CLOUDFLARE_ACCOUNT_ID GEMINI_API_KEY CLOUDFLARE_ZONE_ID GITHUB_ORG GITHUB_REPO GEMINI_MODEL DSQL_PORT DSQL_DB DSQL_USER DSQL_PROJECT_SCHEMA LTBASE_LTSEARCH_MODE LTBASE_CDC_MODE LTBASE_LTFLOW_MODE LTBASE_SEMANTIC_MODE LTBASE_GOVERNANCE_MODE LTBASE_GOVERNANCE_ACTION_MODE MTLS_TRUSTSTORE_FILE MTLS_TRUSTSTORE_KEY)
 for name in "${required_vars[@]}"; do
   if [[ -z "${!name:-}" ]]; then
     echo "${name} is required" >&2
@@ -180,6 +180,13 @@ bootstrap_env_run_quiet "${stack_env[@]}" pulumi config set dsqlPort "${DSQL_POR
 bootstrap_env_run_quiet "${stack_env[@]}" pulumi config set dsqlDB "${DSQL_DB}" --stack "${STACK}"
 bootstrap_env_run_quiet "${stack_env[@]}" pulumi config set dsqlUser "${DSQL_USER}" --stack "${STACK}"
 bootstrap_env_run_quiet "${stack_env[@]}" pulumi config set dsqlProjectSchema "${DSQL_PROJECT_SCHEMA}" --stack "${STACK}"
+bootstrap_env_run_quiet "${stack_env[@]}" pulumi config set ltsearchMode "${LTBASE_LTSEARCH_MODE}" --stack "${STACK}"
+bootstrap_env_run_quiet "${stack_env[@]}" pulumi config set cdcMode "${LTBASE_CDC_MODE}" --stack "${STACK}"
+bootstrap_env_run_quiet "${stack_env[@]}" pulumi config set ltflowMode "${LTBASE_LTFLOW_MODE}" --stack "${STACK}"
+bootstrap_env_run_quiet "${stack_env[@]}" pulumi config set semanticMode "${LTBASE_SEMANTIC_MODE}" --stack "${STACK}"
+bootstrap_env_run_quiet "${stack_env[@]}" pulumi config set governanceMode "${LTBASE_GOVERNANCE_MODE}" --stack "${STACK}"
+bootstrap_env_run_quiet "${stack_env[@]}" pulumi config set governanceActionMode "${LTBASE_GOVERNANCE_ACTION_MODE}" --stack "${STACK}"
+bootstrap_env_run_quiet "${stack_env[@]}" pulumi config set formaCdcS3Prefix "${FORMA_CDC_S3_PREFIX:-}" --stack "${STACK}"
 bootstrap_env_run_quiet "${stack_env[@]}" pulumi config set geminiModel "${GEMINI_MODEL}" --stack "${STACK}"
 bootstrap_env_run_quiet "${stack_env[@]}" pulumi config set --secret geminiApiKey "${GEMINI_API_KEY}" --stack "${STACK}"
 popd >/dev/null
