@@ -85,6 +85,9 @@ Use this guide to create the local `.env` file that drives the bootstrap scripts
      - `DSQL_PORT`, `DSQL_DB`, `DSQL_USER`, `DSQL_PROJECT_SCHEMA` (defaults `5432`, `postgres`, `admin`, `ltbase`)
      - `LTBASE_LTSEARCH_MODE`, `LTBASE_CDC_MODE`, `LTBASE_LTFLOW_MODE`, `LTBASE_SEMANTIC_MODE`, `LTBASE_GOVERNANCE_MODE` (default `auto`)
      - `LTBASE_GOVERNANCE_ACTION_MODE` (default `off`)
+     - Dependency chain: `LTBASE_GOVERNANCE_MODE=on` requires `LTBASE_SEMANTIC_MODE` to be `auto` or `on`; `LTBASE_GOVERNANCE_ACTION_MODE=on` additionally requires `LTBASE_GOVERNANCE_MODE`, `LTBASE_LTFLOW_MODE`, and `LTBASE_SEMANTIC_MODE` to be `auto` or `on`. Bootstrap and `pulumi up` fail with a clear error when the chain is violated.
+     - `FORMA_CDC_S3_PREFIX` (default unset): CDC output prefix under the runtime bucket. `LTBASE_CDC_MODE=on` auto-defaults the deployed prefix to `delta`; with `auto` you must set it explicitly to enable CDC.
+     - Migration note: the template always writes `LTBASE_GOVERNANCE_ACTION_MODE` to each stack, so the legacy `GOVERNANCE_ACTION_ENGINE_ENABLED=true` flag has no effect in managed deployments — set `LTBASE_GOVERNANCE_ACTION_MODE=on` instead.
      - Source: LTBase application defaults and any approved customer-specific override
 12. Fill in secret values:
       - `GEMINI_API_KEY`
@@ -144,6 +147,8 @@ Leave these unset unless you intentionally need an override:
   - default: `gemini-3.1-flash-lite`, `5432`, `postgres`, `admin`, `ltbase`
 - `LTBASE_LTSEARCH_MODE`, `LTBASE_CDC_MODE`, `LTBASE_LTFLOW_MODE`, `LTBASE_SEMANTIC_MODE`, `LTBASE_GOVERNANCE_MODE`, `LTBASE_GOVERNANCE_ACTION_MODE`
   - default: `auto` for all except `LTBASE_GOVERNANCE_ACTION_MODE`, which defaults to `off`
+- `FORMA_CDC_S3_PREFIX`
+  - default: unset; `LTBASE_CDC_MODE=on` auto-defaults the deployed prefix to `delta`
 - `PULUMI_BACKEND_URL`
   - default: `s3://${PULUMI_STATE_BUCKET}`
 - `PULUMI_SECRETS_PROVIDER_<STACK>`
@@ -174,6 +179,7 @@ Only fill these when the defaults are wrong for your customer environment:
 - `AUTH_PROVIDER_CONFIG_FILE_<STACK>`
 - `GEMINI_MODEL`, `DSQL_PORT`, `DSQL_DB`, `DSQL_USER`, `DSQL_PROJECT_SCHEMA`
 - `LTBASE_LTSEARCH_MODE`, `LTBASE_CDC_MODE`, `LTBASE_LTFLOW_MODE`, `LTBASE_SEMANTIC_MODE`, `LTBASE_GOVERNANCE_MODE`, `LTBASE_GOVERNANCE_ACTION_MODE`
+- `FORMA_CDC_S3_PREFIX`
 - `OIDC_DISCOVERY_PAGES_PROJECT`
 - `CONTROLPLANE_UI_PAGES_PROJECT`
 - `PULUMI_BACKEND_URL`
@@ -201,6 +207,9 @@ Only fill these when the defaults are wrong for your customer environment:
 - expect bootstrap to write `ltbase-infra:controlPlaneCorsOrigins=https://<CONTROLPLANE_UI_DOMAIN>` into each stack config so the deployed control-plane API accepts browser calls from the admin UI domain
 - before operators try the admin UI, configure the identity provider to allow `https://<CONTROLPLANE_UI_DOMAIN>/auth/callback` and bind at least one admin user or group to the LTBase project you plan to manage
 - capability mode overrides must be `auto`, `on`, or `off`; use `on` only when you want missing feature dependencies to fail Lambda startup instead of degrading automatically
+- capability modes form a dependency chain enforced at bootstrap and `pulumi up`: `LTBASE_GOVERNANCE_MODE=on` requires `LTBASE_SEMANTIC_MODE` to be `auto` or `on`, and `LTBASE_GOVERNANCE_ACTION_MODE=on` requires `LTBASE_GOVERNANCE_MODE`, `LTBASE_LTFLOW_MODE`, and `LTBASE_SEMANTIC_MODE` to be `auto` or `on`
+- `LTBASE_CDC_MODE=on` auto-defaults `FORMA_CDC_S3_PREFIX` to `delta` in the deployed Lambdas; with `auto`, set `FORMA_CDC_S3_PREFIX` explicitly in `.env` to enable CDC (re-running bootstrap syncs the value, so `.env` is the source of truth)
+- the legacy `GOVERNANCE_ACTION_ENGINE_ENABLED=true` flag has no effect in managed deployments because the template always writes `LTBASE_GOVERNANCE_ACTION_MODE`; set `LTBASE_GOVERNANCE_ACTION_MODE=on` instead
 - the following variables are auto-derived or defaulted by `scripts/lib/bootstrap-env.sh` and normally do not need manual filling: `DEPLOYMENT_REPO`, `TEMPLATE_REPO`, `DEPLOYMENT_REPO_VISIBILITY`, `DEPLOYMENT_REPO_DESCRIPTION`, `PULUMI_BACKEND_URL`, `PULUMI_KMS_ALIAS`, `PULUMI_SECRETS_PROVIDER_*`, `PULUMI_BACKEND_ACCESS_PRINCIPAL_ARNS`, `AWS_ROLE_NAME_*`, `AWS_ROLE_ARN_*`, `LTBASE_RELEASES_REPO`, `MTLS_TRUSTSTORE_*`, `AUTH_PROVIDER_CONFIG_FILE_*`, `GEMINI_MODEL`, `DSQL_PORT`, `DSQL_DB`, `DSQL_USER`, `DSQL_PROJECT_SCHEMA`, `LTBASE_LTSEARCH_MODE`, `LTBASE_CDC_MODE`, `LTBASE_LTFLOW_MODE`, `LTBASE_SEMANTIC_MODE`, `LTBASE_GOVERNANCE_MODE`, `LTBASE_GOVERNANCE_ACTION_MODE`, `OIDC_ISSUER_URL_*`, `JWKS_URL_*`, `RUNTIME_BUCKET_*`, `SCHEMA_BUCKET_*`, `TABLE_NAME_*`, `GITHUB_ORG`, `GITHUB_REPO`, `OIDC_DISCOVERY_PAGES_PROJECT`, `CONTROLPLANE_UI_PAGES_PROJECT`, `OIDC_DISCOVERY_AWS_ROLE_NAME_*`, `OIDC_DISCOVERY_AWS_ROLE_ARN_*`, `PREVIEW_DEFAULT_STACK`
 
 ## Expected Result

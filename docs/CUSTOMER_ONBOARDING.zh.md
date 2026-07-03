@@ -602,7 +602,8 @@ GEMINI_API_KEY=your-gemini-api-key
 | `MTLS_TRUSTSTORE_KEY` | `mtls/cloudflare-origin-pull-ca.pem` | truststore 在 runtime bucket 中的 key |
 | `GEMINI_MODEL` | `gemini-3.1-flash-lite` | 默认模型 |
 | `DSQL_PORT` / `DSQL_DB` / `DSQL_USER` / `DSQL_PROJECT_SCHEMA` | `5432` / `postgres` / `admin` / `ltbase` | DSQL 连接默认值 |
-| `LTBASE_LTSEARCH_MODE` / `LTBASE_CDC_MODE` / `LTBASE_LTFLOW_MODE` / `LTBASE_SEMANTIC_MODE` / `LTBASE_GOVERNANCE_MODE` / `LTBASE_GOVERNANCE_ACTION_MODE` | `auto` / `auto` / `auto` / `auto` / `auto` / `off` | 可选能力模式；值必须是 `auto`、`on` 或 `off` |
+| `LTBASE_LTSEARCH_MODE` / `LTBASE_CDC_MODE` / `LTBASE_LTFLOW_MODE` / `LTBASE_SEMANTIC_MODE` / `LTBASE_GOVERNANCE_MODE` / `LTBASE_GOVERNANCE_ACTION_MODE` | `auto` / `auto` / `auto` / `auto` / `auto` / `off` | 可选能力模式；值必须是 `auto`、`on` 或 `off`。bootstrap/`pulumi up` 会强制校验依赖链：governance `on` 要求 semantic；governance action `on` 要求 governance、LTFlow 和 semantic。模板总是会写入 `LTBASE_GOVERNANCE_ACTION_MODE`，因此旧的 `GOVERNANCE_ACTION_ENGINE_ENABLED` 开关不再生效 |
+| `FORMA_CDC_S3_PREFIX` | *(不设置)* | 可选的 CDC S3 输出前缀（位于 runtime bucket 下）；`LTBASE_CDC_MODE=on` 时自动默认为 `delta`，`auto` 模式下必须显式设置才能启用 CDC |
 | `DSQL_HOST` / `DSQL_ENDPOINT` / `DSQL_PASSWORD` | **不要设置** | Managed 部署由 bootstrap 和 deploy 自动解析 |
 
 ### 7.4 Multi-Account 特别说明
