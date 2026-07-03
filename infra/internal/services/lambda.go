@@ -111,7 +111,6 @@ func authServiceKMSAliasName(cfg config.StackConfig) string {
 
 func NewLambdaServices(ctx *pulumi.Context, cfg config.StackConfig, runtime *RuntimeResources, providers Providers) (*ServiceSet, error) {
 	release := artifact.NewRelease(cfg.ReleaseID, cfg.ReleaseAssetDir)
-	commonEnv := commonLambdaEnv(cfg, runtime.Table.Name, runtime.RuntimeBucket.Bucket)
 	providerCfg, err := loadAuthProviderConfig(ctx.RootDirectory(), cfg.AuthProviderConfigFile)
 	if err != nil {
 		return nil, err
@@ -156,16 +155,13 @@ func NewLambdaServices(ctx *pulumi.Context, cfg config.StackConfig, runtime *Run
 	if err != nil {
 		return nil, err
 	}
-	formaEnv := mergeEnv(commonEnv, pulumi.StringMap{
-		"FORMA_CDC_S3_REGION": pulumi.String(cfg.AWSRegion),
-	})
 	formaCdc, err := newLambdaService(ctx, cfg, providers, lambdaSpec{
 		Name:         "forma-cdc",
 		ArtifactPath: release.FormaCdcZip,
 		Memory:       2048,
 		Timeout:      300,
 		AliasName:    naming.AliasName(cfg.Stack),
-		Env:          formaEnv,
+		Env:          formaCdcLambdaEnv(cfg, runtime.Table.Name, runtime.RuntimeBucket.Bucket),
 		AllowKMS:     false,
 	}, runtime)
 	if err != nil {
@@ -190,7 +186,7 @@ func authLambdaEnv(cfg config.StackConfig, providerNames []string, authKeyID pul
 }
 
 func dataPlaneLambdaEnv(cfg config.StackConfig, tableName pulumi.StringInput, bucketName pulumi.StringInput, schemaBucket pulumi.StringInput, geminiAPIKey pulumi.StringInput) pulumi.StringMap {
-	return mergeEnv(commonLambdaEnv(cfg, tableName, bucketName), schemaLambdaEnv(schemaBucket, pulumi.String(schemaAppliedPrefix)), pulumi.StringMap{
+	return mergeEnv(commonLambdaEnv(cfg, tableName, bucketName), schemaLambdaEnv(schemaBucket, pulumi.String(schemaAppliedPrefix)), dataPlaneCapabilityEnv(cfg), pulumi.StringMap{
 		"LTBASE_API_BASE_URL": pulumi.String("https://" + cfg.APIDomain),
 		"GEMINI_API_KEY":      geminiAPIKey,
 		"GEMINI_MODEL":        pulumi.String(cfg.GeminiModel),
@@ -204,7 +200,25 @@ func controlPlaneLambdaEnv(cfg config.StackConfig, tableName pulumi.StringInput,
 		"ACCOUNT_ID":                 pulumi.String(cfg.DeploymentAWSAccountID),
 		"API_BASE_URL":               pulumi.String(APIBaseURL(cfg)),
 		"CONTROL_PLANE_CORS_ORIGINS": pulumi.String(cfg.ControlPlaneCORSOrigins),
+		"LTBASE_CDC_MODE":            pulumi.String(cfg.CDCMode),
 	})
+}
+
+func formaCdcLambdaEnv(cfg config.StackConfig, tableName pulumi.StringInput, bucketName pulumi.StringInput) pulumi.StringMap {
+	return mergeEnv(commonLambdaEnv(cfg, tableName, bucketName), pulumi.StringMap{
+		"FORMA_CDC_S3_REGION": pulumi.String(cfg.AWSRegion),
+		"LTBASE_CDC_MODE":     pulumi.String(cfg.CDCMode),
+	})
+}
+
+func dataPlaneCapabilityEnv(cfg config.StackConfig) pulumi.StringMap {
+	return pulumi.StringMap{
+		"LTBASE_LTSEARCH_MODE":          pulumi.String(cfg.LTSearchMode),
+		"LTBASE_LTFLOW_MODE":            pulumi.String(cfg.LTFlowMode),
+		"LTBASE_SEMANTIC_MODE":          pulumi.String(cfg.SemanticMode),
+		"LTBASE_GOVERNANCE_MODE":        pulumi.String(cfg.GovernanceMode),
+		"LTBASE_GOVERNANCE_ACTION_MODE": pulumi.String(cfg.GovernanceActionMode),
+	}
 }
 
 type lambdaSpec struct {

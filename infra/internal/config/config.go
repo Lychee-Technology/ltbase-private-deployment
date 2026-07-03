@@ -10,6 +10,8 @@ import (
 
 const githubThumbprint = "6938fd4d98bab03faadb97b34396831e3780aea1"
 const defaultReleaseAssetDir = "../../.ltbase/releases"
+const defaultCapabilityMode = "auto"
+const defaultGovernanceActionMode = "off"
 
 type StackConfig struct {
 	Project                      string
@@ -41,6 +43,12 @@ type StackConfig struct {
 	JWKSURL                      string
 	ReleaseID                    string
 	FormaCdcSchedule             string
+	LTSearchMode                 string
+	CDCMode                      string
+	LTFlowMode                   string
+	SemanticMode                 string
+	GovernanceMode               string
+	GovernanceActionMode         string
 	DSQLPort                     string
 	DSQLEndpoint                 string
 	DSQLDB                       string
@@ -91,6 +99,12 @@ func Load(ctx *pulumi.Context) (StackConfig, error) {
 		JWKSURL:                      cfg.Require("jwksUrl"),
 		ReleaseID:                    cfg.Require("releaseId"),
 		FormaCdcSchedule:             valueOrDefault(cfg.Get("formaCdcSchedule"), "rate(15 minutes)"),
+		LTSearchMode:                 capabilityModeOrDefault(cfg.Get("ltsearchMode"), defaultCapabilityMode),
+		CDCMode:                      capabilityModeOrDefault(cfg.Get("cdcMode"), defaultCapabilityMode),
+		LTFlowMode:                   capabilityModeOrDefault(cfg.Get("ltflowMode"), defaultCapabilityMode),
+		SemanticMode:                 capabilityModeOrDefault(cfg.Get("semanticMode"), defaultCapabilityMode),
+		GovernanceMode:               capabilityModeOrDefault(cfg.Get("governanceMode"), defaultCapabilityMode),
+		GovernanceActionMode:         capabilityModeOrDefault(cfg.Get("governanceActionMode"), defaultGovernanceActionMode),
 		DSQLPort:                     valueOrDefault(cfg.Get("dsqlPort"), "5432"),
 		DSQLEndpoint:                 strings.TrimSpace(cfg.Get("dsqlEndpoint")),
 		DSQLDB:                       valueOrDefault(cfg.Get("dsqlDB"), "postgres"),
@@ -122,6 +136,21 @@ func (c StackConfig) Validate() error {
 	if c.RuntimeBucket != "" && c.SchemaBucket != "" && c.RuntimeBucket == c.SchemaBucket {
 		return fmt.Errorf("schemaBucket must differ from runtimeBucket")
 	}
+	for _, mode := range []struct {
+		key   string
+		value string
+	}{
+		{key: "ltsearchMode", value: c.LTSearchMode},
+		{key: "cdcMode", value: c.CDCMode},
+		{key: "ltflowMode", value: c.LTFlowMode},
+		{key: "semanticMode", value: c.SemanticMode},
+		{key: "governanceMode", value: c.GovernanceMode},
+		{key: "governanceActionMode", value: c.GovernanceActionMode},
+	} {
+		if err := validateCapabilityMode(mode.key, mode.value); err != nil {
+			return err
+		}
+	}
 	return nil
 }
 
@@ -134,6 +163,19 @@ func valueOrDefault(value, fallback string) string {
 		return fallback
 	}
 	return strings.TrimSpace(value)
+}
+
+func capabilityModeOrDefault(value, fallback string) string {
+	return strings.ToLower(valueOrDefault(value, fallback))
+}
+
+func validateCapabilityMode(key, value string) error {
+	switch strings.ToLower(strings.TrimSpace(value)) {
+	case "", "auto", "on", "off":
+		return nil
+	default:
+		return fmt.Errorf("%s must be one of auto, on, or off", key)
+	}
 }
 
 func splitCSV(raw string) []string {

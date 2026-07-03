@@ -83,6 +83,8 @@ Use this guide to create the local `.env` file that drives the bootstrap scripts
 11. Review optional application overrides (defaults applied automatically when unset):
      - `GEMINI_MODEL` (default `gemini-3.1-flash-lite`)
      - `DSQL_PORT`, `DSQL_DB`, `DSQL_USER`, `DSQL_PROJECT_SCHEMA` (defaults `5432`, `postgres`, `admin`, `ltbase`)
+     - `LTBASE_LTSEARCH_MODE`, `LTBASE_CDC_MODE`, `LTBASE_LTFLOW_MODE`, `LTBASE_SEMANTIC_MODE`, `LTBASE_GOVERNANCE_MODE` (default `auto`)
+     - `LTBASE_GOVERNANCE_ACTION_MODE` (default `off`)
      - Source: LTBase application defaults and any approved customer-specific override
 12. Fill in secret values:
       - `GEMINI_API_KEY`
@@ -140,6 +142,8 @@ Leave these unset unless you intentionally need an override:
   - default: `infra/auth-providers.<stack>.json`
 - `GEMINI_MODEL`, `DSQL_PORT`, `DSQL_DB`, `DSQL_USER`, `DSQL_PROJECT_SCHEMA`
   - default: `gemini-3.1-flash-lite`, `5432`, `postgres`, `admin`, `ltbase`
+- `LTBASE_LTSEARCH_MODE`, `LTBASE_CDC_MODE`, `LTBASE_LTFLOW_MODE`, `LTBASE_SEMANTIC_MODE`, `LTBASE_GOVERNANCE_MODE`, `LTBASE_GOVERNANCE_ACTION_MODE`
+  - default: `auto` for all except `LTBASE_GOVERNANCE_ACTION_MODE`, which defaults to `off`
 - `PULUMI_BACKEND_URL`
   - default: `s3://${PULUMI_STATE_BUCKET}`
 - `PULUMI_SECRETS_PROVIDER_<STACK>`
@@ -169,6 +173,7 @@ Only fill these when the defaults are wrong for your customer environment:
 - `LTBASE_RELEASES_REPO`
 - `AUTH_PROVIDER_CONFIG_FILE_<STACK>`
 - `GEMINI_MODEL`, `DSQL_PORT`, `DSQL_DB`, `DSQL_USER`, `DSQL_PROJECT_SCHEMA`
+- `LTBASE_LTSEARCH_MODE`, `LTBASE_CDC_MODE`, `LTBASE_LTFLOW_MODE`, `LTBASE_SEMANTIC_MODE`, `LTBASE_GOVERNANCE_MODE`, `LTBASE_GOVERNANCE_ACTION_MODE`
 - `OIDC_DISCOVERY_PAGES_PROJECT`
 - `CONTROLPLANE_UI_PAGES_PROJECT`
 - `PULUMI_BACKEND_URL`
@@ -195,7 +200,8 @@ Only fill these when the defaults are wrong for your customer environment:
 - preview and rollout require a valid `SCHEMA_BUCKET_<STACK>` repository variable for each stack; bootstrap writes it from `.env` or the derived default
 - expect bootstrap to write `ltbase-infra:controlPlaneCorsOrigins=https://<CONTROLPLANE_UI_DOMAIN>` into each stack config so the deployed control-plane API accepts browser calls from the admin UI domain
 - before operators try the admin UI, configure the identity provider to allow `https://<CONTROLPLANE_UI_DOMAIN>/auth/callback` and bind at least one admin user or group to the LTBase project you plan to manage
-- the following variables are auto-derived or defaulted by `scripts/lib/bootstrap-env.sh` and normally do not need manual filling: `DEPLOYMENT_REPO`, `TEMPLATE_REPO`, `DEPLOYMENT_REPO_VISIBILITY`, `DEPLOYMENT_REPO_DESCRIPTION`, `PULUMI_BACKEND_URL`, `PULUMI_KMS_ALIAS`, `PULUMI_SECRETS_PROVIDER_*`, `PULUMI_BACKEND_ACCESS_PRINCIPAL_ARNS`, `AWS_ROLE_NAME_*`, `AWS_ROLE_ARN_*`, `LTBASE_RELEASES_REPO`, `MTLS_TRUSTSTORE_*`, `AUTH_PROVIDER_CONFIG_FILE_*`, `GEMINI_MODEL`, `DSQL_PORT`, `DSQL_DB`, `DSQL_USER`, `DSQL_PROJECT_SCHEMA`, `OIDC_ISSUER_URL_*`, `JWKS_URL_*`, `RUNTIME_BUCKET_*`, `SCHEMA_BUCKET_*`, `TABLE_NAME_*`, `GITHUB_ORG`, `GITHUB_REPO`, `OIDC_DISCOVERY_PAGES_PROJECT`, `CONTROLPLANE_UI_PAGES_PROJECT`, `OIDC_DISCOVERY_AWS_ROLE_NAME_*`, `OIDC_DISCOVERY_AWS_ROLE_ARN_*`, `PREVIEW_DEFAULT_STACK`
+- capability mode overrides must be `auto`, `on`, or `off`; use `on` only when you want missing feature dependencies to fail Lambda startup instead of degrading automatically
+- the following variables are auto-derived or defaulted by `scripts/lib/bootstrap-env.sh` and normally do not need manual filling: `DEPLOYMENT_REPO`, `TEMPLATE_REPO`, `DEPLOYMENT_REPO_VISIBILITY`, `DEPLOYMENT_REPO_DESCRIPTION`, `PULUMI_BACKEND_URL`, `PULUMI_KMS_ALIAS`, `PULUMI_SECRETS_PROVIDER_*`, `PULUMI_BACKEND_ACCESS_PRINCIPAL_ARNS`, `AWS_ROLE_NAME_*`, `AWS_ROLE_ARN_*`, `LTBASE_RELEASES_REPO`, `MTLS_TRUSTSTORE_*`, `AUTH_PROVIDER_CONFIG_FILE_*`, `GEMINI_MODEL`, `DSQL_PORT`, `DSQL_DB`, `DSQL_USER`, `DSQL_PROJECT_SCHEMA`, `LTBASE_LTSEARCH_MODE`, `LTBASE_CDC_MODE`, `LTBASE_LTFLOW_MODE`, `LTBASE_SEMANTIC_MODE`, `LTBASE_GOVERNANCE_MODE`, `LTBASE_GOVERNANCE_ACTION_MODE`, `OIDC_ISSUER_URL_*`, `JWKS_URL_*`, `RUNTIME_BUCKET_*`, `SCHEMA_BUCKET_*`, `TABLE_NAME_*`, `GITHUB_ORG`, `GITHUB_REPO`, `OIDC_DISCOVERY_PAGES_PROJECT`, `CONTROLPLANE_UI_PAGES_PROJECT`, `OIDC_DISCOVERY_AWS_ROLE_NAME_*`, `OIDC_DISCOVERY_AWS_ROLE_ARN_*`, `PREVIEW_DEFAULT_STACK`
 
 ## Expected Result
 
