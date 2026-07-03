@@ -186,6 +186,7 @@ bootstrap_env_run_quiet "${stack_env[@]}" pulumi config set ltflowMode "${LTBASE
 bootstrap_env_run_quiet "${stack_env[@]}" pulumi config set semanticMode "${LTBASE_SEMANTIC_MODE}" --stack "${STACK}"
 bootstrap_env_run_quiet "${stack_env[@]}" pulumi config set governanceMode "${LTBASE_GOVERNANCE_MODE}" --stack "${STACK}"
 bootstrap_env_run_quiet "${stack_env[@]}" pulumi config set governanceActionMode "${LTBASE_GOVERNANCE_ACTION_MODE}" --stack "${STACK}"
+bootstrap_env_run_quiet "${stack_env[@]}" pulumi config set formaCdcS3Prefix "${FORMA_CDC_S3_PREFIX:-}" --stack "${STACK}"
 bootstrap_env_run_quiet "${stack_env[@]}" pulumi config set geminiModel "${GEMINI_MODEL}" --stack "${STACK}"
 bootstrap_env_run_quiet "${stack_env[@]}" pulumi config set --secret geminiApiKey "${GEMINI_API_KEY}" --stack "${STACK}"
 popd >/dev/null

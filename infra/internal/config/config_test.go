@@ -175,9 +175,9 @@ func TestLoadAcceptsCapabilityModeOverrides(t *testing.T) {
 	overrides := map[string]string{
 		"ltsearchMode":         "off",
 		"cdcMode":              "on",
-		"ltflowMode":           "off",
+		"ltflowMode":           "on",
 		"semanticMode":         "on",
-		"governanceMode":       "off",
+		"governanceMode":       "on",
 		"governanceActionMode": "on",
 	}
 	var got StackConfig
@@ -193,9 +193,9 @@ func TestLoadAcceptsCapabilityModeOverrides(t *testing.T) {
 	want := map[string]string{
 		"LTSearchMode":         "off",
 		"CDCMode":              "on",
-		"LTFlowMode":           "off",
+		"LTFlowMode":           "on",
 		"SemanticMode":         "on",
-		"GovernanceMode":       "off",
+		"GovernanceMode":       "on",
 		"GovernanceActionMode": "on",
 	}
 	gotModes := map[string]string{
@@ -230,6 +230,115 @@ func TestValidateRejectsInvalidCapabilityMode(t *testing.T) {
 	}
 	if !strings.Contains(err.Error(), "ltsearchMode") {
 		t.Fatalf("Validate() error = %q, want ltsearchMode", err.Error())
+	}
+}
+
+func TestValidateRejectsGovernanceOnWithSemanticOff(t *testing.T) {
+	cfg := StackConfig{
+		ManageGitHubOIDCProvider: true,
+		GovernanceMode:           "on",
+		SemanticMode:             "off",
+	}
+
+	err := cfg.Validate()
+	if err == nil {
+		t.Fatal("Validate() expected governance dependency error")
+	}
+	if !strings.Contains(err.Error(), "governanceMode") {
+		t.Fatalf("Validate() error = %q, want governanceMode", err.Error())
+	}
+}
+
+func TestValidateRejectsGovernanceActionOnWithDependenciesOff(t *testing.T) {
+	tests := []struct {
+		name    string
+		cfg     StackConfig
+		wantKey string
+	}{
+		{
+			name:    "governance off",
+			cfg:     StackConfig{ManageGitHubOIDCProvider: true, GovernanceActionMode: "on", GovernanceMode: "off"},
+			wantKey: "governanceMode",
+		},
+		{
+			name:    "ltflow off",
+			cfg:     StackConfig{ManageGitHubOIDCProvider: true, GovernanceActionMode: "on", LTFlowMode: "off"},
+			wantKey: "ltflowMode",
+		},
+		{
+			name:    "semantic off",
+			cfg:     StackConfig{ManageGitHubOIDCProvider: true, GovernanceActionMode: "on", SemanticMode: "off"},
+			wantKey: "semanticMode",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := tt.cfg.Validate()
+			if err == nil {
+				t.Fatal("Validate() expected governance action dependency error")
+			}
+			if !strings.Contains(err.Error(), tt.wantKey) {
+				t.Fatalf("Validate() error = %q, want %s", err.Error(), tt.wantKey)
+			}
+		})
+	}
+}
+
+func TestValidateAllowsGovernanceActionOnWithEmptyModes(t *testing.T) {
+	cfg := StackConfig{
+		ManageGitHubOIDCProvider: true,
+		GovernanceActionMode:     "on",
+	}
+	if err := cfg.Validate(); err != nil {
+		t.Fatalf("Validate() unexpected error: %v", err)
+	}
+}
+
+func TestLoadRejectsGovernanceActionOnWithLTFlowOff(t *testing.T) {
+	overrides := map[string]string{
+		"governanceActionMode": "on",
+		"ltflowMode":           "off",
+	}
+	err := pulumi.RunErr(func(ctx *pulumi.Context) error {
+		_, err := Load(ctx)
+		return err
+	}, pulumi.WithMocks("ltbase-infra", "devo", configLoadMocks{}), withConfig(requiredConfig(overrides)))
+	if err == nil {
+		t.Fatal("Load() expected governance action dependency error")
+	}
+	if !strings.Contains(err.Error(), "governanceActionMode") {
+		t.Fatalf("Load() error = %q, want governanceActionMode", err.Error())
+	}
+}
+
+func TestLoadReadsFormaCdcS3Prefix(t *testing.T) {
+	var got StackConfig
+	err := pulumi.RunErr(func(ctx *pulumi.Context) error {
+		var err error
+		got, err = Load(ctx)
+		return err
+	}, pulumi.WithMocks("ltbase-infra", "devo", configLoadMocks{}), withConfig(requiredConfig(map[string]string{"formaCdcS3Prefix": " custom/prefix "})))
+	if err != nil {
+		t.Fatalf("Load() error = %v", err)
+	}
+	if got.FormaCdcS3Prefix != "custom/prefix" {
+		t.Fatalf("Load() FormaCdcS3Prefix = %q, want custom/prefix", got.FormaCdcS3Prefix)
+	}
+}
+
+func TestLoadDefaultsFormaCdcS3PrefixEmpty(t *testing.T) {
+	var got StackConfig
+	err := pulumi.RunErr(func(ctx *pulumi.Context) error {
+		var err error
+		got, err = Load(ctx)
+		return err
+	}, pulumi.WithMocks("ltbase-infra", "devo", configLoadMocks{}), withConfig(requiredConfig(nil)))
+	if err != nil {
+		t.Fatalf("Load() error = %v", err)
+	}
+	if got.FormaCdcS3Prefix != "" {
+		t.Fatalf("Load() FormaCdcS3Prefix = %q, want empty", got.FormaCdcS3Prefix)
 	}
 }
 

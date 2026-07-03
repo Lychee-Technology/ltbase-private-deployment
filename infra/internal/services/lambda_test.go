@@ -176,6 +176,9 @@ func TestControlPlaneLambdaEnvIncludesBootstrapProjectConfig(t *testing.T) {
 	if env["LTBASE_CDC_MODE"] != pulumi.String("off") {
 		t.Fatalf("controlPlaneLambdaEnv() LTBASE_CDC_MODE = %v, want off", env["LTBASE_CDC_MODE"])
 	}
+	if _, ok := env["FORMA_CDC_S3_PREFIX"]; ok {
+		t.Fatal("controlPlaneLambdaEnv() should not set FORMA_CDC_S3_PREFIX when CDC is off without a prefix override")
+	}
 	if env["FORMA_SCHEMA_PREFIX"] != pulumi.String(schemaPublishedPrefix) {
 		t.Fatalf("controlPlaneLambdaEnv() FORMA_SCHEMA_PREFIX = %v, want %s", env["FORMA_SCHEMA_PREFIX"], schemaPublishedPrefix)
 	}
@@ -209,5 +212,62 @@ func TestFormaCdcLambdaEnvIncludesCDCMode(t *testing.T) {
 	}
 	if env["FORMA_CDC_S3_REGION"] != pulumi.String("ap-northeast-1") {
 		t.Fatalf("formaCdcLambdaEnv() FORMA_CDC_S3_REGION = %v, want ap-northeast-1", env["FORMA_CDC_S3_REGION"])
+	}
+}
+
+func TestOptionalFormaCdcPrefixEnvOmittedInAutoWithoutPrefix(t *testing.T) {
+	env := optionalFormaCdcPrefixEnv(config.StackConfig{CDCMode: "auto"})
+	if _, ok := env["FORMA_CDC_S3_PREFIX"]; ok {
+		t.Fatal("optionalFormaCdcPrefixEnv() unexpectedly set FORMA_CDC_S3_PREFIX")
+	}
+}
+
+func TestOptionalFormaCdcPrefixEnvDefaultsDeltaWhenCdcOn(t *testing.T) {
+	env := optionalFormaCdcPrefixEnv(config.StackConfig{CDCMode: "on"})
+	if env["FORMA_CDC_S3_PREFIX"] != pulumi.String("delta") {
+		t.Fatalf("optionalFormaCdcPrefixEnv() FORMA_CDC_S3_PREFIX = %v, want delta", env["FORMA_CDC_S3_PREFIX"])
+	}
+}
+
+func TestOptionalFormaCdcPrefixEnvUsesExplicitPrefix(t *testing.T) {
+	env := optionalFormaCdcPrefixEnv(config.StackConfig{CDCMode: "auto", FormaCdcS3Prefix: "custom"})
+	if env["FORMA_CDC_S3_PREFIX"] != pulumi.String("custom") {
+		t.Fatalf("optionalFormaCdcPrefixEnv() FORMA_CDC_S3_PREFIX = %v, want custom", env["FORMA_CDC_S3_PREFIX"])
+	}
+}
+
+func TestControlPlaneLambdaEnvIncludesFormaCdcPrefixWhenCdcOn(t *testing.T) {
+	env := controlPlaneLambdaEnv(config.StackConfig{
+		Stack:                   "devo",
+		Project:                 "customer-ltbase",
+		APIDomain:               "api.devo.example.com",
+		ProjectID:               "33333333-3333-4333-8333-333333333333",
+		DeploymentProjectName:   "Customer Ltbase",
+		DeploymentAWSAccountID:  "123456789012",
+		ControlPlaneCORSOrigins: "https://admin.example.com",
+		DSQLPort:                "5432",
+		DSQLDB:                  "postgres",
+		DSQLUser:                "admin",
+		DSQLProjectSchema:       "ltbase",
+		CDCMode:                 "on",
+	}, pulumi.String("table-name"), pulumi.String("bucket-name"), pulumi.String("schema-bucket"))
+
+	if env["FORMA_CDC_S3_PREFIX"] != pulumi.String("delta") {
+		t.Fatalf("controlPlaneLambdaEnv() FORMA_CDC_S3_PREFIX = %v, want delta", env["FORMA_CDC_S3_PREFIX"])
+	}
+}
+
+func TestFormaCdcLambdaEnvIncludesFormaCdcPrefixWhenCdcOn(t *testing.T) {
+	env := formaCdcLambdaEnv(config.StackConfig{
+		AWSRegion:         "ap-northeast-1",
+		DSQLPort:          "5432",
+		DSQLDB:            "postgres",
+		DSQLUser:          "admin",
+		DSQLProjectSchema: "ltbase",
+		CDCMode:           "on",
+	}, pulumi.String("table-name"), pulumi.String("bucket-name"))
+
+	if env["FORMA_CDC_S3_PREFIX"] != pulumi.String("delta") {
+		t.Fatalf("formaCdcLambdaEnv() FORMA_CDC_S3_PREFIX = %v, want delta", env["FORMA_CDC_S3_PREFIX"])
 	}
 }

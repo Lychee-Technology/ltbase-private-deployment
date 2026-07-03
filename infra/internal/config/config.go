@@ -43,6 +43,7 @@ type StackConfig struct {
 	JWKSURL                      string
 	ReleaseID                    string
 	FormaCdcSchedule             string
+	FormaCdcS3Prefix             string
 	LTSearchMode                 string
 	CDCMode                      string
 	LTFlowMode                   string
@@ -99,6 +100,7 @@ func Load(ctx *pulumi.Context) (StackConfig, error) {
 		JWKSURL:                      cfg.Require("jwksUrl"),
 		ReleaseID:                    cfg.Require("releaseId"),
 		FormaCdcSchedule:             valueOrDefault(cfg.Get("formaCdcSchedule"), "rate(15 minutes)"),
+		FormaCdcS3Prefix:             strings.TrimSpace(cfg.Get("formaCdcS3Prefix")),
 		LTSearchMode:                 capabilityModeOrDefault(cfg.Get("ltsearchMode"), defaultCapabilityMode),
 		CDCMode:                      capabilityModeOrDefault(cfg.Get("cdcMode"), defaultCapabilityMode),
 		LTFlowMode:                   capabilityModeOrDefault(cfg.Get("ltflowMode"), defaultCapabilityMode),
@@ -149,6 +151,20 @@ func (c StackConfig) Validate() error {
 	} {
 		if err := validateCapabilityMode(mode.key, mode.value); err != nil {
 			return err
+		}
+	}
+	if c.GovernanceMode == "on" && c.SemanticMode == "off" {
+		return fmt.Errorf("governanceMode=on requires semanticMode to be auto or on")
+	}
+	if c.GovernanceActionMode == "on" {
+		if c.GovernanceMode == "off" {
+			return fmt.Errorf("governanceActionMode=on requires governanceMode to be auto or on")
+		}
+		if c.LTFlowMode == "off" {
+			return fmt.Errorf("governanceActionMode=on requires ltflowMode to be auto or on")
+		}
+		if c.SemanticMode == "off" {
+			return fmt.Errorf("governanceActionMode=on requires semanticMode to be auto or on")
 		}
 	}
 	return nil

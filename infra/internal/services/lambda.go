@@ -47,6 +47,10 @@ type ServiceSet struct {
 
 const authServiceKMSAliasProject = "ltbase-oidc-discovery"
 
+// defaultFormaCdcS3Prefix matches the forma-cdc-lambda's in-app default so
+// cdcMode=on works without an explicit prefix override.
+const defaultFormaCdcS3Prefix = "delta"
+
 func NewRuntimeResources(ctx *pulumi.Context, cfg config.StackConfig, providers Providers) (*RuntimeResources, error) {
 	dsqlResources, err := NewDSQLResources(ctx, cfg, providers)
 	if err != nil {
@@ -194,7 +198,7 @@ func dataPlaneLambdaEnv(cfg config.StackConfig, tableName pulumi.StringInput, bu
 }
 
 func controlPlaneLambdaEnv(cfg config.StackConfig, tableName pulumi.StringInput, bucketName pulumi.StringInput, schemaBucket pulumi.StringInput) pulumi.StringMap {
-	return mergeEnv(commonLambdaEnv(cfg, tableName, bucketName), schemaLambdaEnvWithPublishedPrefix(schemaBucket, pulumi.String(schemaPublishedPrefix)), pulumi.StringMap{
+	return mergeEnv(commonLambdaEnv(cfg, tableName, bucketName), schemaLambdaEnvWithPublishedPrefix(schemaBucket, pulumi.String(schemaPublishedPrefix)), optionalFormaCdcPrefixEnv(cfg), pulumi.StringMap{
 		"PROJECT_ID":                 pulumi.String(cfg.ProjectID),
 		"PROJECT_NAME":               pulumi.String(cfg.DeploymentProjectName),
 		"ACCOUNT_ID":                 pulumi.String(cfg.DeploymentAWSAccountID),
@@ -205,10 +209,24 @@ func controlPlaneLambdaEnv(cfg config.StackConfig, tableName pulumi.StringInput,
 }
 
 func formaCdcLambdaEnv(cfg config.StackConfig, tableName pulumi.StringInput, bucketName pulumi.StringInput) pulumi.StringMap {
-	return mergeEnv(commonLambdaEnv(cfg, tableName, bucketName), pulumi.StringMap{
+	return mergeEnv(commonLambdaEnv(cfg, tableName, bucketName), optionalFormaCdcPrefixEnv(cfg), pulumi.StringMap{
 		"FORMA_CDC_S3_REGION": pulumi.String(cfg.AWSRegion),
 		"LTBASE_CDC_MODE":     pulumi.String(cfg.CDCMode),
 	})
+}
+
+// optionalFormaCdcPrefixEnv returns FORMA_CDC_S3_PREFIX when CDC is explicitly
+// enabled or a prefix override is configured. cdcMode=auto with no prefix keeps
+// the variable unset so CDC stays disabled out of the box; an explicit prefix
+// is injected even when cdcMode=off (the application ignores it in off mode).
+func optionalFormaCdcPrefixEnv(cfg config.StackConfig) pulumi.StringMap {
+	out := pulumi.StringMap{}
+	if cfg.FormaCdcS3Prefix != "" {
+		out["FORMA_CDC_S3_PREFIX"] = pulumi.String(cfg.FormaCdcS3Prefix)
+	} else if cfg.CDCMode == "on" {
+		out["FORMA_CDC_S3_PREFIX"] = pulumi.String(defaultFormaCdcS3Prefix)
+	}
+	return out
 }
 
 func dataPlaneCapabilityEnv(cfg config.StackConfig) pulumi.StringMap {
