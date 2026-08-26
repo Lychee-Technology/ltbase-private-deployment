@@ -68,6 +68,7 @@ func TestAPIRouteSpecsCoverKeyRoutes(t *testing.T) {
 		"POST /api/ai/v1/compliance/decisions",
 		"GET /api/v1/deepping",
 		"GET /api/v1/semantic/resources",
+		"GET /api/v1/semantic/lineage/{entity_type}/{row_id}",
 		"POST /api/sys/v1/discovery/reachable",
 		"GET /api/sys/v1/ontology/object-types",
 		"GET /api/sys/v1/governance/claims",
