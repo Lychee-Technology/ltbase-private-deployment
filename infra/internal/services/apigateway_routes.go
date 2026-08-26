@@ -100,7 +100,7 @@ func buildAPIRouteSpecs() []routeSpec {
 
 		"GET /api/v1/semantic/resources",
 		"GET /api/v1/semantic/resources/{resource_id}",
-		"GET /api/v1/semantic/lineage/{resource_id}",
+		"GET /api/v1/semantic/lineage/{entity_type}/{row_id}",
 	)
 	return append(business, preflightRoutes()...)
 }
