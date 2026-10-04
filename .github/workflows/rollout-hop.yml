@@ -179,6 +179,17 @@ jobs:
       - name: Validate Pulumi stack config
         run: ./scripts/check-pulumi-stack-config.sh --stack ${{ needs.prepare.outputs.target_stack }}
 
+      # Runs before the rollout, not only at publish time: publish_schemas comes
+      # after the new release is live, which is too late to learn that the bundle
+      # it is about to load does not resolve.
+      - name: Validate customer schemas
+        env:
+          SCHEMA_BUCKET: ${{ vars[format('SCHEMA_BUCKET_{0}', needs.prepare.outputs.target_stack_upper)] }}
+          LTBASE_RELEASE_ID: ${{ needs.prepare.outputs.release_id }}
+          LTBASE_RELEASES_REPO: ${{ vars.LTBASE_RELEASES_REPO || 'Lychee-Technology/ltbase-releases' }}
+          GH_TOKEN: ${{ secrets.LTBASE_RELEASES_TOKEN }}
+        run: ./scripts/publish-schemas.sh --dry-run --schema-bucket ${{ vars[format('SCHEMA_BUCKET_{0}', needs.prepare.outputs.target_stack_upper)] }}
+
   approve:
     needs:
       - prepare
@@ -314,6 +325,9 @@ jobs:
       - name: Publish customer schemas
         env:
           SCHEMA_BUCKET: ${{ vars[format('SCHEMA_BUCKET_{0}', needs.prepare.outputs.target_stack_upper)] }}
+          LTBASE_RELEASE_ID: ${{ needs.prepare.outputs.release_id }}
+          LTBASE_RELEASES_REPO: ${{ vars.LTBASE_RELEASES_REPO || 'Lychee-Technology/ltbase-releases' }}
+          GH_TOKEN: ${{ secrets.LTBASE_RELEASES_TOKEN }}
         run: ./scripts/publish-schemas.sh --schema-bucket ${{ vars[format('SCHEMA_BUCKET_{0}', needs.prepare.outputs.target_stack_upper)] }}
 
   ensure_project:
