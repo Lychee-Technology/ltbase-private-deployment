@@ -33,11 +33,36 @@ preview workflow 与 rollout hop workflow 会在成功完成后自动运行这�
 3. 审查同步进来的模板变更。模板同步会保留本地 `.env`、`infra/Pulumi.*.yaml`、整个 `customer-owned/` 目录树、由 deployment repo 自行维护的 `infra/auth-providers.*.json`，以及同步工具自己的脚本与测试文件。
 4. 如果生成出来的 deployment repo 某个 stack 还没有真实的 auth provider 配置文件，请先把对应的 `infra/auth-providers.<stack>.json.example` 复制成 `infra/auth-providers.<stack>.json`，再进行下一次 bootstrap 或 preview。
 5. 更新 GitHub variables 中的 `LTBASE_RELEASE_ID`，或在工作流中直接传入新的 `release_id`。
-6. 运行 preview 工作流。
-7. 审查 Pulumi preview 输出。记住 preview 只做基础设施预览，不会发布 Control Plane UI。
-8. 针对新 release 触发一次 `rollout.yml`。
-9. 在审批下一个受保护目标环境前，验证当前已部署 stack。
-10. 按顺序审批每一跳，直到 promotion path 完成。
+6. 针对新 release 运行 preview 工作流。除了 Pulumi diff 之外，它还会用新 release 自带的 schema 校验器检查 `customer-owned/schemas/*.json`。
+7. 如果 schema 校验步骤失败，请先停下，按 [修复被新 release 拒绝的 schema bundle](#修复被新-release-拒绝的-schema-bundle) 处理后再继续。
+8. 审查 Pulumi preview 输出。记住 preview 只做基础设施预览，不会发布 Control Plane UI。
+9. 针对新 release 触发一次 `rollout.yml`。每一跳都会在审批之前、任何部署动作之前重复这项 schema 检查。
+10. 在审批下一个受保护目标环境前，验证当前已部署 stack。
+11. 按顺序审批每一跳，直到 promotion path 完成。
+
+### 修复被新 release 拒绝的 schema bundle
+
+LTBase 在加载 schema bundle 时就会解析跨文件 `$ref`，只要有一个无法解析，就会拒绝整个 bundle：该 project 的所有 Forma 请求都会返回 `503 forma_unavailable`。因此 preview 和每一跳 rollout 都会用所部署 release 自带的校验器检查 `customer-owned/schemas/*.json`，一旦报告类似下面的问题，就会在部署之前停止：
+
+```text
+result: FAILED — 1 finding(s)
+  - log: log.json: $ref "lead.json#/$defs/lead_id" at /properties/leadId: ...
+```
+
+这项检查读取的是仓库里的 bundle。stack 实际使用的是上一次 **apply** 到它上面的 bundle，并且在 rollout 替换 release 的过程中仍会继续使用它。如果 stack 当前运行的 release 接受了某个 bundle，而新 release 拒绝它，那么只修复仓库再 rollout 新 release 是不够的：新 release 会先加载旧 bundle 并持续失败，直到这一跳执行到发布与 apply 步骤为止；如果这一跳在此之前中断，则会一直失败。
+
+正确的做法是先用 stack 当前运行的 release 把修复应用上去，再升级：
+
+1. 修复 `customer-owned/schemas/` 中被报告的引用，并合并修复。
+2. 用**新的** `release_id` 重新运行 preview 工作流，直到 schema 校验步骤通过。
+3. 用各 stack **当前**运行的 release 执行 `rollout.yml`。release 本身不变；每一跳会发布并 apply 修正后的 bundle。
+4. 用新 release 执行 `rollout.yml`。
+
+第 3 步是升级安全的关键。只有当 stack 已经在运行拒绝该 bundle 的那个 release 时才可以跳过它：此时没有更早的 release 可以借道，把修正后的 bundle rollout 一次就是修复方法。
+
+只要 `customer-owned/schemas/` 在上次 rollout 之后发生过变化，同样的顺序也适用：检查看不到仍然 apply 在 stack 上、但已不在仓库中的 bundle。请先用当前 release 把尚未 rollout 的 schema 变更发布出去，再进行升级。
+
+检查的内容与运行位置见 [Schema bundle 校验](../GITHUB_ACTIONS.zh.md#schema-bundle-校验)。
 
 ### 在变更前重新执行 preview
 

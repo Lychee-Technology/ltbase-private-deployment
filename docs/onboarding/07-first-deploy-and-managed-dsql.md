@@ -38,7 +38,7 @@ Important:
 
 Confirm that the Pulumi preview matches your expected infrastructure changes.
 
-The preview workflow also runs schema validation in dry-run mode against `customer-owned/schemas/*.json`. It does not upload anything to the stack schema bucket during preview.
+The preview workflow also runs schema validation in dry-run mode against `customer-owned/schemas/*.json`: every file must parse, and the bundle is checked with the schema validator that ships with the release being previewed, so that every cross-file `$ref` resolves. It does not upload anything to the stack schema bucket during preview. See [Schema bundle validation](../GITHUB_ACTIONS.md#schema-bundle-validation).
 
 The preview workflow is infra-only. It does not publish the Control Plane UI or update the companion repository runtime config.
 
@@ -98,6 +98,7 @@ At minimum, check:
 
 Schema publication and schema application are intentionally separate.
 
+- if the schema bundle fails validation, the hop stops before approval and before anything is deployed; nothing is published
 - if schema publication fails, `schemas/published/manifest.json` is not updated and `ensure-project` is not called
 - if schema publication succeeds but `ensure-project` fails, the new bundle remains visible in S3, but deployment stops and the previously applied schema version remains authoritative
 - only a successful explicit `ensure-project` call advances `schemas/applied/manifest.json` and the deployed project to the published schema version

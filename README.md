@@ -120,7 +120,7 @@ This template repository only tracks `infra/auth-providers.*.json.example`. A ge
 - customers own the GitHub repository, AWS account resources, and deployment approvals
 - bootstrap scripts prepare repository state and deployment configuration
 - current Control Plane UI operator inputs still originate in the deployment repository even when companion-style setup scripts publish or mirror those values elsewhere
-- deployment workflows validate schemas in preview, then publish versioned bundles to each stack's dedicated schema bucket during rollout
+- deployment workflows validate schemas in preview and again before each rollout hop, using the schema validator of the release being deployed, then publish versioned bundles to each stack's dedicated schema bucket during rollout
 - schema publication and schema application are separate: publishing updates immutable `schemas/releases/<version>/` objects plus the published pointer at `schemas/published/manifest.json`, then an explicit control-plane `ensure-project` call applies that published version into the runtime-consumed `schemas/applied/` pointer
 - optional application capabilities are controlled by deployment-owned modes (`auto`, `on`, or `off`) so operators can keep default auto-detection, force a feature on, or disable it without rebuilding LTBase
 - the shared Pulumi backend bucket is created once and lives in the AWS account for the first stack in `PROMOTION_PATH`

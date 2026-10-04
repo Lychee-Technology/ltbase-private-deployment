@@ -30,11 +30,12 @@
 
 ## `preview.yml` — Preview LTBase Blueprint
 
-**做什么。** 在任何部署之前校验目标 stack。它会检查 `infra/Pulumi.<stack>.yaml` 是否包含必需的 `ltbase-infra:*` 配置键，以 dry-run 方式针对 stack schema bucket 校验 `customer-owned/schemas/*.json`（不上传任何内容），调用共享的 `preview-stack.yml` 生成 Pulumi diff，最后审计 Cloudflare / API Gateway 的 mTLS 配置。
+**做什么。** 在任何部署之前校验目标 stack。它会检查 `infra/Pulumi.<stack>.yaml` 是否包含必需的 `ltbase-infra:*` 配置键，用所预览 release 自带的 schema 校验器以 dry-run 方式校验 `customer-owned/schemas/*.json`（不上传任何内容，见 [Schema bundle 校验](#schema-bundle-校验)），调用共享的 `preview-stack.yml` 生成 Pulumi diff，最后审计 Cloudflare / API Gateway 的 mTLS 配置。
 
 **什么时候用。**
 - 每个 stack 首次 rollout 之前。
 - 每次修改 stack 配置、release 选择或其他部署输入时。先 preview，再 rollout。
+- 升级到新 release 之前：用新的 `release_id` 执行 preview，会在任何部署动作之前用该 release 检查你的 schema bundle。
 - 确认 Pulumi diff 在你预期范围内。
 
 **什么时候不该用。**
@@ -185,7 +186,7 @@ gh workflow run promote-prod.yml \
 
 ## `rollout-hop.yml` — Rollout LTBase Promotion Hop
 
-**做什么。** 上面每个 deploy/rollout/promote 工作流都委托给它的单跳部署引擎。对一个目标 stack，它会：校验 Pulumi stack 配置、在受保护 stack 上等待审批、渲染 Control Plane UI 运行时配置、在 rollout **之前**发布已部署 promotion-path 前缀的 OIDC discovery（尚未部署的 target 用占位 key，使 API Gateway 能创建 JWT authorizer）、调用共享的 `rollout-hop.yml`（执行 `pulumi up`、发布 control-plane UI、managed DSQL reconcile 与二次 apply）、在 rollout **之后**用真实 KMS key 重新发布该前缀的 OIDC discovery（并轮询确认占位 key 已被真实替换）、发布客户 schema、调用 control-plane 的 `ensure-project` apply、推进 applied schema 指针、审计 mTLS，并在 `continue_chain` 为 true 且 rollout 后的 discovery 发布成功时派发下一跳。
+**做什么。** 上面每个 deploy/rollout/promote 工作流都委托给它的单跳部署引擎。对一个目标 stack，它会：校验 Pulumi stack 配置与客户 schema bundle、在受保护 stack 上等待审批、渲染 Control Plane UI 运行时配置、在 rollout **之前**发布已部署 promotion-path 前缀的 OIDC discovery（尚未部署的 target 用占位 key，使 API Gateway 能创建 JWT authorizer）、调用共享的 `rollout-hop.yml`（执行 `pulumi up`、发布 control-plane UI、managed DSQL reconcile 与二次 apply）、在 rollout **之后**用真实 KMS key 重新发布该前缀的 OIDC discovery（并轮询确认占位 key 已被真实替换）、发布客户 schema、调用 control-plane 的 `ensure-project` apply、推进 applied schema 指针、审计 mTLS，并在 `continue_chain` 为 true 且 rollout 后的 discovery 发布成功时派发下一跳。
 
 **什么时候用。**
 - 一般不直接运行它；请用 `rollout.yml`、`deploy-devo.yml` 或 `promote-prod.yml`。
@@ -226,6 +227,7 @@ gh workflow run rollout-hop.yml \
 **注意事项。**
 - 除起点 stack 外的每个 stack 都需要审批（`approval_required=true`）；这些跳转还会运行 canary。
 - schema 发布与 apply 是分离的：`schemas/published/manifest.json` 在发布时推进，`schemas/applied/manifest.json` 只在 `ensure-project` 成功后才推进。
+- schema bundle 会用所部署 release 自带的校验器检查两次：一次是审批和 `pulumi up` 之前的 dry-run，一次是发布时。该 release 无法加载的 bundle 会在任何部署动作之前终止这一跳。见 [Schema bundle 校验](#schema-bundle-校验)。
 - 当 `continue_chain=true` 且存在 `next_stack` 时，工作流会为下一跳派发自己。
 
 ---
@@ -318,6 +320,40 @@ gh workflow run publish-oidc-discovery.yml -f target_stacks=devo,prod --ref main
 
 **注意事项。**
 - 当找不到任何 `test/*-test.sh` 文件或任一测试失败时，工作流失败。
+
+---
+
+## Schema bundle 校验
+
+`preview.yml` 与 `rollout-hop.yml` 都会运行 `scripts/publish-schemas.sh`。在任何内容进入 schema bucket 之前，它分两步检查 `customer-owned/schemas/*.json`：
+
+1. 每个文件都必须是合法的 JSON。
+2. 每个跨文件 `$ref` 都必须能解析。这一步由所预览或所部署的 LTBase release 自带的 schema 校验器执行。脚本使用 `LTBASE_RELEASES_TOKEN` 从 `LTBASE_RELEASES_REPO` 下载它，并按 release manifest 中的校验和核对，因此判定 bundle 的正是之后要加载它的那份代码。
+
+之所以需要第二步，是因为 LTBase 在加载 bundle 时就会解析跨文件引用。只要有一个引用无法解析（文件被改名、某个 `$defs` 条目被删除），**整个** bundle 都无法加载：该 project 的所有 Forma 请求都会返回 `503 forma_unavailable`，而不仅仅是引用所在的那个 schema。
+
+**在哪里运行。**
+
+| 工作流 | Job | 模式 | 时机 |
+|--------|-----|------|------|
+| `preview.yml` | `validate_config` | dry-run | Pulumi preview 之前。 |
+| `rollout-hop.yml` | `validate_config` | dry-run | 审批之前、`pulumi up` 之前。 |
+| `rollout-hop.yml` | `publish_schemas` | 发布 | rollout 之后，针对实际上传的字节。 |
+
+dry-run 失败会在任何部署动作之前终止工作流。发布阶段失败则不会上传任何内容，两个 schema 指针都保持原状。
+
+**不带校验器的 release。** 早于校验器的 release 同样早于“加载时解析”，既没有可用的校验器，也不会拒绝 bundle。脚本从 release 自己的 manifest 得知这一点，打印 `release <id> does not ship a schema validator; cross-file $ref resolution was not checked`，然后只做 JSON 检查。除此之外的任何情况（没有 release id、下载失败、校验和不一致）都是错误。检查不会被悄悄跳过。
+
+**它覆盖不到的地方。** 检查读取的是仓库里的 bundle。stack 实际使用的是上一次 *apply* 到它上面的 bundle，并且在 rollout 替换 release 的过程中仍会继续使用它。因此，当新 release 拒绝了当前 release 能接受的 bundle 时，只修复仓库是不够的：请按 [修复被新 release 拒绝的 schema bundle](onboarding/08-day-2-operations.zh.md#修复被新-release-拒绝的-schema-bundle) 操作。
+
+**手动运行。**
+
+```bash
+# 需要 gh 已登录，且对 releases 仓库有读取权限
+LTBASE_RELEASE_ID=<release tag> ./scripts/publish-schemas.sh --dry-run --schema-bucket <schema bucket>
+```
+
+校验器是 Linux 二进制（arm64 与 amd64）。在其他系统上请改为运行 Preview 工作流。
 
 ---
 
