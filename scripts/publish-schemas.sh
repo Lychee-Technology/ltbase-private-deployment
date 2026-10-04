@@ -4,6 +4,8 @@ set -euo pipefail
 
 SCHEMA_DIR=""
 SCHEMA_BUCKET="${SCHEMA_BUCKET:-}"
+RELEASE_ID="${LTBASE_RELEASE_ID:-}"
+RELEASES_REPO="${LTBASE_RELEASES_REPO:-Lychee-Technology/ltbase-releases}"
 DRY_RUN="false"
 
 while [[ $# -gt 0 ]]; do
@@ -14,6 +16,14 @@ while [[ $# -gt 0 ]]; do
       ;;
     --schema-bucket)
       SCHEMA_BUCKET="$2"
+      shift 2
+      ;;
+    --release-id)
+      RELEASE_ID="$2"
+      shift 2
+      ;;
+    --releases-repo)
+      RELEASES_REPO="$2"
       shift 2
       ;;
     --dry-run)
@@ -44,8 +54,19 @@ if [[ ! -d "${SCHEMA_DIR}" ]]; then
   exit 1
 fi
 
+# Required rather than optional: without it there is no telling which validator
+# applies, and an unset variable must not turn the reference check off.
+if [[ -z "${RELEASE_ID}" ]]; then
+  printf 'release id is required (--release-id or LTBASE_RELEASE_ID): the bundle is checked with the validator of the LTBase release that will load it\n' >&2
+  exit 1
+fi
+
 tmp_dir="$(mktemp -d)"
 published_manifest_path="${tmp_dir}/published-manifest.json"
+# The bytes that were hashed, held aside: the same copy is validated and then
+# uploaded, so what was checked is what is published.
+bundle_dir="${tmp_dir}/schemas"
+mkdir "${bundle_dir}"
 
 cleanup() {
   rm -rf "${tmp_dir}"
@@ -56,7 +77,7 @@ trap cleanup EXIT
 generated_at="${PUBLISH_SCHEMAS_GENERATED_AT:-$(date -u +"%Y-%m-%dT%H:%M:%SZ")}" 
 manifest_path="${tmp_dir}/manifest.json"
 
-python3 - <<'PY' "${SCHEMA_DIR}" "${manifest_path}" "${generated_at}"
+python3 - <<'PY' "${SCHEMA_DIR}" "${manifest_path}" "${generated_at}" "${bundle_dir}"
 import hashlib
 import json
 import os
@@ -66,6 +87,7 @@ from pathlib import Path
 schema_dir = Path(sys.argv[1])
 manifest_path = Path(sys.argv[2])
 generated_at = sys.argv[3]
+bundle_dir = Path(sys.argv[4])
 
 schema_files = sorted(path for path in schema_dir.glob('*.json') if path.is_file())
 if not schema_files:
@@ -79,6 +101,8 @@ for path in schema_files:
         json.loads(raw)
     except json.JSONDecodeError as exc:
         raise SystemExit(f'invalid schema JSON: {path.name}: {exc}')
+
+    (bundle_dir / path.name).write_bytes(raw)
 
     digest = hashlib.sha256(raw).hexdigest()
     version_hash.update(path.name.encode('utf-8'))
@@ -110,6 +134,46 @@ print(manifest['version'])
 PY
 )"
 
+# A dangling cross-file $ref is valid JSON, so the check above passes it. LTBase
+# resolves those references when it loads the bundle, and one that does not
+# resolve takes every schema of the project down with it. Only the release's own
+# validator knows what its loader accepts, so the bundle is checked with that.
+check_schema_references() {
+  local answer validator_path
+
+  if ! answer="$("${script_dir}/fetch-schema-validator.sh" --release-id "${RELEASE_ID}" --releases-repo "${RELEASES_REPO}" --output-dir "${tmp_dir}/validator")"; then
+    printf 'could not resolve the schema validator of release %s; nothing was published\n' "${RELEASE_ID}" >&2
+    exit 1
+  fi
+
+  case "${answer}" in
+    absent)
+      # shellcheck disable=SC2016
+      printf 'release %s does not ship a schema validator; cross-file $ref resolution was not checked\n' "${RELEASE_ID}"
+      ;;
+    "validator "*)
+      validator_path="${answer#validator }"
+      if [[ ! -x "${validator_path}" ]]; then
+        printf 'the schema validator of release %s is not executable: %s; nothing was published\n' "${RELEASE_ID}" "${validator_path}" >&2
+        exit 1
+      fi
+      printf 'checking schema bundle %s (a copy of %s) with the validator of release %s\n' "${version}" "${SCHEMA_DIR}" "${RELEASE_ID}"
+      if ! "${validator_path}" validate --schema-dir "${bundle_dir}"; then
+        printf 'schema bundle %s failed validation for release %s; nothing was published\n' "${version}" "${RELEASE_ID}" >&2
+        # Fixing the repository does not fix what a stack already serves.
+        printf 'fix the references reported above. A stack that does not run release %s yet keeps serving the bundle last applied to it: roll the corrected bundle out with the release that stack runs now before deploying %s (docs/onboarding/08-day-2-operations.md)\n' "${RELEASE_ID}" "${RELEASE_ID}" >&2
+        exit 1
+      fi
+      ;;
+    *)
+      printf 'unexpected answer from fetch-schema-validator.sh: %s; nothing was published\n' "${answer}" >&2
+      exit 1
+      ;;
+  esac
+}
+
+check_schema_references
+
 if [[ "${DRY_RUN}" == "true" ]]; then
   printf 'validated schema bundle %s for %s\n' "${version}" "${SCHEMA_BUCKET}"
   exit 0
@@ -118,7 +182,7 @@ fi
 release_prefix="schemas/releases/${version}"
 published_prefix="schemas/published"
 
-for schema_path in "${SCHEMA_DIR}"/*.json; do
+for schema_path in "${bundle_dir}"/*.json; do
   file_name="$(basename "${schema_path}")"
   aws s3 cp "${schema_path}" "s3://${SCHEMA_BUCKET}/${release_prefix}/${file_name}"
 done

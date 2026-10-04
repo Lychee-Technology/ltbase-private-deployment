@@ -30,11 +30,12 @@ For the end-to-end deployment story, read [`CUSTOMER_ONBOARDING.md`](CUSTOMER_ON
 
 ## `preview.yml` — Preview LTBase Blueprint
 
-**What it does.** Validates the target stack before any deployment. It checks that `infra/Pulumi.<stack>.yaml` contains the required `ltbase-infra:*` config keys, dry-run-validates your `customer-owned/schemas/*.json` against the stack schema bucket (nothing is uploaded), runs the shared `preview-stack.yml` reusable workflow to produce a Pulumi diff, and finally audits Cloudflare/API Gateway mTLS posture.
+**What it does.** Validates the target stack before any deployment. It checks that `infra/Pulumi.<stack>.yaml` contains the required `ltbase-infra:*` config keys, dry-run-validates your `customer-owned/schemas/*.json` with the schema validator of the release being previewed (nothing is uploaded; see [Schema bundle validation](#schema-bundle-validation)), runs the shared `preview-stack.yml` reusable workflow to produce a Pulumi diff, and finally audits Cloudflare/API Gateway mTLS posture.
 
 **When to use it.**
 - Before the first rollout of a stack.
 - Any time you change stack configuration, the release selection, or other deployment inputs. Preview first, then rollout.
+- Before upgrading to a new release: previewing with the new `release_id` checks your schema bundle against that release before anything is deployed.
 - To confirm a Pulumi diff is within the scope you expect.
 
 **When not to use it.**
@@ -185,7 +186,7 @@ gh workflow run promote-prod.yml \
 
 ## `rollout-hop.yml` — Rollout LTBase Promotion Hop
 
-**What it does.** The single-hop deployment engine that every deploy/rollout/promote workflow above delegates to. For one target stack it: validates the Pulumi stack config, waits for approval on protected stacks, renders the Control Plane UI runtime config, publishes OIDC discovery for the deployed promotion-path prefix **before** rollout (placeholder key for the not-yet-deployed target so API Gateway can create its JWT authorizer), runs the shared `rollout-hop.yml` reusable workflow (`pulumi up`, control-plane UI publish, managed DSQL reconcile + second apply), republishes OIDC discovery for the prefix **after** rollout (now with the real KMS-backed key, polling until the placeholder is actually replaced), publishes customer schemas, invokes the control-plane `ensure-project` apply, advances the applied-schema pointer, audits mTLS, and — when `continue_chain` is true and the post-rollout discovery publish succeeded — dispatches the next hop.
+**What it does.** The single-hop deployment engine that every deploy/rollout/promote workflow above delegates to. For one target stack it: validates the Pulumi stack config and the customer schema bundle, waits for approval on protected stacks, renders the Control Plane UI runtime config, publishes OIDC discovery for the deployed promotion-path prefix **before** rollout (placeholder key for the not-yet-deployed target so API Gateway can create its JWT authorizer), runs the shared `rollout-hop.yml` reusable workflow (`pulumi up`, control-plane UI publish, managed DSQL reconcile + second apply), republishes OIDC discovery for the prefix **after** rollout (now with the real KMS-backed key, polling until the placeholder is actually replaced), publishes customer schemas, invokes the control-plane `ensure-project` apply, advances the applied-schema pointer, audits mTLS, and — when `continue_chain` is true and the post-rollout discovery publish succeeded — dispatches the next hop.
 
 **When to use it.**
 - Normally you do not run this directly; use `rollout.yml`, `deploy-devo.yml`, or `promote-prod.yml`.
@@ -226,6 +227,7 @@ gh workflow run rollout-hop.yml \
 **Notes.**
 - Approval is required for every stack that is not the start stack (`approval_required=true`); a canary also runs for those hops.
 - Schema publish and schema apply are separate: `schemas/published/manifest.json` advances on publish, `schemas/applied/manifest.json` only advances after `ensure-project` succeeds.
+- The schema bundle is checked with the validator of the release being deployed, twice: as a dry run before approval and before `pulumi up`, and again at publish time. A bundle that release cannot load stops the hop before anything is deployed. See [Schema bundle validation](#schema-bundle-validation).
 - When `continue_chain=true` and a `next_stack` exists, the workflow dispatches itself for the next hop.
 
 ---
@@ -318,6 +320,40 @@ gh workflow run publish-oidc-discovery.yml -f target_stacks=devo,prod --ref main
 
 **Notes.**
 - Fails if no `test/*-test.sh` files are found or any test fails.
+
+---
+
+## Schema bundle validation
+
+`preview.yml` and `rollout-hop.yml` both run `scripts/publish-schemas.sh`, which checks `customer-owned/schemas/*.json` in two steps before anything reaches the schema bucket:
+
+1. Every file must parse as JSON.
+2. Every cross-file `$ref` must resolve. This check is run by the schema validator that ships with the LTBase release being previewed or deployed. The script downloads it from `LTBASE_RELEASES_REPO` with `LTBASE_RELEASES_TOKEN` and verifies it against the checksum in the release manifest, so the bundle is judged by the same code that will load it.
+
+The second check exists because LTBase resolves cross-file references when it loads a bundle. One reference that does not resolve — a file that was renamed, a `$defs` entry that was removed — makes the **whole** bundle unloadable: every Forma request for the project fails with `503 forma_unavailable`, not only requests for the schema that owns the reference.
+
+**Where it runs.**
+
+| Workflow | Job | Mode | When |
+|----------|-----|------|------|
+| `preview.yml` | `validate_config` | dry run | Before the Pulumi preview. |
+| `rollout-hop.yml` | `validate_config` | dry run | Before approval and before `pulumi up`. |
+| `rollout-hop.yml` | `publish_schemas` | publish | After the rollout, on the exact bytes that are uploaded. |
+
+A failed dry run stops the workflow before anything is deployed. A failure at publish time uploads nothing and leaves both schema pointers where they were.
+
+**Releases without the validator.** Releases that predate the validator also predate load-time resolution, so there is nothing to check with and nothing that would refuse the bundle. The script learns this from the release's own manifest, prints `release <id> does not ship a schema validator; cross-file $ref resolution was not checked`, and continues with the JSON check alone. Every other outcome — no release id, a failed download, a checksum mismatch — is an error. The check is never skipped silently.
+
+**What it does not cover.** The check reads the bundle in the repository. A stack serves the bundle that was last *applied* to it, and keeps serving it while a rollout replaces the release underneath. When a new release rejects a bundle that the current release accepted, fixing the repository is therefore not enough on its own: follow [Fix a schema bundle the new release rejects](onboarding/08-day-2-operations.md#fix-a-schema-bundle-the-new-release-rejects).
+
+**Running it by hand.**
+
+```bash
+# Requires gh authenticated with read access to the releases repository
+LTBASE_RELEASE_ID=<release tag> ./scripts/publish-schemas.sh --dry-run --schema-bucket <schema bucket>
+```
+
+The validator is a Linux binary (arm64 and amd64). On other systems, run the Preview workflow instead.
 
 ---
 

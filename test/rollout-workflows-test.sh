@@ -171,4 +171,68 @@ if ! grep -Eq -- '^      - publish_oidc_discovery$' "${rollout_hop_workflow}"; t
   fail "expected dispatch_next needs to include publish_oidc_discovery"
 fi
 
+# ---------- schema bundle: checked with the release's validator, before the rollout ----------
+
+# job_block <workflow> <job>  — the lines of one job.
+job_block() {
+  awk -v header="  $2:" '
+    $0 == header { inside = 1; print; next }
+    inside && /^  [A-Za-z_]/ { exit }
+    inside { print }
+  ' "$1"
+}
+
+assert_job_contains() {
+  local workflow="$1"
+  local job="$2"
+  local needle="$3"
+  if ! job_block "${workflow}" "${job}" | grep -Fq -- "${needle}"; then
+    fail "expected job ${job} in ${workflow} to contain: ${needle}"
+  fi
+}
+
+# publish-schemas.sh refuses to run without a release id, and needs the releases
+# repository and its token to download that release's validator. A job that runs
+# the script without them fails every time, so each one is pinned, along with
+# the release id being the one the same workflow deploys.
+assert_schema_job() {
+  local workflow="$1"
+  local job="$2"
+  local release_expression="$3"
+  assert_job_contains "${workflow}" "${job}" "./scripts/publish-schemas.sh"
+  assert_job_contains "${workflow}" "${job}" "LTBASE_RELEASE_ID: ${release_expression}"
+  assert_job_contains "${workflow}" "${job}" "LTBASE_RELEASES_REPO: \${{ vars.LTBASE_RELEASES_REPO || 'Lychee-Technology/ltbase-releases' }}"
+  assert_job_contains "${workflow}" "${job}" "GH_TOKEN: \${{ secrets.LTBASE_RELEASES_TOKEN }}"
+}
+
+# shellcheck disable=SC2016
+preview_release='${{ inputs.release_id || vars.LTBASE_RELEASE_ID }}'
+# shellcheck disable=SC2016
+hop_release='${{ needs.prepare.outputs.release_id }}'
+
+assert_schema_job "${preview_workflow}" validate_config "${preview_release}"
+assert_job_contains "${preview_workflow}" preview "release_id: ${preview_release}"
+
+assert_schema_job "${rollout_hop_workflow}" validate_config "${hop_release}"
+assert_schema_job "${rollout_hop_workflow}" publish_schemas "${hop_release}"
+assert_job_contains "${rollout_hop_workflow}" rollout "release_id: ${hop_release}"
+
+if [[ "$(grep -c -- './scripts/publish-schemas.sh' "${preview_workflow}")" != "1" ]]; then
+  fail "expected exactly one publish-schemas.sh step in the preview workflow"
+fi
+if [[ "$(grep -c -- './scripts/publish-schemas.sh' "${rollout_hop_workflow}")" != "2" ]]; then
+  fail "expected exactly two publish-schemas.sh steps in rollout-hop: the pre-rollout dry run and the publish"
+fi
+
+# The hop's dry run has to stop the rollout, not merely precede it. publish_schemas
+# runs after the new release is live, so a bundle that release cannot load must be
+# refused in a job the rollout cannot start without.
+assert_job_contains "${rollout_hop_workflow}" validate_config "./scripts/publish-schemas.sh --dry-run --schema-bucket"
+if job_block "${rollout_hop_workflow}" publish_schemas | grep -Fq -- "--dry-run"; then
+  fail "expected publish_schemas to publish, not to dry-run"
+fi
+assert_job_contains "${rollout_hop_workflow}" approve "- validate_config"
+assert_job_contains "${rollout_hop_workflow}" publish_oidc_discovery_pre "needs.validate_config.result == 'success'"
+assert_job_contains "${rollout_hop_workflow}" rollout "needs.publish_oidc_discovery_pre.result == 'success'"
+
 printf 'PASS: rollout workflow tests\n'

@@ -33,11 +33,36 @@ The script checks:
 3. Review the synced template changes. The sync preserves local `.env` files, `infra/Pulumi.*.yaml`, the entire `customer-owned/` tree, customer-owned `infra/auth-providers.*.json`, and the sync helper's own script/test files.
 4. If the generated deployment repository does not yet have a real auth provider config file for a stack, copy the matching `infra/auth-providers.<stack>.json.example` file to `infra/auth-providers.<stack>.json` in that generated repository before the next bootstrap or preview run.
 5. Update `LTBASE_RELEASE_ID` in GitHub variables, or pass a new `release_id` directly to the workflow.
-6. Run the preview workflow.
-7. Review the Pulumi preview output. Remember that preview is infra-only and does not publish the Control Plane UI.
-8. Trigger `rollout.yml` once for the new release.
-9. Validate each deployed stack before approving the next protected target environment.
-10. Approve each protected hop in order until the promotion path completes.
+6. Run the preview workflow for the new release. Besides the Pulumi diff, it checks `customer-owned/schemas/*.json` with the new release's own schema validator.
+7. If the schema validation step fails, stop and follow [Fix a schema bundle the new release rejects](#fix-a-schema-bundle-the-new-release-rejects) before going further.
+8. Review the Pulumi preview output. Remember that preview is infra-only and does not publish the Control Plane UI.
+9. Trigger `rollout.yml` once for the new release. Each hop repeats the schema check before approval and before anything is deployed.
+10. Validate each deployed stack before approving the next protected target environment.
+11. Approve each protected hop in order until the promotion path completes.
+
+### Fix a schema bundle the new release rejects
+
+LTBase resolves cross-file `$ref`s when it loads a schema bundle and refuses the whole bundle if one of them does not resolve: every Forma request for the project then fails with `503 forma_unavailable`. Preview and every rollout hop therefore check `customer-owned/schemas/*.json` with the validator of the release being deployed, and stop before deploying when it reports a finding such as:
+
+```text
+result: FAILED — 1 finding(s)
+  - log: log.json: $ref "lead.json#/$defs/lead_id" at /properties/leadId: ...
+```
+
+That check reads the bundle in the repository. A stack serves the bundle that was last **applied** to it, and keeps serving it while a rollout replaces the release underneath. If the release a stack runs today accepted a bundle that the new release rejects, fixing the repository and rolling out the new release is not enough: the new release starts on the old bundle and fails until the hop reaches its publish and apply steps — and stays failed if the hop stops before them.
+
+Apply the fix with the release the stacks already run, then upgrade:
+
+1. Fix the reported references in `customer-owned/schemas/` and merge the fix.
+2. Re-run the preview workflow with the **new** `release_id` until the schema validation step passes.
+3. Run `rollout.yml` with the release the stacks **currently** run. The release does not change; each hop publishes and applies the corrected bundle.
+4. Run `rollout.yml` with the new release.
+
+Step 3 is what makes the upgrade safe. Skip it only when the stack already runs the release that rejected the bundle: there is no older release to go through, and a single rollout of the corrected bundle is the fix.
+
+The same order applies whenever `customer-owned/schemas/` has changed since the last rollout: the check cannot see a bundle that is still applied to a stack but no longer in the repository. Roll pending schema changes out with the current release before upgrading.
+
+See [Schema bundle validation](../GITHUB_ACTIONS.md#schema-bundle-validation) for what is checked and where.
 
 ### Re-run preview before changes
 

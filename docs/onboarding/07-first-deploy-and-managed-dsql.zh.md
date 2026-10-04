@@ -37,6 +37,8 @@
 
 确认 Pulumi preview 输出与你预期的基础设施变更一致。
 
+preview workflow 还会以 dry-run 方式校验 `customer-owned/schemas/*.json`：每个文件都必须是合法 JSON，并且会用所预览 release 自带的 schema 校验器检查每个跨文件 `$ref` 是否都能解析。preview 期间不会向 stack schema bucket 上传任何内容。详见 [Schema bundle 校验](../GITHUB_ACTIONS.zh.md#schema-bundle-校验)。
+
 preview workflow 只做基础设施预览。它不会发布 Control Plane UI，也不会更新 companion 仓库中的 runtime config。
 
 至少应检查：
